@@ -16,11 +16,11 @@ func _ready():
 	var tween2 = create_tween().set_loops().set_parallel(false).set_trans(Tween.TRANS_BACK)
 	tween2.tween_property($EnemyAnchor, "position:y", $EnemyAnchor.position.y + 3, 1.5).set_ease(Tween.EASE_IN_OUT)
 	tween2.tween_property($EnemyAnchor, "position:y", $EnemyAnchor.position.y - 3, 1.5).set_ease(Tween.EASE_IN_OUT)
-#	spawn_enemies()	
+	spawn_enemies()	
 	
 func spawn_enemies():
 	for x in range(9):
-		for y in range(3):
+		for y in range(4):
 			var e = enemy.instantiate()
 			var pos = Vector2(x * (16 + 8) + 24, 16 * 4 + y * 16)
 			add_child(e)
