@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://c75hkmg7jyox6"]
 
-[ext_resource type="Script" uid="uid://kxf8ivcxjmn8" path="res://bullet.gd" id="1_xg6su"]
+[ext_resource type="Script" uid="uid://com1v8ljh3qkq" path="res://bullet_yellow.gd" id="1_xg6su"]
 [ext_resource type="Texture2D" uid="uid://ctqixvff0dqtq" path="res://Mini Pixel Pack 3/Projectiles/Enemy_projectile (16 x 16).png" id="2_xg6su"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j08f7"]
