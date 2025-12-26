@@ -15,8 +15,7 @@ func _ready():
 	tween.tween_property($EnemyAnchor, "position:x", $EnemyAnchor.position.x - 3, 1.0)
 	var tween2 = create_tween().set_loops().set_parallel(false).set_trans(Tween.TRANS_BACK)
 	tween2.tween_property($EnemyAnchor, "position:y", $EnemyAnchor.position.y + 3, 1.5).set_ease(Tween.EASE_IN_OUT)
-	tween2.tween_property($EnemyAnchor, "position:y", $EnemyAnchor.position.y - 3, 1.5).set_ease(Tween.EASE_IN_OUT)
-	spawn_enemies()	
+	tween2.tween_property($EnemyAnchor, "position:y", $EnemyAnchor.position.y - 3, 1.5).set_ease(Tween.EASE_IN_OUT)	
 	
 func spawn_enemies():
 	for x in range(9):
@@ -51,8 +50,16 @@ func new_game():
 	$CanvasLayer/UI.update_score(score)
 	$Player.start()
 	spawn_enemies()
-	playing = true
+	playing = true 
 
 func _on_start_pressed():
 	start_button.hide()
 	new_game()
+	spawn_enemies()
+	
+func _input(event):
+	# Use the action you created in Input Map
+	if event.is_action_pressed("start"):
+		# Only start if we're at the start screen
+		if start_button.visible and not playing:
+			_on_start_pressed()
