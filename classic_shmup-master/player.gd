@@ -83,7 +83,7 @@ func shoot():
 	$GunCooldown.start()
 	
 	# Choose bullet type based on absorption state
-	var bullet = bullet_yellow_scene.instantiate() if is_absorbing else bullet_scene.instantiate()
+	var bullet = bullet_scene.instantiate() if is_absorbing else bullet_scene.instantiate()
 	get_tree().root.add_child(bullet)
 	bullet.start(position + Vector2(0, -8))
 	

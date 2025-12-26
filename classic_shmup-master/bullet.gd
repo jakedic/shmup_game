@@ -4,7 +4,7 @@ extends Area2D
 
 func start(pos):
 	position = pos
-	
+	$Bullettimer.start()
 func _process(delta):
 	position.y += speed * delta
 
@@ -17,3 +17,6 @@ func _on_area_entered(area):
 	if area.is_in_group("enemies"):
 		area.explode()
 		queue_free()
+
+func _on_bullettimer_timeout():
+	queue_free()

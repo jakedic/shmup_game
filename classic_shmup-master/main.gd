@@ -22,7 +22,7 @@ func spawn_enemies():
 	for x in range(9):
 		for y in range(4):
 			var e = enemy.instantiate()
-			var pos = Vector2(x * (16 + 8) + 24, 16 * 4 + y * 16)
+			var pos = Vector2(x * (16 + 8) + 24, 16 * 3 + y * 40)
 			add_child(e)
 			e.start(pos)
 			e.anchor = $EnemyAnchor
