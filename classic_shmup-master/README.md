@@ -29,3 +29,5 @@ Just google it
 
 # Shmup Template. Complete walkthrough of the shmup template I used. There are obviously some changes I made to the code to do the absorbtion but otherwise it should match pretty closely. Great walkthrough of how the code works and you can kinda dig into it section by section. Also has some good general Godot training. 
 https://kidscancode.org/godot_recipes/4.x/games/first_2d/
+
+banana
