@@ -44,7 +44,7 @@ func _process(delta):
 func handle_absorb_input():
 	"""Process absorb/revert key inputs"""
 	if Input.is_action_pressed("absorb"):
-		is_absorbing = true
+		#is_absorbing = true
 		absorb()
 	if Input.is_action_pressed("revert"):
 		is_absorbing = false
