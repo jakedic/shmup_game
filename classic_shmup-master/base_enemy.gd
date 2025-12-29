@@ -1,17 +1,24 @@
+# base_enemy.gd
 extends Area2D
+class_name BaseEnemy  # Makes it available as a class
 
-signal died 
+signal died(value: int)
 
+# Common properties for ALL enemies
 var start_pos = Vector2.ZERO
 var speed = 0
-var bullet_scene = preload("res://enemy_bullet.tscn")
 var anchor
 var follow_anchor = false
 
-@onready var screensize  = get_viewport_rect().size
+@onready var screensize = get_viewport_rect().size
 
+# Must be implemented by child classes
+var bullet_scene: PackedScene
+func _ready():
+	# If you want to set a specific bullet for this enemy type:
+	bullet_scene = preload("res://enemy_bullet.tscn")
 
-func start(pos):
+func start(pos: Vector2):
 	follow_anchor = false
 	speed = 0
 	position = Vector2(pos.x, -pos.y)
@@ -25,7 +32,7 @@ func start(pos):
 	$MoveTimer.start()
 	$ShootTimer.wait_time = randf_range(4, 20)
 	$ShootTimer.start()
-	
+
 func _process(delta):
 	if follow_anchor:
 		position = start_pos + anchor.position
@@ -37,7 +44,7 @@ func explode():
 	speed = 0
 	$AnimationPlayer.play("explode")
 	set_deferred("monitorable", false)
-	died.emit(5)
+	died.emit(5)  # Default 5 points
 	await $AnimationPlayer.animation_finished
 	queue_free()
 
@@ -45,9 +52,12 @@ func _on_timer_timeout():
 	speed = randf_range(75, 100)
 	follow_anchor = false
 
+# Abstract method - child classes must override
 func _on_shoot_timer_timeout():
+	push_error("_on_shoot_timer_timeout not implemented in child class!")
+
+# Common method for shooting
+func shoot_bullet(bullet_position: Vector2):
 	var b = bullet_scene.instantiate()
 	get_tree().root.add_child(b)
-	b.start(position)
-	$ShootTimer.wait_time = randf_range(4, 20)
-	$ShootTimer.start()
+	b.start(bullet_position)

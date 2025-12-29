@@ -1,6 +1,7 @@
 extends Node2D
 
-var enemy = preload("res://enemy.tscn")
+var enemy_yellow = preload("res://enemy_yellow.tscn")
+var enemy_red = preload("res://enemy_red.tscn")
 var score = 0
 var playing = false
 
@@ -18,9 +19,13 @@ func _ready():
 	tween2.tween_property($EnemyAnchor, "position:y", $EnemyAnchor.position.y - 3, 1.5).set_ease(Tween.EASE_IN_OUT)	
 	
 func spawn_enemies():
-	for x in range(9):
+	for x in range(9): 
 		for y in range(4):
-			var e = enemy.instantiate()
+			var e
+			if randf()<.5:
+				e = enemy_yellow.instantiate()
+			else:
+				e = enemy_red.instantiate()
 			var pos = Vector2(x * (16 + 8) + 24, 16 * 3 + y * 40)
 			add_child(e)
 			e.start(pos)
