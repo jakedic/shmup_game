@@ -60,7 +60,7 @@ func new_game():
 func _on_start_pressed():
 	start_button.hide()
 	new_game()
-	spawn_enemies()
+	#spawn_enemies()
 	
 func _input(event):
 	# Use the action you created in Input Map
