@@ -16,13 +16,14 @@ signal died
 # Sprite textures for normal and absorbing states
 @export var default_sprite_texture: Texture2D
 @export var yellow_sprite_texture: Texture2D
+var texture
 
 # State variables
 var shield = max_shield:
 	set = set_shield  # Use setter function when shield changes
 var can_shoot = true
 var can_absorb = true
-var is_absorbing = false
+var is_absorbing = 0
 
 @onready var screensize = get_viewport_rect().size
 
@@ -47,7 +48,7 @@ func handle_absorb_input():
 		#is_absorbing = true
 		absorb()
 	if Input.is_action_pressed("revert"):
-		is_absorbing = false
+		is_absorbing = 0
 		update_sprite()
 
 func handle_movement(delta):
@@ -83,7 +84,7 @@ func shoot():
 	$GunCooldown.start()
 	
 	# Choose bullet type based on absorption state
-	var bullet = bullet_yellow_scene.instantiate() if is_absorbing else bullet_scene.instantiate()
+	var bullet = bullet_yellow_scene.instantiate() if is_absorbing>0 else bullet_scene.instantiate()
 	get_tree().root.add_child(bullet)
 	bullet.start(position + Vector2(0, -8))
 	
@@ -124,20 +125,21 @@ func set_shield(value):
 
 func update_sprite():
 	"""Update ship sprite based on absorption state"""
-	if is_absorbing:
-		if $Ship is Sprite2D:
-			$Ship.texture = yellow_sprite_texture
-			$Ship.hframes = 4
-		else:
-			$Ship.hframes = 4
+	if is_absorbing==1:
+		$Ship.texture = yellow_sprite_texture
+		$Ship.hframes = 4
+	elif is_absorbing==2:
+		texture = load("res://Mini Pixel Pack 3/Enemies/Lips (16 x 16).png")
+		$Ship.texture = texture
+		$Ship.hframes = 5
 	else:
 		if $Ship is Sprite2D:
 			$Ship.hframes = 3
 			$Ship.texture = default_sprite_texture
 
-func absorb_complete():
+func absorb_complete(hit_enemy_type=0):
 	"""Called when boomerang returns successfully"""
-	is_absorbing = true
+	is_absorbing = hit_enemy_type
 	update_sprite()
 
 func _on_gun_cooldown_timeout():

@@ -12,6 +12,8 @@ var max_distance = 80  # Adjust this value as needed
 var start_position = Vector2.ZERO
 var distance_traveled = 0.0
 
+var hit_enemy_type = 0
+
 func start(pos, player):
 	position = pos
 	target_player = player
@@ -35,7 +37,7 @@ func _physics_process(delta):
 		# Check if reached player
 		if to_player.length() < 10:
 			if  has_hit_enemy and target_player and target_player.has_method("absorb_complete"):
-				target_player.absorb_complete()  # Callback to player
+				target_player.absorb_complete(hit_enemy_type)  # Callback to player
 			queue_free()
 	else:
 		# Move forward
@@ -53,3 +55,8 @@ func _on_area_entered(area):
 		area.explode()  # Or whatever enemy destruction method you have
 		has_hit_enemy = true
 		returning = true
+		
+		if area.has_method("get_enemy_type"):  # Check if enemy has this method
+			hit_enemy_type = area.get_enemy_type()
+		else:
+			hit_enemy_type = 1 

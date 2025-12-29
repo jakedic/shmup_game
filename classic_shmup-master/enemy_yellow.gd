@@ -10,3 +10,6 @@ func _on_shoot_timer_timeout():
 	shoot_bullet(position)
 	$ShootTimer.wait_time = randf_range(4, 20)
 	$ShootTimer.start()
+	
+func get_enemy_type():
+	return 1
