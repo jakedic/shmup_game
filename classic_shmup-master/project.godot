@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Classic Shmup"
-run/main_scene="res://main.tscn"
+run/main_scene="uid://1e4f1orws50e"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://Mini Pixel Pack 3/UI objects/Player_life_icon (16 x 16).png"
 

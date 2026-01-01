@@ -1,7 +1,7 @@
 [gd_scene load_steps=12 format=3 uid="uid://b8exv6qda8frv"]
 
 [ext_resource type="Texture2D" uid="uid://cwuy4b17rh7ql" path="res://Mini Pixel Pack 3/Space_BG (2 frames) (64 x 64).png" id="1_hjad5"]
-[ext_resource type="Script" uid="uid://44jufiif2prl" path="res://main.gd" id="1_vtt5l"]
+[ext_resource type="Script" uid="uid://44jufiif2prl" path="res://levels/main.gd" id="1_vtt5l"]
 [ext_resource type="PackedScene" uid="uid://b32476hejmrnj" path="res://player.tscn" id="2_tiq3a"]
 [ext_resource type="Texture2D" uid="uid://cr7usmfo6apt8" path="res://Mini Pixel Pack 3/UI objects/GAME_OVER (72 x 8).png" id="3_5ueml"]
 [ext_resource type="Texture2D" uid="uid://o6gwbftsnc8c" path="res://Mini Pixel Pack 3/UI objects/START (48 x 8).png" id="4_37xqa"]

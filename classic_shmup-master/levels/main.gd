@@ -48,6 +48,7 @@ func _on_player_died():
 	game_over.show()
 	await get_tree().create_timer(2).timeout
 	game_over.hide()
+	get_tree().change_scene_to_file("res://levels/title_screen.tscn")
 	start_button.show()
 	
 func new_game():
