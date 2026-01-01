@@ -1,9 +1,8 @@
-[gd_scene load_steps=10 format=3 uid="uid://c6xpwdon80bdg"]
+[gd_scene load_steps=9 format=3 uid="uid://buv1055nhydxp"]
 
-[ext_resource type="Script" uid="uid://bi3imheem4p8r" path="res://enemy_red.gd" id="1_75ls0"]
-[ext_resource type="Texture2D" uid="uid://bfvjqpdy1yspp" path="res://Mini Pixel Pack 3/Enemies/Bon_Bon (16 x 16).png" id="2_poahn"]
-[ext_resource type="Texture2D" uid="uid://dn1edfs6n7tjr" path="res://Mini Pixel Pack 3/Effects/Explosion (16 x 16).png" id="3_b0sya"]
-[ext_resource type="Texture2D" uid="uid://cd3kds3g0kblv" path="res://Mini Pixel Pack 3/Enemies/Lips (16 x 16).png" id="3_poahn"]
+[ext_resource type="Script" uid="uid://ci0watw44p7tt" path="res://enemies/enemy_yellow.gd" id="1_acjx7"]
+[ext_resource type="Texture2D" uid="uid://bfvjqpdy1yspp" path="res://Mini Pixel Pack 3/Enemies/Bon_Bon (16 x 16).png" id="2_rtbia"]
+[ext_resource type="Texture2D" uid="uid://dn1edfs6n7tjr" path="res://Mini Pixel Pack 3/Effects/Explosion (16 x 16).png" id="3_pkprb"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j7632"]
 size = Vector2(16, 10)
@@ -17,7 +16,7 @@ tracks/0/path = NodePath("Sprite2D:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(1.6),
+"times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
 "values": [2]
@@ -32,7 +31,7 @@ tracks/1/keys = {
 "times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [ExtResource("2_poahn")]
+"values": [ExtResource("2_rtbia")]
 }
 tracks/2/type = "value"
 tracks/2/imported = false
@@ -58,7 +57,7 @@ tracks/0/path = NodePath("Sprite2D:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.65, 1.55, 2.55, 3.45),
+"times": PackedFloat32Array(0, 0.1, 0.2, 0.3, 0.35),
 "transitions": PackedFloat32Array(1, 1, 1, 1, 1),
 "update": 1,
 "values": [2, 1, 0, 3, 0]
@@ -73,7 +72,7 @@ tracks/1/keys = {
 "times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [ExtResource("3_poahn")]
+"values": [ExtResource("2_rtbia")]
 }
 tracks/2/type = "value"
 tracks/2/imported = false
@@ -82,10 +81,10 @@ tracks/2/path = NodePath("Sprite2D:hframes")
 tracks/2/interp = 1
 tracks/2/loop_wrap = true
 tracks/2/keys = {
-"times": PackedFloat32Array(0, 0.9),
-"transitions": PackedFloat32Array(1, 1),
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [4, 6]
+"values": [4]
 }
 
 [sub_resource type="Animation" id="Animation_jorl6"]
@@ -113,7 +112,7 @@ tracks/1/keys = {
 "times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [ExtResource("3_b0sya")]
+"values": [ExtResource("3_pkprb")]
 }
 tracks/2/type = "value"
 tracks/2/imported = false
@@ -135,11 +134,11 @@ _data = {
 &"explode": SubResource("Animation_jorl6")
 }
 
-[node name="Enemy" type="Area2D" groups=["enemies"]]
-script = ExtResource("1_75ls0")
+[node name="Enemy2" type="Area2D" groups=["enemies"]]
+script = ExtResource("1_acjx7")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("2_poahn")
+texture = ExtResource("2_rtbia")
 hframes = 6
 frame = 2
 

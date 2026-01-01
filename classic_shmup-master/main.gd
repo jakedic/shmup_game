@@ -1,7 +1,7 @@
 extends Node2D
 
-var enemy_yellow = preload("res://enemy_yellow.tscn")
-var enemy_red = preload("res://enemy_red.tscn")
+var enemy_yellow = preload("res://Enemies/enemy_yellow.tscn")
+var enemy_red = preload("res://Enemies/enemy_red.tscn")
 var score = 0
 var playing = false
 

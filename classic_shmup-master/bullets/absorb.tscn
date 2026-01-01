@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://bb1nkdpy32wgs"]
 
-[ext_resource type="Script" uid="uid://clqyt4vlfypiu" path="res://absorb.gd" id="1_4nfwk"]
+[ext_resource type="Script" uid="uid://clqyt4vlfypiu" path="res://bullets/absorb.gd" id="1_4nfwk"]
 [ext_resource type="Texture2D" uid="uid://csat7a4n6w5te" path="res://Mini Pixel Pack 3/Projectiles/Player_charged_donut_shot (16 x 16).png" id="2_4nfwk"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j08f7"]

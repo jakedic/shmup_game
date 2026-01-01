@@ -1,5 +1,5 @@
 # basic_enemy.gd (was enemy.gd)
-extends "res://base_enemy.gd"  # Inherits from base class
+extends "res://enemies/base_enemy.gd"  # Inherits from base class
 class_name YellowEnemy
 
 # Override bullet_scene with specific bullet

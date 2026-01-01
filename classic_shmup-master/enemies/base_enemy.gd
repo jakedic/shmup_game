@@ -16,7 +16,7 @@ var follow_anchor = false
 var bullet_scene: PackedScene
 func _ready():
 	# If you want to set a specific bullet for this enemy type:
-	bullet_scene = preload("res://enemy_bullet.tscn")
+	bullet_scene = preload("res://bullets/enemy_bullet.tscn")
 
 func start(pos: Vector2):
 	follow_anchor = false
