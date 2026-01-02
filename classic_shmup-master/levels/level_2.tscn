@@ -1,12 +1,12 @@
-[gd_scene load_steps=12 format=3 uid="uid://b8exv6qda8frv"]
+[gd_scene load_steps=12 format=3 uid="uid://donxqsjx40qkr"]
 
-[ext_resource type="Texture2D" uid="uid://cwuy4b17rh7ql" path="res://Mini Pixel Pack 3/Space_BG (2 frames) (64 x 64).png" id="1_hjad5"]
-[ext_resource type="Script" uid="uid://44jufiif2prl" path="res://levels/main.gd" id="1_vtt5l"]
-[ext_resource type="PackedScene" uid="uid://b32476hejmrnj" path="res://player.tscn" id="2_tiq3a"]
-[ext_resource type="Texture2D" uid="uid://cr7usmfo6apt8" path="res://Mini Pixel Pack 3/UI objects/GAME_OVER (72 x 8).png" id="3_5ueml"]
-[ext_resource type="Texture2D" uid="uid://o6gwbftsnc8c" path="res://Mini Pixel Pack 3/UI objects/START (48 x 8).png" id="4_37xqa"]
-[ext_resource type="PackedScene" uid="uid://b54c7ad6cogrm" path="res://ui.tscn" id="4_hy8xi"]
-[ext_resource type="Script" uid="uid://crpidppxf8f7t" path="res://Camera2D.gd" id="7_qw2vk"]
+[ext_resource type="Script" uid="uid://cmheeg1cr2841" path="res://levels/level_2.gd" id="1_ep78u"]
+[ext_resource type="PackedScene" uid="uid://b54c7ad6cogrm" path="res://ui.tscn" id="2_k40iv"]
+[ext_resource type="Texture2D" uid="uid://cr7usmfo6apt8" path="res://Mini Pixel Pack 3/UI objects/GAME_OVER (72 x 8).png" id="3_solx0"]
+[ext_resource type="Texture2D" uid="uid://o6gwbftsnc8c" path="res://Mini Pixel Pack 3/UI objects/START (48 x 8).png" id="4_bjquc"]
+[ext_resource type="Texture2D" uid="uid://cwuy4b17rh7ql" path="res://Mini Pixel Pack 3/Space_BG (2 frames) (64 x 64).png" id="5_6eoiu"]
+[ext_resource type="PackedScene" uid="uid://b32476hejmrnj" path="res://player.tscn" id="6_kjwqk"]
+[ext_resource type="Script" uid="uid://crpidppxf8f7t" path="res://Camera2D.gd" id="7_osobe"]
 
 [sub_resource type="Animation" id="Animation_frim2"]
 length = 0.001
@@ -49,11 +49,11 @@ _data = {
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_uf0tv"]
 
 [node name="Main" type="Node2D"]
-script = ExtResource("1_vtt5l")
+script = ExtResource("1_ep78u")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
-[node name="UI" parent="CanvasLayer" instance=ExtResource("4_hy8xi")]
+[node name="UI" parent="CanvasLayer" instance=ExtResource("2_k40iv")]
 
 [node name="CenterContainer" type="CenterContainer" parent="CanvasLayer"]
 anchors_preset = 15
@@ -64,22 +64,22 @@ grow_vertical = 2
 
 [node name="GameOver" type="TextureRect" parent="CanvasLayer/CenterContainer"]
 layout_mode = 2
-texture = ExtResource("3_5ueml")
+texture = ExtResource("3_solx0")
 
 [node name="Start" type="TextureButton" parent="CanvasLayer/CenterContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
-texture_normal = ExtResource("4_37xqa")
+texture_normal = ExtResource("4_bjquc")
 
 [node name="Background" type="Sprite2D" parent="."]
 texture_repeat = 2
 position = Vector2(120, 160)
 scale = Vector2(1.1, 1.1)
-texture = ExtResource("1_hjad5")
+texture = ExtResource("5_6eoiu")
 region_enabled = true
 region_rect = Rect2(2.08165e-12, 2.08165e-12, 240, 320)
 
-[node name="Player" parent="." instance=ExtResource("2_tiq3a")]
+[node name="Player" parent="." instance=ExtResource("6_kjwqk")]
 position = Vector2(120, 240)
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
@@ -90,7 +90,7 @@ autoplay = "new_animation"
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(120, 160)
-script = ExtResource("7_qw2vk")
+script = ExtResource("7_osobe")
 noise = SubResource("FastNoiseLite_uf0tv")
 
 [node name="EnemyAnchor" type="Node2D" parent="."]
