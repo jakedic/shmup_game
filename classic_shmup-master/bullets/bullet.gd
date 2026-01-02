@@ -1,22 +1,25 @@
-extends Area2D
+# yellow_bullet.gd
+extends Bullet
+class_name Bullet_Basic
 
-@export var speed = -250
+func _ready():
+	# Initialize with yellow bullet properties
+	speed = 250
+	damage = 1
+	#modulate = Color.YELLOW
+	
+	# Set up the bullet timer for auto-destruction
+	$BulletTimer.wait_time = 0.7  # 5 second lifespan
+	$BulletTimer.start()
 
-func start(pos):
-	position = pos
-	$Bullettimer.start()
-func _process(delta):
-	position.y += speed * delta
+# Override start method if you need different behavior
+func start(pos: Vector2, dir: Vector2 = Vector2.UP):
+	# Call parent start method
+	super.start(pos, dir)
+	# Yellow bullet specific initialization can go here
 
-
-func _on_visible_on_screen_notifier_2d_screen_exited():
-	queue_free()
-
-
-func _on_area_entered(area):
-	if area.is_in_group("enemies"):
-		area.explode()
-		queue_free()
-
-func _on_bullettimer_timeout():
-	queue_free()
+# The base Bullet class already handles:
+# - _process (movement)
+# - _on_visible_on_screen_notifier_2d_screen_exited
+# - _on_area_entered (with damage and explode)
+# - _on_bullettimer_timeout
