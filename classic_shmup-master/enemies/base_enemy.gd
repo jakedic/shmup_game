@@ -3,6 +3,7 @@ extends Area2D
 class_name BaseEnemy  # Makes it available as a class
 
 signal died(value: int)
+signal health_changed(current_health: int, max_health: int)  # Optional: for health bars
 
 # Common properties for ALL enemies
 var start_pos = Vector2.ZERO
@@ -10,11 +11,17 @@ var speed = 0
 var anchor
 var follow_anchor = false
 
+# Health system
+@export var max_health: int = 1  # Make this exportable to set different health per enemy type
+var current_health: int
+
 @onready var screensize = get_viewport_rect().size
 
 # Must be implemented by child classes
 var bullet_scene: PackedScene
+
 func _ready():
+	current_health = max_health  # Initialize health
 	# If you want to set a specific bullet for this enemy type:
 	bullet_scene = preload("res://bullets/enemy_bullet.tscn")
 
@@ -40,6 +47,39 @@ func _process(delta):
 	if position.y > screensize.y + 32:
 		start(start_pos)
 
+# Function to take damage
+func take_damage(damage_amount: int = 1):
+	current_health -= damage_amount
+	
+	# Emit health changed signal (optional, for health bars)
+	health_changed.emit(current_health, max_health)
+	
+	# Visual feedback for taking damage
+	#$AnimationPlayer.play("take_damage") if $AnimationPlayer.has_animation("take_damage") else flash_damage()
+	
+	# Check if enemy is dead
+	if current_health <= 0:
+		die()
+		return true  # Return true if enemy died
+	
+	return false  # Return false if still alive
+
+# Helper function for visual damage feedback
+func flash_damage():
+	var original_modulate = modulate
+	modulate = Color.RED
+	await get_tree().create_timer(0.1).timeout
+	modulate = original_modulate
+
+# Function to handle death
+func die():
+	# Stop all timers
+	$MoveTimer.stop()
+	$ShootTimer.stop()
+	
+	# Call explode for visual effect
+	explode()
+
 func explode():
 	speed = 0
 	$AnimationPlayer.play("explode")
@@ -52,12 +92,28 @@ func _on_timer_timeout():
 	speed = randf_range(75, 100)
 	follow_anchor = false
 
-# Abstract method - child classes must override
+# Method for enemy shooting
 func _on_shoot_timer_timeout():
-	push_error("_on_shoot_timer_timeout not implemented in child class!")
+	shoot_bullet(position)
+	$ShootTimer.wait_time = randf_range(4, 20)
+	$ShootTimer.start()
 
 # Common method for shooting
 func shoot_bullet(bullet_position: Vector2):
 	var b = bullet_scene.instantiate()
 	get_tree().root.add_child(b)
 	b.start(bullet_position)
+
+# Optional: Healing function
+func heal(heal_amount: int):
+	current_health = min(current_health + heal_amount, max_health)
+	health_changed.emit(current_health, max_health)
+	
+	# Visual feedback for healing
+	modulate = Color.GREEN
+	await get_tree().create_timer(0.1).timeout
+	modulate = Color.WHITE
+
+# Optional: Getter for health percentage
+func get_health_percentage() -> float:
+	return float(current_health) / float(max_health)

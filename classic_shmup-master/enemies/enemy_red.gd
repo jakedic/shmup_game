@@ -6,6 +6,8 @@ class_name RedEnemy
 #@export var bullet_scene: PackedScene = preload("res://enemy_bullet.tscn")
 func _ready():
 	# Set hframes in code (overrides Inspector)
+	max_health = 1  # Yellow enemies have 3 health
+	current_health = max_health
 	$Sprite2D.hframes = 5
 	$Sprite2D.vframes = 1  # Also set vframes if needed
 	bullet_scene = preload("res://bullets/enemy_bullet.tscn")  # Change to your actual bullet

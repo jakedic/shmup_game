@@ -1,15 +1,18 @@
-# basic_enemy.gd (was enemy.gd)
-extends "res://enemies/base_enemy.gd"  # Inherits from base class
+# yellow_enemy.gd
+extends BaseEnemy
 class_name YellowEnemy
 
-# Override bullet_scene with specific bullet
-#@export var bullet_scene: PackedScene = preload("res://enemy_bullet.tscn")
+func _ready():
+	# Set yellow enemy specific properties
+	max_health = 3  # Yellow enemies have 3 health
+	current_health = max_health
+	bullet_scene = preload("res://bullets/enemy_bullet.tscn")
+	
+	# Set yellow color
+	modulate = Color.YELLOW
 
-func _on_shoot_timer_timeout():
-	# Call parent's shoot method with our position
-	shoot_bullet(position)
-	$ShootTimer.wait_time = randf_range(4, 20)
-	$ShootTimer.start()
+# Optional: Override take_damage for yellow enemy specific behavior
+
 	
 func get_enemy_type():
 	return 1
