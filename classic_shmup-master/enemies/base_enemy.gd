@@ -50,26 +50,31 @@ func _process(delta):
 # Function to take damage
 func take_damage(damage_amount: int = 1):
 	current_health -= damage_amount
-	
-	# Emit health changed signal (optional, for health bars)
 	health_changed.emit(current_health, max_health)
 	
-	# Visual feedback for taking damage
-	#$AnimationPlayer.play("take_damage") if $AnimationPlayer.has_animation("take_damage") else flash_damage()
-	
-	# Check if enemy is dead
 	if current_health <= 0:
 		die()
-		return true  # Return true if enemy died
+		return true
 	
-	return false  # Return false if still alive
-
-# Helper function for visual damage feedback
-func flash_damage():
+	# Try RED flash instead of white (more noticeable)
 	var original_modulate = modulate
+	
+	# Flash red
 	modulate = Color.RED
-	await get_tree().create_timer(0.1).timeout
-	modulate = original_modulate
+	
+	# Reset after delay using timer
+	var reset_timer = Timer.new()
+	add_child(reset_timer)
+	reset_timer.one_shot = true
+	reset_timer.wait_time = 0.1
+	reset_timer.timeout.connect(_on_damage_flash_timeout.bind(original_modulate, reset_timer))
+	reset_timer.start()
+	
+	return false
+
+func _on_damage_flash_timeout(original_color: Color, timer: Timer):
+	modulate = original_color
+	timer.queue_free()
 
 # Function to handle death
 func die():
