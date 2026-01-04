@@ -12,7 +12,7 @@ func _ready():
 	#modulate = Color.YELLOW
 
 # Optional: Override take_damage for yellow enemy specific behavior
-func take_damage(damage_amount: int = 1):
+'''func take_damage(damage_amount: int = 1):
 	# Yellow enemies take less damage? Or have special effect?
 	# For example: yellow enemies flash yellow when hit
 	var original_modulate = modulate
@@ -21,7 +21,7 @@ func take_damage(damage_amount: int = 1):
 	modulate = original_modulate
 	
 	# Call parent take_damage
-	return super.take_damage(damage_amount)
+	return super.take_damage(damage_amount)'''
 	
 func get_enemy_type():
 	return 1
