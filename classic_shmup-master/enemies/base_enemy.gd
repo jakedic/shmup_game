@@ -272,17 +272,22 @@ func shoot_single():
 	launch_bullet(bullet, position)
 
 func shoot_multiple():
-	"""Shoot multiple bullets in a spread"""
+	"""Custom multi-shot implementation"""
+	var base_direction = Vector2.DOWN
+	
 	for i in range(shot_count):
-		var angle_offset = deg_to_rad(shot_spread) * (i - (shot_count - 1) / 2.0)
-		var bullet = create_bullet()
-		configure_bullet(bullet)
+		# Calculate spread
+		var t = float(i) / max(1, shot_count - 1)
+		var angle = shot_spread * (t - 0.5)  # Center the spread
+		var direction = base_direction.rotated(deg_to_rad(angle))
 		
-		# Set direction with spread
-		var direction = Vector2.DOWN.rotated(angle_offset)
-		bullet.set_direction(direction)
+		# Create bullet
+		var bullet = bullet_scene.instantiate()
+		get_tree().root.add_child(bullet)
 		
-		launch_bullet(bullet, position)
+		# Set bullet properties
+		if bullet.has_method("start"):
+			bullet.start(position, direction)
 
 func create_bullet() -> Node2D:
 	"""Create and configure a bullet instance"""

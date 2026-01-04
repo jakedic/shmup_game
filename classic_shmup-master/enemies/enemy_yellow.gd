@@ -7,6 +7,9 @@ func _ready():
 	max_health = 3  # Yellow enemies have 3 health
 	current_health = max_health
 	bullet_scene = preload("res://enemy_bullets/enemy_bullet.tscn")
+	multi_shot=true
+	shot_count=3
+	shot_spread=60
 	
 	# Set yellow color
 	#modulate = Color.YELLOW
@@ -22,6 +25,7 @@ func _ready():
 	
 	# Call parent take_damage
 	return super.take_damage(damage_amount)'''
+	
 	
 func get_enemy_type():
 	return 1
