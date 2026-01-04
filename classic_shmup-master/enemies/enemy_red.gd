@@ -10,13 +10,13 @@ func _ready():
 	current_health = max_health
 	$Sprite2D.hframes = 5
 	$Sprite2D.vframes = 1  # Also set vframes if needed
-	bullet_scene = preload("res://bullets/enemy_bullet.tscn")  # Change to your actual bullet
+	bullet_scene = preload("res://enemy_bullets/enemy_bullet.tscn")  # Change to your actual bullet
 	
-func _on_shoot_timer_timeout():
+'''func _on_shoot_timer_timeout():
 	# Call parent's shoot method with our position
 	shoot_bullet(position)
 	$ShootTimer.wait_time = randf_range(4, 20)
-	$ShootTimer.start()
+	$ShootTimer.start()'''
 	
 func get_enemy_type():
 	return 2

@@ -23,7 +23,7 @@ var bullet_scene: PackedScene
 func _ready():
 	current_health = max_health  # Initialize health
 	# If you want to set a specific bullet for this enemy type:
-	bullet_scene = preload("res://bullets/enemy_bullet.tscn")
+	bullet_scene = preload("res://enemy_bullets/enemy_bullet.tscn")
 
 func start(pos: Vector2):
 	follow_anchor = false
