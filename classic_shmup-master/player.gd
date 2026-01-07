@@ -42,6 +42,13 @@ signal player_healed(amount: int)
 @export var recoil_distance: float = 1.0
 @export var recoil_duration: float = 0.1
 
+# Simple dictionary to define form properties
+var current_form_data: Dictionary = {}
+var yellow_form = preload("res://transformations/yellow.tres")
+var default_form = preload("res://transformations/default.tres")
+var current_form='default'
+var form_path
+var form_resource
 # Sound properties (add these if you have sound)
 # @export var shoot_sound: AudioStream
 # @export var absorb_sound: AudioStream
@@ -322,25 +329,34 @@ func on_absorb():
 
 func revert_absorption():
 	"""Revert back to normal state"""
-	if is_absorbing > 0:
-		is_absorbing = 0
+	#if is_absorbing > 0:
+	if current_form!='default':
+		'''is_absorbing = 0
 		update_sprite()
-		on_revert_absorption()
+		on_revert_absorption()'''
+		self.set_form(default_form.get_modified_properties())
+		
 
 func on_revert_absorption():
 	"""Called when absorption is reverted"""
 	# Override for custom behavior
 	pass
 
-func absorb_complete(hit_enemy_type: int = 0):
+func absorb_complete(hit_enemy_type: String):
 	"""Called when absorption projectile returns successfully"""
-	if hit_enemy_type > 0 and hit_enemy_type <= max_absorption_level:
-		is_absorbing = hit_enemy_type
+	if hit_enemy_type:
+		'''is_absorbing = hit_enemy_type
 		update_sprite()
-		player_absorbed.emit(hit_enemy_type)
+		player_absorbed.emit(hit_enemy_type)'''
+		#current_form='yellow'
+		#self.set_form(yellow_form.get_modified_properties())
+		form_path = "res://transformations/%s.tres" % hit_enemy_type.to_lower()
+		form_resource = load(form_path)
+		self.set_form(form_resource.get_modified_properties())
+		current_form=hit_enemy_type
 		
 		# Custom behavior based on enemy type
-		on_absorption_complete(hit_enemy_type)
+		#on_absorption_complete(hit_enemy_type)
 
 func on_absorption_complete(enemy_type: int):
 	"""Override this for custom behavior when absorption completes"""
@@ -534,3 +550,90 @@ func _on_gun_cooldown_timeout():
 
 func _on_absorb_cooldown_timeout():
 	can_absorb = true
+	
+func set_form(form_data: Dictionary):
+	"""
+	Set the player's form with the given data.
+	Only updates properties that are specified in the dictionary.
+	"""
+	if not is_alive:
+		return
+	
+	# Store previous form data for transition effects
+	var previous_form = current_form_data.duplicate()
+	
+	# Merge new form data with existing (new values override old ones)
+	current_form_data.merge(form_data, true)
+	
+	# Apply the form changes
+	apply_form_changes(form_data, previous_form)
+
+func apply_form_changes(new_data: Dictionary, previous_data: Dictionary):
+	"""Apply only the changed properties"""
+	
+	# Movement properties
+	if new_data.has("speed"):
+		speed = new_data["speed"]
+	
+	if new_data.has("acceleration"):
+		acceleration = new_data["acceleration"]
+	
+	if new_data.has("deceleration"):
+		deceleration = new_data["deceleration"]
+	
+	# Health/shield properties
+	if new_data.has("max_shield"):
+		var new_max_shield = new_data["max_shield"]
+		max_shield = new_max_shield
+		shield = min(shield, new_max_shield)  # Adjust current shield if needed
+	
+	if new_data.has("shield_regen_rate"):
+		shield_regen_rate = new_data["shield_regen_rate"]
+	
+	if new_data.has("shield_regen_delay"):
+		shield_regen_delay = new_data["shield_regen_delay"]
+	
+	# Shooting properties
+	if new_data.has("shoot_cooldown"):
+		shoot_cooldown = new_data["shoot_cooldown"]
+		$GunCooldown.wait_time = shoot_cooldown
+	
+	if new_data.has("bullet_scene"):
+		bullet_scene = new_data["bullet_scene"]
+	
+	if new_data.has("bullet_yellow_scene"):
+		bullet_yellow_scene = new_data["bullet_yellow_scene"]
+	
+	if new_data.has("can_multi_shoot"):
+		can_multi_shoot = new_data["can_multi_shoot"]
+	
+	if new_data.has("shot_count"):
+		shot_count = new_data["shot_count"]
+	
+	if new_data.has("shot_spread"):
+		shot_spread = new_data["shot_spread"]
+	
+	# Visual properties
+	if new_data.has("default_sprite_texture"):
+		default_sprite_texture = new_data["default_sprite_texture"]
+	
+	if new_data.has("yellow_sprite_texture"):
+		yellow_sprite_texture = new_data["yellow_sprite_texture"]
+	
+	if new_data.has("player_color"):
+		player_color = new_data["player_color"]
+		modulate = player_color
+	
+	# Update sprite if texture changed
+	if new_data.has("default_sprite_texture") or new_data.has("yellow_sprite_texture"):
+		update_sprite()
+	
+	# Special: If you want to trigger a transformation animation
+	if new_data.has("play_transform_animation") and new_data["play_transform_animation"]:
+		play_simple_transition_effect()
+
+func play_simple_transition_effect():
+	"""Play a simple transformation effect"""
+	var tween = create_tween()
+	tween.tween_property($Ship, "modulate", Color(1, 1, 1, 0.5), 0.1)
+	tween.tween_property($Ship, "modulate", player_color, 0.1)

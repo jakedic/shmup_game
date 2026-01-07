@@ -19,4 +19,4 @@ func _ready():
 	$ShootTimer.start()'''
 	
 func get_enemy_type():
-	return 2
+	return 'red'

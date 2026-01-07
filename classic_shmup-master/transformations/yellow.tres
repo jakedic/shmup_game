@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ShipForm" load_steps=4 format=3 uid="uid://cwvvvo0sa65mq"]
+
+[ext_resource type="Script" uid="uid://c1h2fsj5x1ywo" path="res://transformations/ship_form.gd" id="1_4hbd2"]
+[ext_resource type="Texture2D" uid="uid://bfvjqpdy1yspp" path="res://Mini Pixel Pack 3/Enemies/Bon_Bon (16 x 16).png" id="1_dp15g"]
+[ext_resource type="PackedScene" uid="uid://c75hkmg7jyox6" path="res://bullets/bullet_yellow.tscn" id="1_ey273"]
+
+[resource]
+script = ExtResource("1_4hbd2")
+speed = 250.0
+bullet_scene = ExtResource("1_ey273")
+default_sprite_texture = ExtResource("1_dp15g")
+yellow_sprite_texture = ExtResource("1_dp15g")
+metadata/_custom_type_script = "uid://c1h2fsj5x1ywo"

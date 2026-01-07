@@ -28,4 +28,5 @@ func _ready():
 	
 	
 func get_enemy_type():
-	return 1
+	return 'yellow'
+	
