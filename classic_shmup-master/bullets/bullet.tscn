@@ -1,26 +1,75 @@
-[gd_scene load_steps=4 format=3 uid="uid://ce2sbgdju6rp7"]
+[gd_scene load_steps=11 format=3 uid="uid://ce2sbgdju6rp7"]
 
 [ext_resource type="Script" uid="uid://kxf8ivcxjmn8" path="res://bullets/bullet.gd" id="1_blc85"]
-[ext_resource type="Texture2D" uid="uid://bgh2dexnxpy0x" path="res://Mini Pixel Pack 3/Projectiles/Player_charged_beam (16 x 16).png" id="1_d0mkt"]
+[ext_resource type="Texture2D" uid="uid://bi05q5q2jb54" path="res://bullets/Player_bullet_final.png" id="2_wo3kc"]
+[ext_resource type="Texture2D" uid="uid://cffrorsoldap6" path="res://bullets/Player_bullet_disipate_frame2.png" id="3_bmuwf"]
+[ext_resource type="Texture2D" uid="uid://c6syd1joalpf5" path="res://bullets/Player_bullet_disipate_frame3.png" id="4_c3usq"]
+[ext_resource type="Texture2D" uid="uid://baxo4bo5ert2g" path="res://bullets/Player_bullet_disipate_frame4.png" id="5_ibjxv"]
+[ext_resource type="Script" uid="uid://bw0our3076dqj" path="res://bullets/player_bullet_disipation_animation.gd" id="6_c3usq"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j08f7"]
 size = Vector2(16, 16)
+
+[sub_resource type="Animation" id="Animation_mgd2n"]
+resource_name = "Bullet_disipation"
+length = 0.7
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.43333334, 0.53333336, 0.56666666),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 1,
+"values": [ExtResource("2_wo3kc"), ExtResource("3_bmuwf"), ExtResource("4_c3usq"), ExtResource("5_ibjxv")]
+}
+
+[sub_resource type="Animation" id="Animation_w5e60"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:texture")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [ExtResource("2_wo3kc")]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_um4s1"]
+_data = {
+&"Bullet_disipation": SubResource("Animation_mgd2n"),
+&"RESET": SubResource("Animation_w5e60")
+}
 
 [node name="Bullet" type="Area2D"]
 script = ExtResource("1_blc85")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("1_d0mkt")
-hframes = 2
+position = Vector2(0, -3)
+scale = Vector2(0.2, 0.2)
+texture = ExtResource("2_wo3kc")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_j08f7")
 
-[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="CollisionShape2D"]
 
 [node name="BulletTimer" type="Timer" parent="."]
 wait_time = 0.7
 
+[node name="Bullet_disipation" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_um4s1")
+}
+autoplay = "Bullet_disipation"
+script = ExtResource("6_c3usq")
+
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]
-[connection signal="screen_exited" from="VisibleOnScreenNotifier2D" to="." method="_on_visible_on_screen_notifier_2d_screen_exited"]
+[connection signal="screen_exited" from="CollisionShape2D/VisibleOnScreenNotifier2D" to="." method="_on_visible_on_screen_notifier_2d_screen_exited"]
 [connection signal="timeout" from="BulletTimer" to="." method="_on_bullettimer_timeout"]
