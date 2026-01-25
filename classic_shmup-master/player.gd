@@ -34,6 +34,26 @@ signal player_healed(amount: int)
 @export var absorb_cooldown: float = 2.0
 @export var max_absorption_level: int = 2  # Maximum enemy types that can be absorbed
 
+# ===== DASH SYSTEM VARIABLES =====
+@export var dash_speed: float = 10.0  # Speed while dashing
+@export var dash_duration: float = 2  # How long the dash lasts
+@export var dash_cooldown: float = 0.5  # Cooldown between dashes
+var spin_speed: float = 2080.0
+
+# Double-tap detection variables
+const DOUBLETAP_DELAY = 0.25
+var doubletap_time_left = 0.0
+var doubletap_time_right = 0.0
+var doubletap_time_up = 0.0
+var doubletap_time_down = 0.0
+var last_direction_input = Vector2.ZERO
+var dash_timer: Timer
+var dash_cooldown_timer: Timer
+var is_dashing: bool = false
+var can_dash: bool = true
+var dash_direction: Vector2 = Vector2.ZERO
+var original_speed: float
+
 # Visual properties
 @export var default_sprite_texture: Texture2D
 @export var yellow_sprite_texture: Texture2D
@@ -73,6 +93,7 @@ func start():
 
 func initialize_player():
 	"""Initialize all player systems"""
+	
 	is_alive = true
 	show()
 	
@@ -89,13 +110,12 @@ func initialize_player():
 	# Apply visual properties
 	apply_visuals()
 	
-	# Custom initialization for child classes
-	custom_initialize()
-
-func custom_initialize():
-	"""Override this in child classes for custom initialization"""
-	pass
-
+	setup_dash_timers()
+	original_speed = speed
+	can_dash = true
+	is_dashing = false
+	
+	
 func reset_position():
 	"""Reset player to starting position"""
 	position = Vector2(screensize.x / 2, screensize.y - 64)
@@ -113,36 +133,66 @@ func _process(delta):
 	process_input(delta)
 	process_shield_regen(delta)
 	
-	# Custom per-frame logic
-	custom_process(delta)
+	# Update double-tap timers
+	update_doubletap_timers(delta)
+	
+	if is_dashing and is_instance_valid($Ship):
+		$Ship.rotation += deg_to_rad(spin_speed) * delta
+
 
 func process_input(delta):
 	"""Process all player input"""
 	handle_absorb_input()
 	handle_movement(delta)
 	handle_shoot_input()
+	handle_dash_input()  # Add this line
 
 func handle_movement(delta):
 	"""Process player movement with smooth acceleration"""
 	var input = Input.get_vector("left", "right", "up", "down")
 	
-	# Update animations
-	update_movement_animation(input.x)
+	# If dashing, override input with dash direction
 	
-	# Calculate target velocity
-	var target_velocity = input * speed
-	
-	# Smooth acceleration/deceleration
-	if input.length() > 0:
-		current_velocity = current_velocity.lerp(target_velocity, acceleration * delta)
+	if is_dashing:
+		# Get the dash direction (initial direction when dash started)
+		var base_dash_dir = dash_direction
+		
+		# Apply player input to modify dash direction
+		# The 0.5 factor controls how much input affects the dash (0.5 = 50% influence)
+		var steering_influence = 5
+		var modified_direction = (base_dash_dir + input * steering_influence)
+		
+		# Smoothly transition to new direction
+		dash_direction = dash_direction.lerp(modified_direction, 4.0 * delta)
+		
+		# Apply dash velocity
+		current_velocity = dash_direction * dash_speed
 	else:
-		current_velocity = current_velocity.lerp(Vector2.ZERO, deceleration * delta)
+		# Normal movement with acceleration/deceleration
+		if input.length() > 0:
+			current_velocity = current_velocity.lerp(input * speed, acceleration * delta)
+		else:
+			current_velocity = current_velocity.lerp(Vector2.ZERO, deceleration * delta)
+	
+	
+	# Update animations (skip animation during dash for different effect)
+	if not is_dashing:
+		update_movement_animation(input.x)
+	else:
+		# Special dash animation
+		$Ship.frame = 1  # Forward frame during dash
+		$Ship/Boosters.animation = "forward"
+		#$Ship.modulate = Color(0.5, 0.8, 1.0)  # Blue tint
 	
 	# Apply movement
 	position += current_velocity * delta
 	
 	# Enforce screen boundaries
 	clamp_to_screen()
+
+func can_player_dash() -> bool:
+	"""Check if player can dash"""
+	return can_dash and is_alive and not is_dashing
 
 func update_movement_animation(x_input: float):
 	"""Update ship animation based on movement direction"""
@@ -160,9 +210,142 @@ func clamp_to_screen():
 	"""Keep player within screen boundaries"""
 	position = position.clamp(Vector2(8, 8), screensize - Vector2(8, 8))
 
-func custom_process(delta: float):
-	"""Override this for custom per-frame logic"""
-	pass
+func setup_dash_timers():
+	"""Set up timers for dash duration and cooldown"""
+	dash_timer = Timer.new()
+	dash_timer.name = "DashTimer"
+	dash_timer.one_shot = true
+	dash_timer.timeout.connect(_on_dash_timer_timeout)
+	add_child(dash_timer)
+	
+	dash_cooldown_timer = Timer.new()
+	dash_cooldown_timer.name = "DashCooldownTimer"
+	dash_cooldown_timer.one_shot = true
+	dash_cooldown_timer.timeout.connect(_on_dash_cooldown_timeout)
+	add_child(dash_cooldown_timer)
+	
+func update_doubletap_timers(delta: float):
+	"""Update all double-tap detection timers"""
+	if doubletap_time_left > 0:
+		doubletap_time_left -= delta
+	if doubletap_time_right > 0:
+		doubletap_time_right -= delta
+	if doubletap_time_up > 0:
+		doubletap_time_up -= delta
+	if doubletap_time_down > 0:
+		doubletap_time_down -= delta
+		
+func handle_dash_input():
+	"""Handle dash input based on double-tap detection"""
+	if not is_alive or not can_dash or is_dashing:
+		return
+	
+	# Check for double-tap in each direction
+	if Input.is_action_just_pressed("left"):
+		if doubletap_time_left > 0:
+			start_dash(Vector2.LEFT)
+		else:
+			doubletap_time_left = DOUBLETAP_DELAY
+	
+	if Input.is_action_just_pressed("right"):
+		if doubletap_time_right > 0:
+			start_dash(Vector2.RIGHT)
+		else:
+			doubletap_time_right = DOUBLETAP_DELAY
+	
+	if Input.is_action_just_pressed("up"):
+		if doubletap_time_up > 0:
+			start_dash(Vector2.UP)
+		else:
+			doubletap_time_up = DOUBLETAP_DELAY
+	
+	if Input.is_action_just_pressed("down"):
+		if doubletap_time_down > 0:
+			start_dash(Vector2.DOWN)
+		else:
+			doubletap_time_down = DOUBLETAP_DELAY
+	
+	# Also check for double-tap using held direction + opposite press
+	# (Alternative method: tap direction, release, tap same direction quickly)
+	var input = Input.get_vector("left", "right", "up", "down")
+	if input != Vector2.ZERO and input != last_direction_input:
+		# Check if this is a quick return to the same direction
+		if last_direction_input != Vector2.ZERO and input.dot(last_direction_input) > 0.7:
+			# This detects quick direction changes (like left-right-left)
+			pass
+	last_direction_input = input
+	
+func start_dash(direction: Vector2):
+	"""Start a dash in the given direction"""
+	if not can_dash or is_dashing:
+		return
+	
+	# Normalize diagonal dashes
+	if direction.length() > 1:
+		direction = direction.normalized()
+	
+	dash_direction = direction
+	is_dashing = true
+	can_dash = false
+	
+	# Change to dash speed
+	speed = dash_speed
+	
+	# Set invincibility during dash (optional)
+	#set_collision_layer_value(1, false)  # Disable player collision layer
+	#set_collision_mask_value(2, false)   # Disable enemy collision mask
+	
+	
+	# Start dash duration timer
+	dash_timer.start(dash_duration)
+	
+	# Visual feedback for dash
+	on_dash_start()
+
+func on_dash_start():
+	"""Visual and audio effects for dash start"""
+	# Visual effect
+	modulate = Color(0.5, 0.8, 1.0, 0.7)  # Blue tint during dash
+	
+	# Particle effect (if you have one)
+	if has_node("DashParticles"):
+		$DashParticles.emitting = true
+	
+	# Sound effect
+	# if dash_sound and $DashSound:
+	#     $DashSound.stream = dash_sound
+	#     $DashSound.play()
+
+func on_dash_end():
+	"""Clean up dash effects"""
+	# Restore normal speed
+	speed = original_speed
+	is_dashing = false
+	
+	# Restore normal appearance
+	modulate = player_color
+	
+	# Stop particle effects
+	if has_node("DashParticles"):
+		$DashParticles.emitting = false
+	
+	# Start cooldown timer
+	dash_cooldown_timer.start(dash_cooldown)
+	
+	if is_instance_valid($Ship):
+		$Ship.rotation = 0
+	
+	# Restore collision (if disabled)
+	# set_collision_layer_value(1, true)
+	# set_collision_mask_value(2, true)
+
+func _on_dash_timer_timeout():
+	"""Called when dash duration ends"""
+	on_dash_end()
+
+func _on_dash_cooldown_timeout():
+	"""Called when dash cooldown ends"""
+	can_dash = true
 
 # ===== SHOOTING SYSTEM =====
 func handle_shoot_input():
@@ -249,12 +432,6 @@ func launch_bullet(bullet: Node2D, spawn_pos: Vector2):
 	# Emit signal
 	player_shot.emit(bullet)
 	
-	# Custom launch behavior
-	custom_bullet_launch(bullet)
-
-func custom_bullet_launch(bullet: Node2D):
-	"""Override this for custom bullet launch behavior"""
-	pass
 
 func on_shoot():
 	"""Handle visual and audio effects for shooting"""
@@ -286,7 +463,6 @@ func absorb():
 	# Create absorption projectile
 	var boomerang = create_absorption_projectile()
 	if boomerang:
-		configure_absorption_projectile(boomerang)
 		launch_absorption_projectile(boomerang)
 	
 	# Visual/sound effects
@@ -298,11 +474,6 @@ func create_absorption_projectile() -> Node2D:
 		return null
 	return absorb_scene.instantiate()
 
-func configure_absorption_projectile(projectile: Node2D):
-	"""Configure absorption projectile properties"""
-	# Override this for custom projectile configuration
-	pass
-
 func launch_absorption_projectile(projectile: Node2D):
 	"""Launch absorption projectile"""
 	get_tree().root.add_child(projectile)
@@ -310,12 +481,6 @@ func launch_absorption_projectile(projectile: Node2D):
 	if projectile.has_method("start"):
 		projectile.start(position + Vector2(0, -8), self)
 	
-	# Custom launch behavior
-	custom_absorption_launch(projectile)
-
-func custom_absorption_launch(projectile: Node2D):
-	"""Override this for custom absorption launch behavior"""
-	pass
 
 func on_absorb():
 	"""Handle visual and audio effects for absorption"""
@@ -331,16 +496,9 @@ func revert_absorption():
 	"""Revert back to normal state"""
 	#if is_absorbing > 0:
 	if current_form!='default':
-		'''is_absorbing = 0
-		update_sprite()
-		on_revert_absorption()'''
+
 		self.set_form(default_form.get_modified_properties())
 		
-
-func on_revert_absorption():
-	"""Called when absorption is reverted"""
-	# Override for custom behavior
-	pass
 
 func absorb_complete(hit_enemy_type: String):
 	"""Called when absorption projectile returns successfully"""
@@ -355,12 +513,6 @@ func absorb_complete(hit_enemy_type: String):
 		self.set_form(form_resource.get_modified_properties())
 		current_form=hit_enemy_type
 		
-		# Custom behavior based on enemy type
-		#on_absorption_complete(hit_enemy_type)
-
-func on_absorption_complete(enemy_type: int):
-	"""Override this for custom behavior when absorption completes"""
-	pass
 
 # ===== SHIELD/HEALTH SYSTEM =====
 func set_shield(value: int):
@@ -387,12 +539,6 @@ func take_damage(damage_amount: int = 1):
 	#     $HitSound.stream = hit_sound
 	#     $HitSound.play()
 	
-	# Custom damage handling
-	custom_take_damage(damage_amount)
-
-func custom_take_damage(damage_amount: int):
-	"""Override this for custom damage handling"""
-	pass
 
 func flash_damage():
 	"""Visual feedback when taking damage"""
@@ -464,12 +610,7 @@ func update_sprite():
 			$Ship.hframes = 3
 			$Ship.texture = default_sprite_texture
 	
-	# Custom sprite update
-	custom_update_sprite()
 
-func custom_update_sprite():
-	"""Override this for custom sprite updates"""
-	pass
 
 func animate_recoil():
 	"""Play the ship recoil animation when shooting"""
@@ -491,13 +632,6 @@ func handle_enemy_collision(area: Area2D):
 	# Take damage
 	take_damage(int(max_shield / 2.0))
 	
-	# Custom collision handling
-	custom_enemy_collision(area)
-
-func custom_enemy_collision(area: Area2D):
-	"""Override this for custom enemy collision handling"""
-	pass
-
 # ===== HELPER METHODS =====
 func set_speed(new_speed: float):
 	"""Change player speed"""
