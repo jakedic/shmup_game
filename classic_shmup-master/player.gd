@@ -493,26 +493,54 @@ func on_absorb():
 	#     $AbsorbSound.play()
 
 func revert_absorption():
-	"""Revert back to normal state"""
-	#if is_absorbing > 0:
-	if current_form!='default':
+	if current_form != 'default':
+		# Reset to default form
+		reset_to_default_form()
+		current_form = 'default'
 
-		self.set_form(default_form.get_modified_properties())
+func reset_to_default_form():
+	speed = original_speed
+	shoot_cooldown = 0.25  # Your default value
+	$GunCooldown.wait_time = shoot_cooldown
+	max_shield = 10  # Your default value
+	shield = min(shield, max_shield)
+	shield_regen_rate = 0.0  # Your default value
+	absorb_cooldown = 2.0  # Your default value
+	$AbsorbCooldown.wait_time = absorb_cooldown
+	can_multi_shoot = false  # Your default value
+	shot_count = 1  # Your default value
+	bullet_scene=load("res://bullets/bullet.tscn")
+	
+	# Reset visual appearance
+	modulate = player_color
+	update_sprite()
 		
 
-func absorb_complete(hit_enemy_type: String):
+'''func absorb_complete(hit_enemy_type: String):
 	"""Called when absorption projectile returns successfully"""
 	if hit_enemy_type:
-		'''is_absorbing = hit_enemy_type
-		update_sprite()
-		player_absorbed.emit(hit_enemy_type)'''
-		#current_form='yellow'
-		#self.set_form(yellow_form.get_modified_properties())
+
 		form_path = "res://transformations/%s.tres" % hit_enemy_type.to_lower()
 		form_resource = load(form_path)
 		self.set_form(form_resource.get_modified_properties())
-		current_form=hit_enemy_type
+		current_form=hit_enemy_type'''
 		
+func absorb_complete(hit_enemy_type: String):
+	if hit_enemy_type:
+		current_form = hit_enemy_type
+		
+		# Call the corresponding transformation function
+		var transform_func_name = get_transformation_function_name(hit_enemy_type)
+		
+		if has_method(transform_func_name):
+			call(transform_func_name)
+		else:
+			print("No transformation function found for: ", hit_enemy_type)
+			# Fall back to resource-based transformation
+		'''form_path = "res://transformations/%s.tres" % hit_enemy_type.to_lower()
+		if ResourceLoader.exists(form_path):
+			form_resource = load(form_path)
+			self.set_form(form_resource.get_modified_properties())'''
 
 # ===== SHIELD/HEALTH SYSTEM =====
 func set_shield(value: int):
@@ -685,7 +713,7 @@ func _on_gun_cooldown_timeout():
 func _on_absorb_cooldown_timeout():
 	can_absorb = true
 	
-func set_form(form_data: Dictionary):
+'''func set_form(form_data: Dictionary):
 	"""
 	Set the player's form with the given data.
 	Only updates properties that are specified in the dictionary.
@@ -764,10 +792,41 @@ func apply_form_changes(new_data: Dictionary, previous_data: Dictionary):
 	
 	# Special: If you want to trigger a transformation animation
 	if new_data.has("play_transform_animation") and new_data["play_transform_animation"]:
-		play_simple_transition_effect()
+		play_simple_transition_effect()'''
 
 func play_simple_transition_effect():
 	"""Play a simple transformation effect"""
 	var tween = create_tween()
 	tween.tween_property($Ship, "modulate", Color(1, 1, 1, 0.5), 0.1)
 	tween.tween_property($Ship, "modulate", player_color, 0.1)
+
+func get_transformation_function_name(enemy_type: String) -> String:
+	return "transform_" + enemy_type.to_lower()
+	
+# ===== TRANSFORMATION FUNCTIONS =====
+
+func transform_yellow():
+	speed = original_speed * 2
+	
+	# Optional visual feedback
+	modulate = Color.YELLOW
+	var timer = get_tree().create_timer(0.5)
+	timer.timeout.connect(func(): modulate = player_color)
+	
+	var yellow_texture = load("res://Mini Pixel Pack 3/Enemies/Bon_Bon (16 x 16).png")
+	$Ship.texture = yellow_texture
+	$Ship.hframes = 4  # Adjust this to match your yellow sprite's frame count
+	
+	# Change bullets to yellow bullets
+	# If you want ALL bullets to be yellow while transformed:
+	bullet_scene = load("res://bullets/bullet_yellow.tscn")
+
+func transform_red():
+
+	shoot_cooldown = max(0.05, shoot_cooldown * 0.5)  # Halve cooldown (faster shooting)
+	$GunCooldown.wait_time = shoot_cooldown
+	
+	# Visual feedback
+	modulate = Color.RED
+	var timer = get_tree().create_timer(0.5)
+	timer.timeout.connect(func(): modulate = player_color)
