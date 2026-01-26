@@ -34,6 +34,8 @@ var current_bounce: int = 0
 var time_alive: float = 0.0
 var is_homing_active: bool = false
 
+var slow_down: int = 0
+
 func _ready():
 	"""Called when bullet is added to scene"""
 	# Apply visual properties
@@ -93,6 +95,12 @@ func _process(delta: float):
 	
 	# Update distance traveled
 	distance_traveled += abs(movement.length())
+	
+	#Slow Down at the end
+	if distance_traveled >= max_distance*0.5 and slow_down==0:
+		speed=speed/10
+		slow_down=1
+		return
 	
 	# Check if bullet has exceeded max distance
 	if distance_traveled >= max_distance:
