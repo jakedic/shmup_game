@@ -35,10 +35,12 @@ signal player_healed(amount: int)
 @export var max_absorption_level: int = 2  # Maximum enemy types that can be absorbed
 
 # ===== DASH SYSTEM VARIABLES =====
-@export var dash_speed: float = 10.0  # Speed while dashing
-@export var dash_duration: float = 2  # How long the dash lasts
+@export var dash_speed: float = 200.0  # Speed while dashing
+@export var dash_duration: float = 0.5  # How long the dash lasts
 @export var dash_cooldown: float = 0.5  # Cooldown between dashes
-var spin_speed: float = 2080.0
+var spin_speed: float = 0.0
+
+var dash_time = 0.0
 
 # Double-tap detection variables
 const DOUBLETAP_DELAY = 0.25
@@ -157,24 +159,40 @@ func handle_movement(delta):
 		# Get the dash direction (initial direction when dash started)
 		var base_dash_dir = dash_direction
 		
-		# Apply player input to modify dash direction
-		# The 0.5 factor controls how much input affects the dash (0.5 = 50% influence)
-		var steering_influence = 5
-		var modified_direction = (base_dash_dir + input * steering_influence)
+		# Track dash time for sine wave
+		dash_time += delta
+		
+		# Calculate sine wave offset perpendicular to dash direction
+		# Create a perpendicular vector (rotate 90 degrees)
+		var perpendicular_dir = base_dash_dir.rotated(PI/2)
+		
+		# Apply sine wave oscillation perpendicular to dash direction
+		# Adjust amplitude and frequency to control wave size and speed
+		var wave_amplitude = 50.0  # How far side-to-side the wave goes
+		var wave_frequency = 10.0  # How fast the wave oscillates
+		
+		# Calculate sine wave offset
+		var wave_offset = perpendicular_dir * sin(dash_time * wave_frequency) * wave_amplitude
+		
+		# Apply player input to modify dash direction with reduced influence during wave
+		var steering_influence = 0.3  # Reduced since we're adding wave motion
+		var modified_direction = (base_dash_dir + input * steering_influence).normalized()
 		
 		# Smoothly transition to new direction
-		dash_direction = dash_direction.lerp(modified_direction, 4.0 * delta)
+		dash_direction = dash_direction.lerp(modified_direction, 2.0 * delta)
 		
-		# Apply dash velocity
-		current_velocity = dash_direction * dash_speed
+		# Apply dash velocity with sine wave added
+		current_velocity = (dash_direction * dash_speed) + wave_offset
 	else:
+		# Reset dash time when not dashing
+		dash_time = 0
+		
 		# Normal movement with acceleration/deceleration
 		if input.length() > 0:
 			current_velocity = current_velocity.lerp(input * speed, acceleration * delta)
 		else:
 			current_velocity = current_velocity.lerp(Vector2.ZERO, deceleration * delta)
-	
-	
+		
 	# Update animations (skip animation during dash for different effect)
 	if not is_dashing:
 		update_movement_animation(input.x)
