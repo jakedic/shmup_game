@@ -27,7 +27,7 @@ signal player_healed(amount: int)
 @export var bullet_yellow_scene: PackedScene
 @export var can_multi_shoot: bool = false
 @export var shot_count: int = 1
-@export var shot_spread: float = 10.0  # degrees
+@export var shot_spread: float = 30.0  # degrees
 
 # Absorption properties
 @export var absorb_scene: PackedScene
@@ -35,10 +35,14 @@ signal player_healed(amount: int)
 @export var max_absorption_level: int = 2  # Maximum enemy types that can be absorbed
 
 # ===== DASH SYSTEM VARIABLES =====
-@export var dash_speed: float = 200.0  # Speed while dashing
-@export var dash_duration: float = 0.5  # How long the dash lasts
+@export var dash_speed: float = 400.0  # Speed while dashing
+@export var dash_duration: float = 0.15  # How long the dash lasts
 @export var dash_cooldown: float = 0.5  # Cooldown between dashes
 var spin_speed: float = 0.0
+var steering_influence = 5
+
+var circle_radius = 0.0
+var circle_speed = 0.0
 
 var dash_time = 0.0
 
@@ -166,8 +170,6 @@ func handle_movement(delta):
 		var perpendicular_dir = base_dash_dir.rotated(PI/2)
 
 		# Adjust circle size and speed
-		var circle_radius = 500.0
-		var circle_speed = 30.0
 
 		# Create a vector that will rotate in a circle
 		# Start with a vector pointing to the "right" of the perpendicular direction
@@ -182,14 +184,13 @@ func handle_movement(delta):
 		var circle_offset = circle_vector.rotated(perpendicular_dir.angle())
 
 		# Apply player input to modify dash direction
-		var steering_influence = 0.3
 		var modified_direction = (base_dash_dir + input * steering_influence).normalized()
 
 		# Smoothly transition to new direction
 		dash_direction = dash_direction.lerp(modified_direction, 2.0 * delta)
 
 		# Apply dash velocity with circular motion added
-		current_velocity = (dash_direction * dash_speed) + circle_offset
+		current_velocity = (dash_direction * dash_speed) - circle_offset
 	else:
 		# Reset dash time when not dashing
 		dash_time = 0
@@ -535,6 +536,11 @@ func reset_to_default_form():
 	can_multi_shoot = false  # Your default value
 	shot_count = 1  # Your default value
 	bullet_scene=load("res://bullets/bullet.tscn")
+	circle_radius = 0
+	circle_speed = 0
+	spin_speed=0
+	steering_influence=5
+	dash_duration=0.15
 	
 	# Reset visual appearance
 	modulate = player_color
@@ -737,87 +743,6 @@ func _on_gun_cooldown_timeout():
 
 func _on_absorb_cooldown_timeout():
 	can_absorb = true
-	
-'''func set_form(form_data: Dictionary):
-	"""
-	Set the player's form with the given data.
-	Only updates properties that are specified in the dictionary.
-	"""
-	if not is_alive:
-		return
-	
-	# Store previous form data for transition effects
-	var previous_form = current_form_data.duplicate()
-	
-	# Merge new form data with existing (new values override old ones)
-	current_form_data.merge(form_data, true)
-	
-	# Apply the form changes
-	apply_form_changes(form_data, previous_form)
-
-func apply_form_changes(new_data: Dictionary, previous_data: Dictionary):
-	"""Apply only the changed properties"""
-	
-	# Movement properties
-	if new_data.has("speed"):
-		speed = new_data["speed"]
-	
-	if new_data.has("acceleration"):
-		acceleration = new_data["acceleration"]
-	
-	if new_data.has("deceleration"):
-		deceleration = new_data["deceleration"]
-	
-	# Health/shield properties
-	if new_data.has("max_shield"):
-		var new_max_shield = new_data["max_shield"]
-		max_shield = new_max_shield
-		shield = min(shield, new_max_shield)  # Adjust current shield if needed
-	
-	if new_data.has("shield_regen_rate"):
-		shield_regen_rate = new_data["shield_regen_rate"]
-	
-	if new_data.has("shield_regen_delay"):
-		shield_regen_delay = new_data["shield_regen_delay"]
-	
-	# Shooting properties
-	if new_data.has("shoot_cooldown"):
-		shoot_cooldown = new_data["shoot_cooldown"]
-		$GunCooldown.wait_time = shoot_cooldown
-	
-	if new_data.has("bullet_scene"):
-		bullet_scene = new_data["bullet_scene"]
-	
-	if new_data.has("bullet_yellow_scene"):
-		bullet_yellow_scene = new_data["bullet_yellow_scene"]
-	
-	if new_data.has("can_multi_shoot"):
-		can_multi_shoot = new_data["can_multi_shoot"]
-	
-	if new_data.has("shot_count"):
-		shot_count = new_data["shot_count"]
-	
-	if new_data.has("shot_spread"):
-		shot_spread = new_data["shot_spread"]
-	
-	# Visual properties
-	if new_data.has("default_sprite_texture"):
-		default_sprite_texture = new_data["default_sprite_texture"]
-	
-	if new_data.has("yellow_sprite_texture"):
-		yellow_sprite_texture = new_data["yellow_sprite_texture"]
-	
-	if new_data.has("player_color"):
-		player_color = new_data["player_color"]
-		modulate = player_color
-	
-	# Update sprite if texture changed
-	if new_data.has("default_sprite_texture") or new_data.has("yellow_sprite_texture"):
-		update_sprite()
-	
-	# Special: If you want to trigger a transformation animation
-	if new_data.has("play_transform_animation") and new_data["play_transform_animation"]:
-		play_simple_transition_effect()'''
 
 func play_simple_transition_effect():
 	"""Play a simple transformation effect"""
@@ -842,16 +767,30 @@ func transform_yellow():
 	$Ship.texture = yellow_texture
 	$Ship.hframes = 4  # Adjust this to match your yellow sprite's frame count
 	
+	circle_radius = 600.0
+	circle_speed = 20.0
+	dash_duration=dash_duration*2.5
+	dash_speed=dash_speed*.5
+	
 	# Change bullets to yellow bullets
 	# If you want ALL bullets to be yellow while transformed:
 	bullet_scene = load("res://bullets/bullet_yellow.tscn")
 
 func transform_red():
 
-	shoot_cooldown = max(0.05, shoot_cooldown * 0.5)  # Halve cooldown (faster shooting)
+	shoot_cooldown = max(0.05, shoot_cooldown * 0.75)  # Halve cooldown (faster shooting)
 	$GunCooldown.wait_time = shoot_cooldown
 	
 	# Visual feedback
 	modulate = Color.RED
 	var timer = get_tree().create_timer(0.5)
 	timer.timeout.connect(func(): modulate = player_color)
+	
+	var red_texture = load("res://Mini Pixel Pack 3/Enemies/Lips (16 x 16).png")
+	$Ship.texture = red_texture
+	$Ship.hframes = 5 
+	
+	dash_duration=dash_duration*20
+	dash_speed=dash_speed/5
+	spin_speed=2080
+	steering_influence=steering_influence*4
