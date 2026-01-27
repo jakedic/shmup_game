@@ -8,7 +8,9 @@ var playing = false
 var wave = 0
 var current_wave = 0
 var max_waves = 3  # Default value, can be overridden
-
+var score_multiplier = 2
+var multiplier_increase_tracker = 0 #tracks when the multiplier should be increased
+var multiplier_timer : Timer = Timer.new() #creates the multiplier timer variable
 # Common UI elements (assumes similar structure in all levels)
 @onready var start_button = $CanvasLayer/CenterContainer/Start
 @onready var game_over = $CanvasLayer/CenterContainer/GameOver
@@ -29,11 +31,24 @@ func _ready():
 	start_button.show()
 	setup_enemy_anchor_animation()
 	initialize_level()
-
+	add_child(multiplier_timer)
+	multiplier_timer.autostart = false # tells the timer not to start on creation
+	multiplier_timer.wait_time = 5.0 # defines how long the timer is
+func start_score_multipliplier_timer():#this creates a function that checks if the score multiplier should start counting dowwn
+	if score_multiplier >= 2:
+		multiplier_timer.start()
+		print(score_multiplier)
+		multiplier_timer.wait_time = 5.0
+	else:
+		multiplier_timer.stop()
+		print("timer does nothing")
+		print(score_multiplier)
+	multiplier_timer.timeout.connect(timeout_multiplier_timer)
 # Virtual method - override in child classes
 func initialize_level():
 	# Child classes can override to set up level-specific data
 	pass
+
 
 func setup_enemy_anchor_animation():
 	# Create the bobbing animation for enemy anchor
@@ -74,9 +89,16 @@ func spawn_enemy_at_position(x, y):
 		e.died.connect(_on_enemy_died)
 
 func _on_enemy_died(value):
-	score += value
+	score += value * score_multiplier
 	ui.update_score(score)
 	camera.add_trauma(0.5)
+	start_score_multipliplier_timer()
+	multiplier_increase_tracker += 1
+	if multiplier_increase_tracker > 5:
+		score_multiplier += 1
+		multiplier_increase_tracker = 0
+	else:
+		pass
 
 func _process(_delta):
 	if get_tree().get_nodes_in_group("enemies").size() == 0 and playing:
@@ -148,3 +170,12 @@ func _input(event):
 		# Only start if we're at the start screen
 		if start_button.visible and not playing:
 			_on_start_pressed()
+func timeout_multiplier_timer():
+	score_multiplier = score_multiplier - 1
+	multiplier_increase_tracker = 0
+	print(score_multiplier)
+	if score_multiplier >= 2:
+		pass
+	else:
+		multiplier_timer.stop()
+	
