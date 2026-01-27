@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://b54c7ad6cogrm"]
+[gd_scene format=3 uid="uid://b54c7ad6cogrm"]
 
 [ext_resource type="Script" uid="uid://dunrkkef17mhw" path="res://ui.gd" id="1_2ifyw"]
 [ext_resource type="Texture2D" uid="uid://cj6xormygja1x" path="res://Mini Pixel Pack 3/UI objects/Item_held_box (16 x 16).png" id="1_nnhfv"]
@@ -11,7 +11,7 @@
 atlas = ExtResource("4_1s16x")
 region = Rect2(32, 2.08165e-12, 16, 16)
 
-[node name="UI" type="MarginContainer"]
+[node name="UI" type="MarginContainer" unique_id=717697241]
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
@@ -24,10 +24,10 @@ theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 10
 script = ExtResource("1_2ifyw")
 
-[node name="HBoxContainer" type="HBoxContainer" parent="."]
+[node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=2076218157]
 layout_mode = 2
 
-[node name="ShieldBar" type="TextureProgressBar" parent="HBoxContainer"]
+[node name="ShieldBar" type="TextureProgressBar" parent="HBoxContainer" unique_id=1182706129]
 custom_minimum_size = Vector2(80, 16)
 layout_mode = 2
 size_flags_vertical = 4
@@ -40,14 +40,14 @@ stretch_margin_bottom = 3
 texture_under = ExtResource("2_4c7md")
 texture_progress = ExtResource("3_vcqhw")
 
-[node name="TextureRect" type="TextureRect" parent="HBoxContainer"]
+[node name="TextureRect" type="TextureRect" parent="HBoxContainer" unique_id=597829114]
 visible = false
 layout_mode = 2
 size_flags_vertical = 4
 texture = ExtResource("1_nnhfv")
 stretch_mode = 2
 
-[node name="MarginContainer" type="CenterContainer" parent="HBoxContainer/TextureRect"]
+[node name="MarginContainer" type="CenterContainer" parent="HBoxContainer/TextureRect" unique_id=1085255725]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -55,11 +55,11 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="TextureRect" type="TextureRect" parent="HBoxContainer/TextureRect/MarginContainer"]
+[node name="TextureRect" type="TextureRect" parent="HBoxContainer/TextureRect/MarginContainer" unique_id=1966308420]
 layout_mode = 2
 texture = SubResource("AtlasTexture_xn21l")
 stretch_mode = 2
 
-[node name="ScoreCounter" parent="HBoxContainer" instance=ExtResource("2_hbnwe")]
+[node name="ScoreCounter" parent="HBoxContainer" unique_id=971547012 instance=ExtResource("2_hbnwe")]
 layout_mode = 2
 size_flags_horizontal = 3

@@ -1,12 +1,11 @@
 extends HBoxContainer
 
 var digit_coords = {
-	1: Vector2(0, 0),
-	2: Vector2(8, 0),
+	1: Vector2(7, 5),
 }
 
 func _ready():
-	display_digits(12)
+	display_digits(1)
 
 func display_digits(n):
 	var s = "%08d" % n
