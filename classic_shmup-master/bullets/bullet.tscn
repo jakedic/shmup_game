@@ -5,7 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://cffrorsoldap6" path="res://bullets/Player_bullet_disipate_frame2.png" id="3_bmuwf"]
 [ext_resource type="Texture2D" uid="uid://c6syd1joalpf5" path="res://bullets/Player_bullet_disipate_frame3.png" id="4_c3usq"]
 [ext_resource type="Texture2D" uid="uid://baxo4bo5ert2g" path="res://bullets/Player_bullet_disipate_frame4.png" id="5_ibjxv"]
-[ext_resource type="Script" path="res://bullets/player_bullet_disipation_animation.gd" id="6_c3usq"]
+[ext_resource type="Script" uid="uid://bw0our3076dqj" path="res://bullets/player_bullet_disipation_animation.gd" id="6_c3usq"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j08f7"]
 size = Vector2(16, 16)
@@ -20,7 +20,7 @@ tracks/0/path = NodePath("Sprite2D:texture")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.43333334, 0.53333336, 0.56666666),
+"times": PackedFloat32Array(0, 0.46666667, 0.56666666, 0.6333333),
 "transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 1,
 "values": [ExtResource("2_wo3kc"), ExtResource("3_bmuwf"), ExtResource("4_c3usq"), ExtResource("5_ibjxv")]
