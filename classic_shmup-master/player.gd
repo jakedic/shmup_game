@@ -159,30 +159,37 @@ func handle_movement(delta):
 		# Get the dash direction (initial direction when dash started)
 		var base_dash_dir = dash_direction
 		
-		# Track dash time for sine wave
+		# Track dash time for circular motion
 		dash_time += delta
-		
-		# Calculate sine wave offset perpendicular to dash direction
-		# Create a perpendicular vector (rotate 90 degrees)
+
+		# Create perpendicular vector (90 degrees)
 		var perpendicular_dir = base_dash_dir.rotated(PI/2)
-		
-		# Apply sine wave oscillation perpendicular to dash direction
-		# Adjust amplitude and frequency to control wave size and speed
-		var wave_amplitude = 50.0  # How far side-to-side the wave goes
-		var wave_frequency = 10.0  # How fast the wave oscillates
-		
-		# Calculate sine wave offset
-		var wave_offset = perpendicular_dir * sin(dash_time * wave_frequency) * wave_amplitude
-		
-		# Apply player input to modify dash direction with reduced influence during wave
-		var steering_influence = 0.3  # Reduced since we're adding wave motion
+
+		# Adjust circle size and speed
+		var circle_radius = 500.0
+		var circle_speed = 30.0
+
+		# Create a vector that will rotate in a circle
+		# Start with a vector pointing to the "right" of the perpendicular direction
+		var circle_vector = Vector2(circle_radius, 0)
+
+		# Rotate it over time
+		var rotation_angle = dash_time * circle_speed
+		circle_vector = circle_vector.rotated(rotation_angle)
+
+		# Now rotate this circle to align with our perpendicular plane
+		# We need to rotate it so it's perpendicular to our dash direction
+		var circle_offset = circle_vector.rotated(perpendicular_dir.angle())
+
+		# Apply player input to modify dash direction
+		var steering_influence = 0.3
 		var modified_direction = (base_dash_dir + input * steering_influence).normalized()
-		
+
 		# Smoothly transition to new direction
 		dash_direction = dash_direction.lerp(modified_direction, 2.0 * delta)
-		
-		# Apply dash velocity with sine wave added
-		current_velocity = (dash_direction * dash_speed) + wave_offset
+
+		# Apply dash velocity with circular motion added
+		current_velocity = (dash_direction * dash_speed) + circle_offset
 	else:
 		# Reset dash time when not dashing
 		dash_time = 0

@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://ce2sbgdju6rp7"]
+[gd_scene format=3 uid="uid://ce2sbgdju6rp7"]
 
 [ext_resource type="Script" uid="uid://kxf8ivcxjmn8" path="res://bullets/bullet.gd" id="1_blc85"]
 [ext_resource type="Texture2D" uid="uid://bi05q5q2jb54" path="res://bullets/Player_bullet_final.png" id="2_wo3kc"]
@@ -47,27 +47,25 @@ _data = {
 &"RESET": SubResource("Animation_w5e60")
 }
 
-[node name="Bullet" type="Area2D"]
+[node name="Bullet" type="Area2D" unique_id=1882572400]
 script = ExtResource("1_blc85")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1201770497]
 position = Vector2(0, -3)
 scale = Vector2(0.2, 0.2)
 texture = ExtResource("2_wo3kc")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1604768168]
 shape = SubResource("RectangleShape2D_j08f7")
 
-[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="CollisionShape2D"]
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="CollisionShape2D" unique_id=1877247930]
 
-[node name="BulletTimer" type="Timer" parent="."]
+[node name="BulletTimer" type="Timer" parent="." unique_id=188169994]
 wait_time = 0.7
 
-[node name="Bullet_disipation" type="AnimationPlayer" parent="."]
-libraries = {
-&"": SubResource("AnimationLibrary_um4s1")
-}
-autoplay = "Bullet_disipation"
+[node name="Bullet_disipation" type="AnimationPlayer" parent="." unique_id=465008488]
+libraries/ = SubResource("AnimationLibrary_um4s1")
+autoplay = &"Bullet_disipation"
 script = ExtResource("6_c3usq")
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]
