@@ -45,6 +45,9 @@ var circle_radius = 0.0
 var circle_speed = 0.0
 
 var dash_time = 0.0
+var bullet_invincible_during_dash: bool = false
+var do_dash_damage_to_enemies: bool = false  # Turn this on to damage enemies during dash
+var dash_damage_amount: int = 1  # How much damage to deal to enemies during dash
 
 # Double-tap detection variables
 const DOUBLETAP_DELAY = 0.25
@@ -317,9 +320,12 @@ func start_dash(direction: Vector2):
 	# Change to dash speed
 	speed = dash_speed
 	
-	# Set invincibility during dash (optional)
-	#set_collision_layer_value(1, false)  # Disable player collision layer
-	#set_collision_mask_value(2, false)   # Disable enemy collision mask
+	if bullet_invincible_during_dash:
+		# Disable collision with enemy bullets
+		set_collision_layer_value(1, false)  # Disable player collision layer
+		set_collision_mask_value(2, false)   # Disable enemy bullet collision mask
+		# Also disable collision with enemies themselves if desired
+		#set_collision_mask_value(1, false)   # Disable enemy collision mask
 	
 	
 	# Start dash duration timer
@@ -347,6 +353,11 @@ func on_dash_end():
 	# Restore normal speed
 	speed = original_speed
 	is_dashing = false
+	
+	if bullet_invincible_during_dash:
+		set_collision_layer_value(1, true)    # Re-enable player collision layer
+		set_collision_mask_value(2, true)     # Re-enable enemy bullet collision mask
+		#set_collision_mask_value(1, true)     # Re-enable enemy collision mask
 	
 	# Restore normal appearance
 	modulate = player_color
@@ -541,6 +552,8 @@ func reset_to_default_form():
 	spin_speed=0
 	steering_influence=5
 	dash_duration=0.15
+	bullet_invincible_during_dash=false
+	do_dash_damage_to_enemies=false
 	
 	# Reset visual appearance
 	modulate = player_color
@@ -685,6 +698,38 @@ func _on_area_entered(area):
 
 func handle_enemy_collision(area: Area2D):
 	"""Handle collision with enemy"""
+	
+	# Check if we're dashing and should damage enemies instead of taking damage
+	if is_dashing and do_dash_damage_to_enemies:
+		# Player deals damage to enemy during dash
+		var damage_dealt = false
+		
+		if area.has_method("take_damage"):
+			area.take_damage(dash_damage_amount)
+			damage_dealt = true
+		elif area.has_method("explode"):
+			area.explode()
+			damage_dealt = true
+		
+		# Optional: Apply knockback to enemy
+		if area.has_method("apply_knockback") and damage_dealt:
+			var knockback_direction = (area.global_position - global_position).normalized()
+			area.apply_knockback(knockback_direction, dash_speed * 0.5)
+		
+		# Optional: Add visual feedback for damaging enemies during dash
+		if damage_dealt:
+			if has_node("DashDamageParticles"):
+				$DashDamageParticles.global_position = area.global_position
+				$DashDamageParticles.emitting = true
+			
+			# Optional screen shake effect
+			if get_tree().has_group("camera"):
+				get_tree().call_group("camera", "add_trauma", 0.3)
+		
+		# Return early - player doesn't take damage during dash
+		return
+	
+	# Normal collision handling (player takes damage)
 	if area.has_method("explode"):
 		area.explode()
 	
@@ -772,6 +817,8 @@ func transform_yellow():
 	dash_duration=dash_duration*2.5
 	dash_speed=dash_speed*.5
 	
+	bullet_invincible_during_dash=true
+	
 	# Change bullets to yellow bullets
 	# If you want ALL bullets to be yellow while transformed:
 	bullet_scene = load("res://bullets/bullet_yellow.tscn")
@@ -790,7 +837,8 @@ func transform_red():
 	$Ship.texture = red_texture
 	$Ship.hframes = 5 
 	
-	dash_duration=dash_duration*20
+	dash_duration=dash_duration*15
 	dash_speed=dash_speed/5
 	spin_speed=2080
 	steering_influence=steering_influence*4
+	do_dash_damage_to_enemies=true
