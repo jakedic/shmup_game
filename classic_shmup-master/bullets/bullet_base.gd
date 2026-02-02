@@ -97,8 +97,8 @@ func _process(delta: float):
 	distance_traveled += abs(movement.length())
 	
 	#Slow Down at the end
-	if distance_traveled >= max_distance*0.5 and slow_down==0:
-		speed=speed/10
+	if distance_traveled >= max_distance*0.9 and slow_down==0:
+		speed=speed/3
 		slow_down=1
 		return
 	
