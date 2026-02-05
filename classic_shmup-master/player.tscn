@@ -1,7 +1,6 @@
-[gd_scene load_steps=18 format=3 uid="uid://b32476hejmrnj"]
+[gd_scene format=3 uid="uid://b32476hejmrnj"]
 
 [ext_resource type="Script" uid="uid://csd2hssk8e5f5" path="res://player.gd" id="1_4pouc"]
-[ext_resource type="Texture2D" uid="uid://c7uwy5ydmq5in" path="res://Mini Pixel Pack 3/Player ship/Player_ship (16 x 16).png" id="1_jhf5r"]
 [ext_resource type="Texture2D" uid="uid://1huvnyjwjxyr" path="res://Mini Pixel Pack 3/Player ship/Boosters (16 x 16).png" id="2_6cdot"]
 [ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://bullets/bullet.tscn" id="2_6pkbm"]
 [ext_resource type="PackedScene" uid="uid://c75hkmg7jyox6" path="res://bullets/bullet_yellow.tscn" id="3_dw050"]
@@ -9,6 +8,7 @@
 [ext_resource type="Texture2D" uid="uid://bfvjqpdy1yspp" path="res://Mini Pixel Pack 3/Enemies/Bon_Bon (16 x 16).png" id="4_1jxqw"]
 [ext_resource type="PackedScene" uid="uid://bb1nkdpy32wgs" path="res://bullets/absorb.tscn" id="4_b26j0"]
 [ext_resource type="Texture2D" uid="uid://b1jinxtgd3rv0" path="res://Mini Pixel Pack 3/Player ship/Boosters_right (16 x 16).png" id="4_bbrn4"]
+[ext_resource type="Texture2D" uid="uid://b0wh4c3q5pw42" path="res://Player_topdown.png" id="5_n7ghd"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_rbfoc"]
 atlas = ExtResource("2_6cdot")
@@ -73,32 +73,33 @@ animations = [{
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_11ea1"]
 size = Vector2(14, 14)
 
-[node name="Player" type="Area2D"]
+[node name="Player" type="Area2D" unique_id=679744870]
+scale = Vector2(0.4, 0.4)
 script = ExtResource("1_4pouc")
 bullet_scene = ExtResource("2_6pkbm")
 bullet_yellow_scene = ExtResource("3_dw050")
 absorb_scene = ExtResource("4_b26j0")
-default_sprite_texture = ExtResource("1_jhf5r")
+default_sprite_texture = ExtResource("5_n7ghd")
 yellow_sprite_texture = ExtResource("4_1jxqw")
 
-[node name="Ship" type="Sprite2D" parent="."]
-texture = ExtResource("1_jhf5r")
+[node name="Ship" type="Sprite2D" parent="." unique_id=1169473419]
+scale = Vector2(0.25, 0.264)
+texture = ExtResource("5_n7ghd")
 hframes = 3
 
-[node name="Boosters" type="AnimatedSprite2D" parent="Ship"]
+[node name="Boosters" type="AnimatedSprite2D" parent="Ship" unique_id=1664352415]
 position = Vector2(0, 16)
 sprite_frames = SubResource("SpriteFrames_p6f8n")
 animation = &"forward"
 autoplay = "forward"
-frame_progress = 0.9482473
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1354655136]
 shape = SubResource("RectangleShape2D_11ea1")
 
-[node name="GunCooldown" type="Timer" parent="."]
+[node name="GunCooldown" type="Timer" parent="." unique_id=1672746794]
 one_shot = true
 
-[node name="AbsorbCooldown" type="Timer" parent="."]
+[node name="AbsorbCooldown" type="Timer" parent="." unique_id=2047596241]
 wait_time = 3.0
 one_shot = true
 
