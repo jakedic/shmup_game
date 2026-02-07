@@ -536,7 +536,7 @@ func revert_absorption():
 		current_form = 'default'
 
 func reset_to_default_form():
-	speed = original_speed
+	speed = 150
 	shoot_cooldown = 0.25  # Your default value
 	$GunCooldown.wait_time = shoot_cooldown
 	max_shield = 10  # Your default value
@@ -802,7 +802,7 @@ func get_transformation_function_name(enemy_type: String) -> String:
 
 func transform_yellow():
 	original_speed = original_speed * 2
-	
+	speed = speed * 2
 	# Optional visual feedback
 	modulate = Color.YELLOW
 	var timer = get_tree().create_timer(0.5)
