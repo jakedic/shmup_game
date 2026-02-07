@@ -801,7 +801,7 @@ func get_transformation_function_name(enemy_type: String) -> String:
 # ===== TRANSFORMATION FUNCTIONS =====
 
 func transform_yellow():
-	speed = original_speed * 2
+	original_speed = original_speed * 2
 	
 	# Optional visual feedback
 	modulate = Color.YELLOW

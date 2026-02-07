@@ -12,5 +12,5 @@ func update_shield(max_value, value):
 	shield_bar.max_value = max_value
 	shield_bar.value = value
 
-#func update_score_multiplier(value):
-#	score_multiplier.display_digits(value)
+func update_score_multiplier(value):
+	score_multiplier.display_digits(value)
