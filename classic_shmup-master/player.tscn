@@ -8,7 +8,7 @@
 [ext_resource type="Texture2D" uid="uid://bfvjqpdy1yspp" path="res://Mini Pixel Pack 3/Enemies/Bon_Bon (16 x 16).png" id="4_1jxqw"]
 [ext_resource type="PackedScene" uid="uid://bb1nkdpy32wgs" path="res://bullets/absorb.tscn" id="4_b26j0"]
 [ext_resource type="Texture2D" uid="uid://b1jinxtgd3rv0" path="res://Mini Pixel Pack 3/Player ship/Boosters_right (16 x 16).png" id="4_bbrn4"]
-[ext_resource type="Texture2D" uid="uid://b0wh4c3q5pw42" path="res://Player_topdown.png" id="5_n7ghd"]
+[ext_resource type="Texture2D" uid="uid://8sql62rflh1i" path="res://Player_topdown.png" id="5_n7ghd"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_rbfoc"]
 atlas = ExtResource("2_6cdot")
@@ -70,31 +70,40 @@ animations = [{
 "speed": 10.0
 }]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_11ea1"]
-size = Vector2(14, 14)
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_b26j0"]
+size = Vector2(50.000072, 25.000032)
 
 [node name="Player" type="Area2D" unique_id=679744870]
+position = Vector2(0, 6.9999995)
 scale = Vector2(0.4, 0.4)
 script = ExtResource("1_4pouc")
+speed = 120.0
 bullet_scene = ExtResource("2_6pkbm")
 bullet_yellow_scene = ExtResource("3_dw050")
 absorb_scene = ExtResource("4_b26j0")
+dash_speed = 300.0
 default_sprite_texture = ExtResource("5_n7ghd")
 yellow_sprite_texture = ExtResource("4_1jxqw")
 
 [node name="Ship" type="Sprite2D" parent="." unique_id=1169473419]
-scale = Vector2(0.25, 0.264)
+position = Vector2(5, -4.999997)
+scale = Vector2(0.25, 0.195)
 texture = ExtResource("5_n7ghd")
 hframes = 3
+frame = 1
+region_enabled = true
+region_rect = Rect2(176, 240, 1192, 416)
 
 [node name="Boosters" type="AnimatedSprite2D" parent="Ship" unique_id=1664352415]
-position = Vector2(0, 16)
+position = Vector2(-130, -9.469696)
 sprite_frames = SubResource("SpriteFrames_p6f8n")
 animation = &"forward"
 autoplay = "forward"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1354655136]
-shape = SubResource("RectangleShape2D_11ea1")
+position = Vector2(-5.9604633e-07, -14.999998)
+scale = Vector2(0.99999845, 0.99999845)
+shape = SubResource("RectangleShape2D_b26j0")
 
 [node name="GunCooldown" type="Timer" parent="." unique_id=1672746794]
 one_shot = true
