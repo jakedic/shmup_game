@@ -808,9 +808,9 @@ func transform_yellow():
 	var timer = get_tree().create_timer(0.5)
 	timer.timeout.connect(func(): modulate = player_color)
 	
-	var yellow_texture = load("res://Mini Pixel Pack 3/Enemies/Bon_Bon (16 x 16).png")
+	var yellow_texture = load("res://Player_topdown_placeholder_transformation_sprite.png")
 	$Ship.texture = yellow_texture
-	$Ship.hframes = 4  # Adjust this to match your yellow sprite's frame count
+	$Ship.hframes = 3  # Adjust this to match your yellow sprite's frame count
 	
 	circle_radius = 600.0
 	circle_speed = 20.0
@@ -833,9 +833,9 @@ func transform_red():
 	var timer = get_tree().create_timer(0.5)
 	timer.timeout.connect(func(): modulate = player_color)
 	
-	var red_texture = load("res://Mini Pixel Pack 3/Enemies/Lips (16 x 16).png")
+	var red_texture = load("res://Player_topdown_placeholder_transformation_sprite.png")
 	$Ship.texture = red_texture
-	$Ship.hframes = 5 
+	$Ship.hframes = 3 
 	
 	dash_duration=dash_duration*15
 	dash_speed=dash_speed/5
