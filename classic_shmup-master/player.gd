@@ -808,7 +808,7 @@ func transform_yellow():
 	var timer = get_tree().create_timer(0.5)
 	timer.timeout.connect(func(): modulate = player_color)
 	
-	var yellow_texture = load("res://Player_topdown_placeholder_transformation_sprite.png")
+	var yellow_texture = load("res://Art assets/Player assets and transformations/Player_topdown_placeholder_transformation_sprite.png")
 	$Ship.texture = yellow_texture
 	$Ship.hframes = 3  # Adjust this to match your yellow sprite's frame count
 	
@@ -833,7 +833,7 @@ func transform_red():
 	var timer = get_tree().create_timer(0.5)
 	timer.timeout.connect(func(): modulate = player_color)
 	
-	var red_texture = load("res://Player_topdown_placeholder_transformation_sprite.png")
+	var red_texture = load("res://Art assets/Player assets and transformations/Player_topdown_placeholder_transformation_sprite.png")
 	$Ship.texture = red_texture
 	$Ship.hframes = 3 
 	

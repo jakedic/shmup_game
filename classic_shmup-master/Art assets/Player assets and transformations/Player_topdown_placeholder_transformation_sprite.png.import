@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://8sql62rflh1i"
-path="res://.godot/imported/Player_topdown.png-b235d1438c917d6c02a99dd564c532aa.ctex"
+uid="uid://2aa2aerwlxgm"
+path="res://.godot/imported/Player_topdown_placeholder_transformation_sprite.png-52bc61493fdae599ed8b55a6b06f8c1e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Player_topdown.png"
-dest_files=["res://.godot/imported/Player_topdown.png-b235d1438c917d6c02a99dd564c532aa.ctex"]
+source_file="res://Art assets/Player assets and transformations/Player_topdown_placeholder_transformation_sprite.png"
+dest_files=["res://.godot/imported/Player_topdown_placeholder_transformation_sprite.png-52bc61493fdae599ed8b55a6b06f8c1e.ctex"]
 
 [params]
 
