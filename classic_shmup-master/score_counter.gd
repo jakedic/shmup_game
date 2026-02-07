@@ -17,6 +17,14 @@ func _ready():
 	display_digits(123)
 
 func display_digits(n):
-	var s = "%08d" % n
-	for i in 8:
-		get_child(i).texture.region = Rect2(digit_coords[int(s[i])], Vector2(8, 8))
+	var s = "%011d" % n
+	print(s)
+	for i in range(11):
+		var child = get_child(i) as TextureRect
+		if child:
+			var digit = s[i].to_int()
+			
+			# Create a new texture instance for each child
+			var new_texture = child.texture.duplicate()
+			new_texture.region = Rect2(digit_coords[digit], Vector2(8, 8))
+			child.texture = new_texture
