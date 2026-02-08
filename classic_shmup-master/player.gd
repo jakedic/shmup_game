@@ -554,6 +554,10 @@ func reset_to_default_form():
 	dash_duration=0.15
 	bullet_invincible_during_dash=false
 	do_dash_damage_to_enemies=false
+	dash_speed= 400.0  # Speed while dashing
+	dash_duration = 0.15  # How long the dash lasts
+	dash_cooldown= 0.5  # Cooldown between dashes
+
 	
 	# Reset visual appearance
 	modulate = player_color
