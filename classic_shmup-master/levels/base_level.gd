@@ -94,7 +94,7 @@ func _on_enemy_died(value):
 	camera.add_trauma(0.5)
 	start_score_multipliplier_timer()
 	multiplier_increase_tracker += 1
-	if score_multiplier >= 5:
+	if score_multiplier >= 4:
 		multiplier_increase_tracker = 0
 	if multiplier_increase_tracker > 4:
 		score_multiplier += 1

@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://b8exv6qda8frv"]
+[gd_scene format=3 uid="uid://b8exv6qda8frv"]
 
 [ext_resource type="Texture2D" uid="uid://cwuy4b17rh7ql" path="res://Mini Pixel Pack 3/Space_BG (2 frames) (64 x 64).png" id="1_hjad5"]
 [ext_resource type="Script" uid="uid://44jufiif2prl" path="res://levels/level_1.gd" id="1_vtt5l"]
@@ -48,30 +48,30 @@ _data = {
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_uf0tv"]
 
-[node name="Main" type="Node2D"]
+[node name="Main" type="Node2D" unique_id=201015459]
 script = ExtResource("1_vtt5l")
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=136135408]
 
-[node name="UI" parent="CanvasLayer" instance=ExtResource("4_hy8xi")]
+[node name="UI" parent="CanvasLayer" unique_id=335239457 instance=ExtResource("4_hy8xi")]
 
-[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer"]
+[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer" unique_id=1267026620]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="GameOver" type="TextureRect" parent="CanvasLayer/CenterContainer"]
+[node name="GameOver" type="TextureRect" parent="CanvasLayer/CenterContainer" unique_id=761768952]
 layout_mode = 2
 texture = ExtResource("3_5ueml")
 
-[node name="Start" type="TextureButton" parent="CanvasLayer/CenterContainer"]
+[node name="Start" type="TextureButton" parent="CanvasLayer/CenterContainer" unique_id=22097307]
 layout_mode = 2
 size_flags_horizontal = 4
 texture_normal = ExtResource("4_37xqa")
 
-[node name="Background" type="Sprite2D" parent="."]
+[node name="Background" type="Sprite2D" parent="." unique_id=1968625999]
 texture_repeat = 2
 position = Vector2(120, 160)
 scale = Vector2(1.1, 1.1)
@@ -79,21 +79,19 @@ texture = ExtResource("1_hjad5")
 region_enabled = true
 region_rect = Rect2(2.08165e-12, 2.08165e-12, 240, 320)
 
-[node name="Player" parent="." instance=ExtResource("2_tiq3a")]
+[node name="Player" parent="." unique_id=987184306 instance=ExtResource("2_tiq3a")]
 position = Vector2(120, 240)
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
-libraries = {
-&"": SubResource("AnimationLibrary_d33qh")
-}
-autoplay = "new_animation"
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=491913609]
+libraries/ = SubResource("AnimationLibrary_d33qh")
+autoplay = &"new_animation"
 
-[node name="Camera2D" type="Camera2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="." unique_id=161284007]
 position = Vector2(120, 160)
 script = ExtResource("7_qw2vk")
 noise = SubResource("FastNoiseLite_uf0tv")
 
-[node name="EnemyAnchor" type="Node2D" parent="."]
+[node name="EnemyAnchor" type="Node2D" parent="." unique_id=2120168100]
 
 [connection signal="pressed" from="CanvasLayer/CenterContainer/Start" to="." method="_on_start_pressed"]
 [connection signal="died" from="Player" to="." method="_on_player_died"]
