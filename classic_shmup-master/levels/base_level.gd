@@ -8,7 +8,7 @@ var playing = false
 var wave = 0
 var current_wave = 0
 var max_waves = 3  # Default value, can be overridden
-var score_multiplier = 2
+var score_multiplier = 1
 var multiplier_increase_tracker = 0 #tracks when the multiplier should be increased
 var multiplier_timer : Timer = Timer.new() #creates the multiplier timer variable
 # Common UI elements (assumes similar structure in all levels)
@@ -94,7 +94,9 @@ func _on_enemy_died(value):
 	camera.add_trauma(0.5)
 	start_score_multipliplier_timer()
 	multiplier_increase_tracker += 1
-	if multiplier_increase_tracker > 5:
+	if score_multiplier >= 5:
+		multiplier_increase_tracker = 0
+	if multiplier_increase_tracker > 4:
 		score_multiplier += 1
 		multiplier_increase_tracker = 0
 	else:
