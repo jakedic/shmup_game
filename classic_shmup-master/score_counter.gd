@@ -18,7 +18,6 @@ func _ready():
 
 func display_digits(n):
 	var s = "%011d" % n
-	print(s)
 	for i in range(11):
 		var child = get_child(i) as TextureRect
 		if child:
