@@ -485,7 +485,7 @@ func handle_absorb_input():
 	"""Process absorption input"""
 	if Input.is_action_pressed("absorb") and can_absorb and current_form=='default':
 		absorb()
-	if Input.is_action_pressed("revert"):
+	if Input.is_action_pressed("revert") and !is_dashing:
 		revert_absorption()
 
 func absorb():
