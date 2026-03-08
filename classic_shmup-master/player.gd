@@ -33,6 +33,7 @@ signal player_healed(amount: int)
 @export var absorb_scene: PackedScene
 @export var absorb_cooldown: float = 2.0
 @export var max_absorption_level: int = 2  # Maximum enemy types that can be absorbed
+var currently_absorbing=false
 
 # ===== DASH SYSTEM VARIABLES =====
 @export var dash_speed: float = 400.0  # Speed while dashing
@@ -194,7 +195,7 @@ func handle_movement(delta):
 
 		# Apply dash velocity with circular motion added
 		current_velocity = (dash_direction * dash_speed) - circle_offset
-	else:
+	elif !currently_absorbing:
 		# Reset dash time when not dashing
 		dash_time = 0
 		
@@ -490,10 +491,12 @@ func handle_absorb_input():
 
 func absorb():
 	"""Fire absorption projectile"""
+	current_velocity=Vector2.ZERO
 	if not can_absorb or not is_alive:
 		return
 	
 	can_absorb = false
+	currently_absorbing=true
 	$GunCooldown.start()
 	$AbsorbCooldown.start()
 	
@@ -574,6 +577,7 @@ func reset_to_default_form():
 		current_form=hit_enemy_type'''
 		
 func absorb_complete(hit_enemy_type: String):
+	currently_absorbing=false
 	if hit_enemy_type:
 		current_form = hit_enemy_type
 		
@@ -590,6 +594,8 @@ func absorb_complete(hit_enemy_type: String):
 			form_resource = load(form_path)
 			self.set_form(form_resource.get_modified_properties())'''
 
+func absorb_fail():
+	currently_absorbing=false
 # ===== SHIELD/HEALTH SYSTEM =====
 func set_shield(value: int):
 	"""Setter function for shield"""

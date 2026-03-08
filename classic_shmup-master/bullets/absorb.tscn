@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://bb1nkdpy32wgs"]
+[gd_scene format=3 uid="uid://bb1nkdpy32wgs"]
 
 [ext_resource type="Script" uid="uid://clqyt4vlfypiu" path="res://bullets/absorb.gd" id="1_4nfwk"]
 [ext_resource type="Texture2D" uid="uid://csat7a4n6w5te" path="res://Mini Pixel Pack 3/Projectiles/Player_charged_donut_shot (16 x 16).png" id="2_4nfwk"]
@@ -6,17 +6,17 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j08f7"]
 size = Vector2(16, 16)
 
-[node name="Bullet" type="Area2D"]
+[node name="Bullet" type="Area2D" unique_id=2008154617]
 script = ExtResource("1_4nfwk")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=2123180612]
 texture = ExtResource("2_4nfwk")
 hframes = 4
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=420778801]
 shape = SubResource("RectangleShape2D_j08f7")
 
-[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=910384361]
 
 [connection signal="area_entered" from="." to="." method="_on_area_entered"]
 [connection signal="screen_exited" from="VisibleOnScreenNotifier2D" to="." method="_on_visible_on_screen_notifier_2d_screen_exited"]

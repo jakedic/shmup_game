@@ -38,6 +38,8 @@ func _physics_process(delta):
 		if to_player.length() < 10:
 			if  has_hit_enemy and target_player and target_player.has_method("absorb_complete"):
 				target_player.absorb_complete(hit_enemy_type)  # Callback to player
+			else:
+				target_player.absorb_fail()
 			queue_free()
 	else:
 		# Move forward
