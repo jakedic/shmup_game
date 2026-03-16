@@ -120,6 +120,8 @@ func _physics_process(delta):
 	# Only continue scaling if absorption is still active
 	if absorption_active:
 		# Handle scaling effect
+		if has_hit_enemy:
+			growing=false
 		if growing:
 			# Grow from min to max
 			scale_progress += scaling_speed * delta
@@ -145,7 +147,7 @@ func _physics_process(delta):
 		
 		var current_scale_y = lerp(min_scale_y, max_scale_y, t)
 		$Sprite2D.scale.y = current_scale_y
-		$CollisionShape2D.scale.y = current_scale_y * 0.8
+		$CollisionShape2D.scale.y = current_scale_y * 0.75
 		
 		# Update position to keep bottom fixed
 		update_sprite_position(current_scale_y)
