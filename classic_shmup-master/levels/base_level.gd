@@ -91,6 +91,7 @@ func spawn_enemy_at_position(x, y):
 func _on_enemy_died(value):
 	score += value * score_multiplier
 	ui.update_score(score)
+	ui.update_score_multiplier(score_multiplier)
 	camera.add_trauma(0.5)
 	start_score_multipliplier_timer()
 	multiplier_increase_tracker += 1
@@ -160,6 +161,7 @@ func new_game():
 # Virtual method - called when a new game starts
 func game_started():
 	# Child classes can override for level-specific startup logic
+	ui.update_score_multiplier(1)
 	pass
 
 func _on_start_pressed():
@@ -175,6 +177,7 @@ func _input(event):
 func timeout_multiplier_timer():
 	score_multiplier = score_multiplier - 1
 	multiplier_increase_tracker = 0
+	ui.update_score_multiplier(score_multiplier)
 	print(score_multiplier)
 	if score_multiplier >= 2:
 		pass
