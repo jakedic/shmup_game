@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://crr2gxtgxt1cm" path="res://score_counter.tscn" id="2_hbnwe"]
 [ext_resource type="Texture2D" uid="uid://ct0lgoiryohfr" path="res://bar_foreground.png" id="3_vcqhw"]
 [ext_resource type="Texture2D" uid="uid://bd1m1f6xdmltw" path="res://Mini Pixel Pack 3/Items/Circle_+_Square_+_Missile_pick-ups (16 x 16).png" id="4_1s16x"]
+[ext_resource type="Script" uid="uid://dv16k3vjbthlb" path="res://score_counter.gd" id="7_y4yjw"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_xn21l"]
 atlas = ExtResource("4_1s16x")
@@ -24,10 +25,20 @@ theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 10
 script = ExtResource("1_2ifyw")
 
-[node name="HBoxContainer" type="HBoxContainer" parent="." unique_id=2076218157]
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1136642974]
 layout_mode = 2
 
-[node name="ShieldBar" type="TextureProgressBar" parent="HBoxContainer" unique_id=1182706129]
+[node name="HBoxContainer2" type="HBoxContainer" parent="VBoxContainer" unique_id=38347727]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer2" unique_id=2109737426]
+layout_mode = 2
+text = "x"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer" unique_id=2076218157]
+layout_mode = 2
+
+[node name="ShieldBar" type="TextureProgressBar" parent="VBoxContainer/HBoxContainer" unique_id=1182706129]
 custom_minimum_size = Vector2(80, 16)
 layout_mode = 2
 size_flags_vertical = 4
@@ -40,14 +51,14 @@ stretch_margin_bottom = 3
 texture_under = ExtResource("2_4c7md")
 texture_progress = ExtResource("3_vcqhw")
 
-[node name="TextureRect" type="TextureRect" parent="HBoxContainer" unique_id=597829114]
+[node name="TextureRect" type="TextureRect" parent="VBoxContainer/HBoxContainer" unique_id=597829114]
 visible = false
 layout_mode = 2
 size_flags_vertical = 4
 texture = ExtResource("1_nnhfv")
 stretch_mode = 2
 
-[node name="MarginContainer" type="CenterContainer" parent="HBoxContainer/TextureRect" unique_id=1085255725]
+[node name="MarginContainer" type="CenterContainer" parent="VBoxContainer/HBoxContainer/TextureRect" unique_id=1085255725]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -55,11 +66,12 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="TextureRect" type="TextureRect" parent="HBoxContainer/TextureRect/MarginContainer" unique_id=1966308420]
+[node name="TextureRect" type="TextureRect" parent="VBoxContainer/HBoxContainer/TextureRect/MarginContainer" unique_id=1966308420]
 layout_mode = 2
 texture = SubResource("AtlasTexture_xn21l")
 stretch_mode = 2
 
-[node name="ScoreCounter" parent="HBoxContainer" unique_id=971547012 instance=ExtResource("2_hbnwe")]
+[node name="ScoreCounter" parent="VBoxContainer/HBoxContainer" unique_id=971547012 instance=ExtResource("2_hbnwe")]
 layout_mode = 2
 size_flags_horizontal = 3
+script = ExtResource("7_y4yjw")

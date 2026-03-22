@@ -1,8 +1,8 @@
 extends MarginContainer
 
-@onready var shield_bar = $HBoxContainer/ShieldBar
-@onready var score_counter = $HBoxContainer/ScoreCounter
-@onready var score_multiplier = $HBoxContainer/ScoreMultiplier
+@onready var shield_bar = $VBoxContainer/HBoxContainer/ShieldBar
+@onready var score_counter = $VBoxContainer/HBoxContainer/ScoreCounter
+@onready var score_multiplier = $VBoxContainer/HBoxContainer/ScoreMultiplier
 
 func update_score(value):
 	score_counter.display_digits(value)
