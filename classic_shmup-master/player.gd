@@ -11,6 +11,10 @@ signal player_healed(amount: int)
 # ===== CUSTOMIZABLE PROPERTIES =====
 @export var player_name: String = "Player"
 
+#Transformation Timer Properties
+var transformation_timer: Timer
+var transformation_duration: float = 5.0 
+
 # Movement properties
 @export var speed: float = 150
 @export var acceleration: float = 10.0  # For smooth movement
@@ -124,6 +128,9 @@ func initialize_player():
 	original_speed = speed
 	can_dash = true
 	is_dashing = false
+	
+	# Set up transformation timer
+	setup_transformation_timer()
 	
 	
 func reset_position():
@@ -539,6 +546,10 @@ func revert_absorption():
 		current_form = 'default'
 
 func reset_to_default_form():
+	# Stop the transformation timer
+	if transformation_timer:
+		transformation_timer.stop()
+	
 	speed = 150
 	shoot_cooldown = 0.25  # Your default value
 	$GunCooldown.wait_time = shoot_cooldown
@@ -575,6 +586,19 @@ func reset_to_default_form():
 		form_resource = load(form_path)
 		self.set_form(form_resource.get_modified_properties())
 		current_form=hit_enemy_type'''
+		
+func setup_transformation_timer():
+	"""Set up the timer for automatic transformation reversion"""
+	transformation_timer = Timer.new()
+	transformation_timer.name = "TransformationTimer"
+	transformation_timer.one_shot = true
+	transformation_timer.timeout.connect(_on_transformation_timer_timeout)
+	add_child(transformation_timer)
+	
+func _on_transformation_timer_timeout():
+	"""Called when transformation duration expires"""
+	if current_form != 'default':
+		revert_absorption()
 		
 func absorb_complete(hit_enemy_type: String):
 	currently_absorbing=false
@@ -811,6 +835,10 @@ func get_transformation_function_name(enemy_type: String) -> String:
 # ===== TRANSFORMATION FUNCTIONS =====
 
 func transform_yellow():
+	if transformation_timer:
+		transformation_timer.stop()
+		transformation_timer.start(transformation_duration)
+		
 	original_speed = original_speed * 2
 	speed = speed * 2
 	# Optional visual feedback
@@ -834,7 +862,10 @@ func transform_yellow():
 	bullet_scene = load("res://bullets/bullet_yellow.tscn")
 
 func transform_red():
-
+	if transformation_timer:
+		transformation_timer.stop()
+		transformation_timer.start(transformation_duration)
+		
 	shoot_cooldown = max(0.05, shoot_cooldown * 0.75)  # Halve cooldown (faster shooting)
 	$GunCooldown.wait_time = shoot_cooldown
 	
