@@ -102,6 +102,10 @@ func _on_enemy_died(value):
 		multiplier_increase_tracker = 0
 	else:
 		pass
+		
+	# Add this line to update the player's multiplier
+	if player and player.has_method("update_multiplier"):
+		player.update_multiplier(score_multiplier)
 
 func _process(_delta):
 	if get_tree().get_nodes_in_group("enemies").size() == 0 and playing:

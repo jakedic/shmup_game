@@ -98,6 +98,7 @@ var is_absorbing: int = 0
 var current_velocity: Vector2 = Vector2.ZERO
 var time_since_last_damage: float = 0.0
 var is_alive: bool = true
+var score_multiplier: int = 1
 
 @onready var screensize = get_viewport_rect().size
 
@@ -491,7 +492,7 @@ func on_shoot():
 # ===== ABSORPTION SYSTEM =====
 func handle_absorb_input():
 	"""Process absorption input"""
-	if Input.is_action_pressed("absorb") and can_absorb and current_form=='default':
+	if Input.is_action_pressed("absorb") and can_absorb and current_form=='default' and score_multiplier >= 4:
 		absorb()
 	if Input.is_action_pressed("revert") and !is_dashing:
 		revert_absorption()
@@ -520,6 +521,9 @@ func create_absorption_projectile() -> Node2D:
 	if not absorb_scene:
 		return null
 	return absorb_scene.instantiate()
+	
+func update_multiplier(new_multiplier: int):
+	score_multiplier = new_multiplier
 
 func launch_absorption_projectile(projectile: Node2D):
 	"""Launch absorption projectile"""
