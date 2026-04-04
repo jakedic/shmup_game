@@ -39,6 +39,12 @@ var transformation_duration: float = 5.0
 @export var max_absorption_level: int = 2  # Maximum enemy types that can be absorbed
 var currently_absorbing=false
 
+#Bubble properties
+# Add this with your other exports
+@export var bubble_scene: PackedScene  # The bubble projectile scene
+@export var bubble_lifetime: float = 30.0  # How long bubble stays on screen
+@export var bubble_travel_distance: float = 50.0  # Distance bubble travels before stopping
+
 # ===== DASH SYSTEM VARIABLES =====
 @export var dash_speed: float = 400.0  # Speed while dashing
 @export var dash_duration: float = 0.15  # How long the dash lasts
@@ -492,8 +498,11 @@ func on_shoot():
 # ===== ABSORPTION SYSTEM =====
 func handle_absorb_input():
 	"""Process absorption input"""
-	if Input.is_action_pressed("absorb") and can_absorb and current_form=='default' and score_multiplier >= 4:
+	if Input.is_action_pressed("absorb") and can_absorb and current_form=='default' and score_multiplier >= 1:
 		absorb()
+	if Input.is_action_pressed("absorb") and can_absorb and current_form!='default':
+		shoot_bubble()
+		revert_absorption()
 	if Input.is_action_pressed("revert") and !is_dashing:
 		revert_absorption()
 
@@ -887,3 +896,89 @@ func transform_red():
 	spin_speed=2080
 	steering_influence=steering_influence*4
 	do_dash_damage_to_enemies=true
+	
+#Shoot Bubble
+func shoot_bubble():
+	"""Shoot a bubble projectile (used when trying to absorb while having an ability)"""
+	if not can_shoot or not is_alive:
+		return
+	
+	can_shoot = false
+	$GunCooldown.start()
+	
+	# Create bubble projectile
+	var bubble = create_bubble()
+	if bubble:
+		launch_bubble(bubble)
+	
+	# Visual/sound effects
+	on_bubble_shot()
+
+func create_bubble() -> Node2D:
+	"""Create bubble projectile instance"""
+	if not bubble_scene:
+		# Create a simple bubble if no scene is assigned
+		return create_simple_bubble()
+	return bubble_scene.instantiate()
+
+func create_simple_bubble() -> Node2D:
+	"""Fallback bubble creation if no bubble scene is assigned"""
+	var bubble = Area2D.new()
+	
+	# Add sprite
+	var sprite = Sprite2D.new()
+	sprite.texture = preload("res://Mini Pixel Pack 3/Projectiles/Player_charged_donut_shot (16 x 16).png")  # Add your bubble texture
+	sprite.hframes = 4  # Set horizontal frames to 4
+	sprite.frame = 0    # Start with first frame
+	sprite.scale = Vector2(3.0, 3.0)
+	bubble.add_child(sprite)
+	
+	# Add collision shape
+	var collision = CollisionShape2D.new()
+	var shape = CircleShape2D.new()
+	shape.radius = 8
+	collision.shape = shape
+	bubble.add_child(collision)
+	
+	# Add bubble script
+	bubble.set_script(preload("res://bullets/bubble.gd"))
+	
+	# Set properties
+	bubble.damage = 1
+	bubble.speed = 100
+	bubble.travel_distance = bubble_travel_distance
+	bubble.bubble_lifetime = bubble_lifetime
+	
+	return bubble
+
+func launch_bubble(bubble: Node2D):
+	"""Launch bubble projectile"""
+	get_tree().root.add_child(bubble)
+	
+	# Launch in the direction the player is facing or default up
+	var shoot_direction = Vector2.UP
+	
+	# Optional: Shoot in direction of movement or mouse
+	if current_velocity.length() > 0:
+		shoot_direction = current_velocity.normalized()
+	
+	if bubble.has_method("start"):
+		bubble.start(position + Vector2(0, -8), Vector2(0, -1))
+	
+	# Emit signal if desired
+	# player_shot.emit(bubble)
+
+func on_bubble_shot():
+	"""Handle visual effects for bubble shooting"""
+	# Play bubble-specific sound
+	# if bubble_sound and $BubbleSound:
+	#     $BubbleSound.play()
+	
+	# Optional: Different recoil animation for bubbles
+	if has_recoil_animation:
+		animate_recoil()
+	
+	# Optional: Visual feedback
+	modulate = Color(0.8, 0.9, 1.0, 1.0)
+	var timer = get_tree().create_timer(0.1)
+	timer.timeout.connect(func(): modulate = player_color)
