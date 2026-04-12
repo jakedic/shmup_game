@@ -900,11 +900,13 @@ func transform_red():
 #Shoot Bubble
 func shoot_bubble():
 	"""Shoot a bubble projectile (used when trying to absorb while having an ability)"""
-	if not can_shoot or not is_alive:
+	if not can_shoot or not is_alive or not can_absorb:
 		return
 	
 	can_shoot = false
+	can_absorb = false
 	$GunCooldown.start()
+	$AbsorbCooldown.start()
 	
 	# Create bubble projectile
 	var bubble = create_bubble()
