@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://ck1olk3ywsd58"]
+
+[ext_resource type="Script" uid="uid://bxtvyjvquylgi" path="res://bullets/bubble.gd" id="1_0eu5r"]
+[ext_resource type="Texture2D" uid="uid://cj6xormygja1x" path="res://Mini Pixel Pack 3/UI objects/Item_held_box (16 x 16).png" id="2_sf8ae"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_0eu5r"]
+
+[node name="Bubble" type="Area2D" unique_id=21946767]
+collision_mask = 3
+script = ExtResource("1_0eu5r")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=886311916]
+texture = ExtResource("2_sf8ae")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=163967754]
+shape = SubResource("CircleShape2D_0eu5r")

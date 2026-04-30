@@ -11,6 +11,7 @@ func _ready():
 	homing_enabled = false
 	homing_strength= 1.0
 	bounce_count= 0
+	add_to_group("enemy_bullet")
 	
 	# Set visual properties
 	modulate = Color.YELLOW

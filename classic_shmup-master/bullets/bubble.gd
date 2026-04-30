@@ -10,11 +10,18 @@ class_name Bubble
 @export var hover_frequency: float = 1.0   # How fast it bobs
 @export var rotation_speed: float = 45.0   # Degrees per second rotation
 
+var hit_points: int = 1  # Number of hits before bubble disappears
+var current_hits: int = 0
+
 #var distance_traveled: float = 0.0
 var has_stopped: bool = false
 var start_position: Vector2
 var time_elapsed: float = 0.0
 var original_speed: float
+
+func _ready():
+	# Connect to area entered signal
+	area_entered.connect(_on_area_entered)
 
 func custom_start():
 	"""Initialize bubble behavior"""
@@ -103,7 +110,7 @@ func create_pop_damage():
 	await get_tree().create_timer(0.1).timeout
 	damage_area.queue_free()
 
-func _on_area_entered(area: Area2D):
+'''func _on_area_entered(area: Area2D):
 	"""Handle collisions - bubble only damages enemies when stationary"""
 	if area.is_in_group("enemies") and has_stopped:
 		# Bubble hits enemy while stationary - damage and pop
@@ -120,4 +127,34 @@ func _on_area_entered(area: Area2D):
 		if pierce_count > 0:
 			current_pierce += 1
 			if current_pierce >= pierce_count:
-				queue_free()
+				queue_free()'''
+				
+func _on_area_entered(area: Area2D):
+	# Check if what hit us is an enemy bullet
+	if area.is_in_group("enemy_bullet"):
+		current_hits += 1
+		
+		# Visual feedback (optional)
+		flash_white()
+		
+		# Remove the enemy bullet that hit us
+		area.queue_free()
+		
+		# Check if bubble should disappear
+		if current_hits >= hit_points:
+			explode_or_disappear()
+
+func flash_white():
+	# Quick flash effect to show it was hit
+	modulate = Color.WHITE
+	var timer = get_tree().create_timer(0.1)
+	timer.timeout.connect(func(): modulate = Color.WHITE)  # Reset to original color
+
+func explode_or_disappear():
+	# Optional: Add explosion effect
+	# var explosion = preload("res://effects/bubble_pop.tscn").instantiate()
+	# get_parent().add_child(explosion)
+	# explosion.global_position = global_position
+	
+	# Remove the bubble
+	queue_free()
