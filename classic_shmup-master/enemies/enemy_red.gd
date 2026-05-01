@@ -11,6 +11,7 @@ func _ready():
 	$Sprite2D.hframes = 5
 	$Sprite2D.vframes = 1  # Also set vframes if needed
 	bullet_scene = preload("res://enemy_bullets/enemy_bullet.tscn")  # Change to your actual bullet
+	add_to_group("enemy")
 	
 '''func _on_shoot_timer_timeout():
 	# Call parent's shoot method with our position

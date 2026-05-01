@@ -11,6 +11,8 @@ func _ready():
 	shot_count=3
 	shot_spread=60
 	
+	add_to_group("enemy")
+	
 	# Set yellow color
 	#modulate = Color.YELLOW
 

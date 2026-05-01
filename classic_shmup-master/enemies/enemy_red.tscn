@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://c6xpwdon80bdg"]
+[gd_scene format=3 uid="uid://c6xpwdon80bdg"]
 
 [ext_resource type="Script" uid="uid://bi3imheem4p8r" path="res://enemies/enemy_red.gd" id="1_5al4c"]
 [ext_resource type="Texture2D" uid="uid://bfvjqpdy1yspp" path="res://Mini Pixel Pack 3/Enemies/Bon_Bon (16 x 16).png" id="2_kro7f"]
@@ -135,27 +135,27 @@ _data = {
 &"explode": SubResource("Animation_jorl6")
 }
 
-[node name="Enemy" type="Area2D" groups=["enemies"]]
+[node name="Enemy" type="Area2D" unique_id=1010422479 groups=["enemies"]]
+collision_layer = 3
+collision_mask = 3
 script = ExtResource("1_5al4c")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1631824896]
 texture = ExtResource("2_kro7f")
 hframes = 6
 frame = 2
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=585347326]
 shape = SubResource("RectangleShape2D_j7632")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
-libraries = {
-&"": SubResource("AnimationLibrary_rfrsa")
-}
-autoplay = "bounce"
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1913851674]
+libraries/ = SubResource("AnimationLibrary_rfrsa")
+autoplay = &"bounce"
 
-[node name="MoveTimer" type="Timer" parent="."]
+[node name="MoveTimer" type="Timer" parent="." unique_id=1058186846]
 one_shot = true
 
-[node name="ShootTimer" type="Timer" parent="."]
+[node name="ShootTimer" type="Timer" parent="." unique_id=441805105]
 one_shot = true
 
 [connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]

@@ -10,7 +10,7 @@ class_name Bubble
 @export var hover_frequency: float = 1.0   # How fast it bobs
 @export var rotation_speed: float = 45.0   # Degrees per second rotation
 
-var hit_points: int = 1  # Number of hits before bubble disappears
+var hit_points: int = 3  # Number of hits before bubble disappears
 var current_hits: int = 0
 
 #var distance_traveled: float = 0.0
@@ -133,6 +133,19 @@ func _on_area_entered(area: Area2D):
 	# Check if what hit us is an enemy bullet
 	if area.is_in_group("enemy_bullet"):
 		current_hits += 1
+		
+		# Visual feedback (optional)
+		flash_white()
+		
+		# Remove the enemy bullet that hit us
+		area.queue_free()
+		
+		# Check if bubble should disappear
+		if current_hits >= hit_points:
+			explode_or_disappear()
+			
+	if area.is_in_group("enemy"):
+		current_hits += 3
 		
 		# Visual feedback (optional)
 		flash_white()

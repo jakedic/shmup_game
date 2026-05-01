@@ -61,7 +61,7 @@ func _ready():
 		bullet_scene = preload("res://enemy_bullets/enemy_bullet.tscn")
 	
 	# Custom ready for child classes
-	add_to_group("enemy_bullet")
+	add_to_group("enemy")
 	custom_ready()
 
 func custom_ready():
