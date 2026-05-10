@@ -138,6 +138,7 @@ func initialize_player():
 	
 	# Set up transformation timer
 	setup_transformation_timer()
+	add_to_group("player")
 	
 	
 func reset_position():
@@ -911,6 +912,9 @@ func shoot_bubble():
 	# Create bubble projectile
 	var bubble = create_bubble()
 	if bubble:
+		# Pass the current enemy type to the bubble
+		if bubble.has_method("set_enemy_type"):
+			bubble.set_enemy_type(current_form)
 		launch_bubble(bubble)
 	
 	# Visual/sound effects

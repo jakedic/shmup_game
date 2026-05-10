@@ -10,6 +10,8 @@ class_name Bubble
 @export var hover_frequency: float = 1.0   # How fast it bobs
 @export var rotation_speed: float = 45.0   # Degrees per second rotation
 
+var absorbed_enemy_type: String = "" 
+
 var hit_points: int = 3  # Number of hits before bubble disappears
 var current_hits: int = 0
 
@@ -22,6 +24,10 @@ var original_speed: float
 func _ready():
 	# Connect to area entered signal
 	area_entered.connect(_on_area_entered)
+	
+func set_enemy_type(enemy_type: String):
+	absorbed_enemy_type = enemy_type
+	print("Bubble contains: ", enemy_type)
 
 func custom_start():
 	"""Initialize bubble behavior"""
@@ -130,9 +136,22 @@ func create_pop_damage():
 				queue_free()'''
 				
 func _on_area_entered(area: Area2D):
+	# Check if player touched the bubble
+	if area.is_in_group("player") or area.name == "Player":
+		print("Player touched bubble! Enemy type: ", absorbed_enemy_type)
+		
+		# Apply transformation to player if we have an enemy type
+		if absorbed_enemy_type != "":
+			apply_transformation_to_player(area)
+		
+		# Bubble gets absorbed/disappears
+		queue_free()
+		return
+	
 	# Check if what hit us is an enemy bullet
 	if area.is_in_group("enemy_bullet"):
 		current_hits += 1
+		print("Bubble hit by enemy bullet! Hits: ", current_hits, "/", hit_points)
 		
 		# Visual feedback (optional)
 		flash_white()
@@ -142,32 +161,49 @@ func _on_area_entered(area: Area2D):
 		
 		# Check if bubble should disappear
 		if current_hits >= hit_points:
-			explode_or_disappear()
-			
-	if area.is_in_group("enemy"):
+			print("Bubble destroyed by bullets")
+			queue_free()
+		return
+	
+	# Check if hit by enemy (optional - makes bubble pop on enemy contact)
+	if area.is_in_group("enemies") or area.is_in_group("enemy"):
+		print("Bubble hit enemy! Popping...")
 		current_hits += 3
-		
-		# Visual feedback (optional)
 		flash_white()
 		
-		# Remove the enemy bullet that hit us
-		area.queue_free()
-		
-		# Check if bubble should disappear
 		if current_hits >= hit_points:
-			explode_or_disappear()
+			queue_free()
+func apply_transformation_to_player(player: Area2D):
+	print("Applying transformation: ", absorbed_enemy_type)
+	
+	# Call the player's absorb_complete function to trigger transformation
+	if player.has_method("absorb_complete"):
+		# This will trigger the player's transformation
+		player.absorb_complete(absorbed_enemy_type)
+	elif player.has_method("transform_" + absorbed_enemy_type.to_lower()):
+		# Directly call the transformation function
+		var transform_func = "transform_" + absorbed_enemy_type.to_lower()
+		player.call(transform_func)
+	else:
+		print("Player cannot absorb enemy type: ", absorbed_enemy_type)
+	
+	# Optional: Add visual effect
+	create_absorption_effect()
+
+func create_absorption_effect():
+	"""Create a visual effect when bubble is absorbed"""
+	# Add particles or flash effect
+	var tween = create_tween()
+	tween.tween_property(self, "modulate", Color(1, 1, 0, 1), 0.1)
+	tween.tween_property(self, "modulate", Color(1, 1, 0, 0), 0.1)
 
 func flash_white():
 	# Quick flash effect to show it was hit
+	var original_color = modulate
 	modulate = Color.WHITE
-	var timer = get_tree().create_timer(0.1)
-	timer.timeout.connect(func(): modulate = Color.WHITE)  # Reset to original color
+	await get_tree().create_timer(0.1).timeout
+	modulate = original_color
 
 func explode_or_disappear():
-	# Optional: Add explosion effect
-	# var explosion = preload("res://effects/bubble_pop.tscn").instantiate()
-	# get_parent().add_child(explosion)
-	# explosion.global_position = global_position
-	
-	# Remove the bubble
 	queue_free()
+	
