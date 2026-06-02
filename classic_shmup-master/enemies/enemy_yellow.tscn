@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://buv1055nhydxp"]
 
 [ext_resource type="Script" uid="uid://ci0watw44p7tt" path="res://enemies/enemy_yellow.gd" id="1_acjx7"]
-[ext_resource type="Texture2D" uid="uid://bfvjqpdy1yspp" path="res://Mini Pixel Pack 3/Enemies/Bon_Bon (16 x 16).png" id="2_rtbia"]
+[ext_resource type="Texture2D" uid="uid://diwa4cr3w07uf" path="res://Art assets/Player assets and transformations/Bee_enemy_spritesheet.png" id="2_pkprb"]
 [ext_resource type="Texture2D" uid="uid://dn1edfs6n7tjr" path="res://Mini Pixel Pack 3/Effects/Explosion (16 x 16).png" id="3_pkprb"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j7632"]
@@ -31,7 +31,7 @@ tracks/1/keys = {
 "times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [ExtResource("2_rtbia")]
+"values": [ExtResource("2_pkprb")]
 }
 tracks/2/type = "value"
 tracks/2/imported = false
@@ -70,9 +70,9 @@ tracks/1/interp = 1
 tracks/1/loop_wrap = true
 tracks/1/keys = {
 "times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
+"transitions": PackedFloat32Array(0.9999989),
 "update": 1,
-"values": [ExtResource("2_rtbia")]
+"values": [ExtResource("2_pkprb")]
 }
 tracks/2/type = "value"
 tracks/2/imported = false
@@ -84,7 +84,7 @@ tracks/2/keys = {
 "times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [4]
+"values": [3]
 }
 
 [sub_resource type="Animation" id="Animation_jorl6"]
@@ -140,7 +140,9 @@ collision_mask = 3
 script = ExtResource("1_acjx7")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1401540226]
-texture = ExtResource("2_rtbia")
+rotation = 3.1415927
+scale = Vector2(0.1, 0.1)
+texture = ExtResource("2_pkprb")
 hframes = 6
 frame = 2
 
