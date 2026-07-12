@@ -96,25 +96,58 @@ func pop_bubble():
 	create_pop_damage()
 
 func create_pop_damage():
-	"""Create a small AOE damage when bubble pops"""
-	# This would damage nearby enemies when bubble pops
-	var damage_area = Area2D.new()
-	var collision_shape = CollisionShape2D.new()
-	var circle_shape = CircleShape2D.new()
-	circle_shape.radius = 50
-	collision_shape.shape = circle_shape
-	damage_area.add_child(collision_shape)
-	damage_area.position = position
-	get_parent().add_child(damage_area)
+	"""Create explosion damage using a simple timer approach"""
+	print("Creating explosion at: ", global_position)
 	
-	# Damage enemies in range
-	for body in damage_area.get_overlapping_bodies():
-		if body.is_in_group("enemies") and body.has_method("take_damage"):
-			body.take_damage(damage)
+	# Get all enemies in range manually
+	var explosion_radius = 80
+	var enemies_in_range = []
 	
-	# Remove the damage area after a short delay
-	await get_tree().create_timer(0.1).timeout
-	damage_area.queue_free()
+	# Search for enemies in the scene
+	var all_nodes = get_tree().get_nodes_in_group("enemies")
+	
+	for enemy in all_nodes:
+		if is_instance_valid(enemy):
+			var distance = global_position.distance_to(enemy.global_position)
+			if distance <= explosion_radius:
+				enemies_in_range.append(enemy)
+				print("Found enemy in range: ", enemy.name, " at distance: ", distance)
+	
+	# Damage all enemies in range
+	var damage_amount = damage * 3
+	for enemy in enemies_in_range:
+		if enemy.has_method("take_damage"):
+			print("Damaging enemy: ", enemy.name)
+			enemy.take_damage(damage_amount)
+		elif enemy.has_method("explode"):
+			print("Exploding enemy: ", enemy.name)
+			enemy.explode()
+	
+	# Create a visual explosion effect (optional)
+	create_visual_explosion()
+	
+	print("Damaged ", enemies_in_range.size(), " enemies")
+
+func create_visual_explosion():
+	"""Create a visual explosion effect"""
+	# Create a circle that expands and fades
+	var explosion = ColorRect.new()
+	explosion.size = Vector2(160, 160)  # 2x radius
+	explosion.position = global_position - explosion.size / 2
+	explosion.color = Color(1, 0.8, 0.2, 0.5)  # Golden yellow with some transparency
+	
+	# Add to scene
+	get_parent().add_child(explosion)
+	
+	# Animate the explosion
+	var tween = create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(explosion, "scale", Vector2(1.5, 1.5), 0.3)
+	tween.tween_property(explosion, "modulate:a", 0.0, 0.3)
+	
+	# Remove after animation
+	await get_tree().create_timer(0.3).timeout
+	explosion.queue_free()
 
 '''func _on_area_entered(area: Area2D):
 	"""Handle collisions - bubble only damages enemies when stationary"""
@@ -173,6 +206,19 @@ func _on_area_entered(area: Area2D):
 		
 		if current_hits >= hit_points:
 			queue_free()
+	# NEW: Check if hit by player's bullet
+	if area.is_in_group("player_bullet") or area.is_in_group("player_projectile"):
+		print("Bubble hit by player bullet! Popping with explosion!")
+		
+		# Remove the player bullet
+		area.queue_free()
+		
+		# Create explosion damage
+		pop_bubble()
+		
+		# Remove the bubble
+		queue_free()
+		return
 func apply_transformation_to_player(player: Area2D):
 	print("Applying transformation: ", absorbed_enemy_type)
 	

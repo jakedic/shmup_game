@@ -3,6 +3,7 @@ class_name Bullet_Basic
 
 func _ready():
 	# Initialize with yellow bullet properties
+	add_to_group("player_bullet")
 	speed = 250
 	damage = 1
 	max_distance = 125.0  # Very short distance for quick disappearance
