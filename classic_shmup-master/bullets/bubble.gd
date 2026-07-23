@@ -129,25 +129,43 @@ func create_pop_damage():
 	print("Damaged ", enemies_in_range.size(), " enemies")
 
 func create_visual_explosion():
-	"""Create a visual explosion effect"""
-	# Create a circle that expands and fades
-	var explosion = ColorRect.new()
-	explosion.size = Vector2(160, 160)  # 2x radius
-	explosion.position = global_position - explosion.size / 2
-	explosion.color = Color(1, 0.8, 0.2, 0.5)  # Golden yellow with some transparency
+	"""Create a blue circular explosion effect using a Polygon2D"""
+	var explosion = Polygon2D.new()
+	
+	# Create a circle with 32 points
+	var points = []
+	var radius = 80
+	var segments = 32
+	for i in range(segments):
+		var angle = (i / float(segments)) * 2 * PI
+		var x = cos(angle) * radius
+		var y = sin(angle) * radius
+		points.append(Vector2(x, y))
+	
+	explosion.polygon = points
+	explosion.color = Color(0.3, 0.6, 1.0, 0.7)  # Blue with transparency
+	explosion.position = global_position
 	
 	# Add to scene
 	get_parent().add_child(explosion)
 	
-	# Animate the explosion
+	# Animate the explosion (expand and fade)
 	var tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(explosion, "scale", Vector2(1.5, 1.5), 0.3)
 	tween.tween_property(explosion, "modulate:a", 0.0, 0.3)
 	
-	# Remove after animation
-	await get_tree().create_timer(0.3).timeout
-	explosion.queue_free()
+	# Use a timer to clean up instead of await
+	var cleanup_timer = Timer.new()
+	cleanup_timer.wait_time = 0.35  # Slightly longer than animation
+	cleanup_timer.one_shot = true
+	cleanup_timer.timeout.connect(func(): 
+		if is_instance_valid(explosion):
+			explosion.queue_free()
+		cleanup_timer.queue_free()
+	)
+	get_tree().root.add_child(cleanup_timer)
+	cleanup_timer.start()
 
 '''func _on_area_entered(area: Area2D):
 	"""Handle collisions - bubble only damages enemies when stationary"""
