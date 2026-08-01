@@ -15,50 +15,44 @@ signal player_healed(amount: int)
 var transformation_timer: Timer
 var transformation_duration: float = 5.0 
 
-# Movement properties
-@export var speed: float = 150
-@export var acceleration: float = 10.0  # For smooth movement
-@export var deceleration: float = 10.0  # For smooth stopping
+# ===== GAMEPLAY STATS =====
+# These are no longer hand-set here. They're synced from the Stats autoload
+# (res://stats.gd), which resolves default -> progression -> active
+# modifiers (transformations) into one dictionary per category.
+# See _sync_player_stats() / _on_stats_changed() below.
+var speed: float
+var acceleration: float
+var deceleration: float
+var max_shield: int
+var shield_regen_rate: float
+var shield_regen_delay: float
+var shoot_cooldown: float
+var can_multi_shoot: bool
+var shot_count: int
+var shot_spread: float
+var absorb_cooldown: float
+var dash_speed: float
+var dash_duration: float
+var dash_cooldown: float
+var spin_speed: float
+var circle_radius: float
+var circle_speed: float
+var steering_influence: float
+var bullet_invincible_during_dash: bool
+var do_dash_damage_to_enemies: bool
+var dash_damage_amount: int
 
-# Health/shield properties
-@export var max_shield: int = 10
-@export var shield_regen_rate: float = 0.0  # Shield per second
-@export var shield_regen_delay: float = 3.0  # Seconds after damage before regen
-
-# Shooting properties
-@export var shoot_cooldown: float = 0.25
+# Scene/visual references stay as exports - they aren't numeric stats.
 @export var bullet_scene: PackedScene
 @export var bullet_yellow_scene: PackedScene
-@export var can_multi_shoot: bool = false
-@export var shot_count: int = 1
-@export var shot_spread: float = 30.0  # degrees
-
-# Absorption properties
 @export var absorb_scene: PackedScene
-@export var absorb_cooldown: float = 2.0
 @export var max_absorption_level: int = 2  # Maximum enemy types that can be absorbed
 var currently_absorbing=false
 
 #Bubble properties
-# Add this with your other exports
 @export var bubble_scene: PackedScene  # The bubble projectile scene
-@export var bubble_lifetime: float = 30.0  # How long bubble stays on screen
-@export var bubble_travel_distance: float = 50.0  # Distance bubble travels before stopping
-
-# ===== DASH SYSTEM VARIABLES =====
-@export var dash_speed: float = 400.0  # Speed while dashing
-@export var dash_duration: float = 0.15  # How long the dash lasts
-@export var dash_cooldown: float = 0.5  # Cooldown between dashes
-var spin_speed: float = 0.0
-var steering_influence = 5
-
-var circle_radius = 0.0
-var circle_speed = 0.0
 
 var dash_time = 0.0
-var bullet_invincible_during_dash: bool = false
-var do_dash_damage_to_enemies: bool = false  # Turn this on to damage enemies during dash
-var dash_damage_amount: int = 1  # How much damage to deal to enemies during dash
 
 # Double-tap detection variables
 const DOUBLETAP_DELAY = 0.25
@@ -118,15 +112,17 @@ func initialize_player():
 	is_alive = true
 	show()
 	
+	# Pull current stats from the central Stats system and stay subscribed
+	# so transformations (add_modifier/remove_modifier) update us live.
+	if not Stats.stats_changed.is_connected(_on_stats_changed):
+		Stats.stats_changed.connect(_on_stats_changed)
+	_sync_player_stats()
+	
 	# Set initial position
 	reset_position()
 	
 	# Set initial shield
 	shield = max_shield
-	
-	# Set up timers
-	$GunCooldown.wait_time = shoot_cooldown
-	$AbsorbCooldown.wait_time = absorb_cooldown
 	
 	# Apply visual properties
 	apply_visuals()
@@ -140,6 +136,49 @@ func initialize_player():
 	setup_transformation_timer()
 	add_to_group("player")
 	
+	
+func _on_stats_changed(category: String):
+	"""Called whenever Stats recomputes a category (progression change,
+	transformation applied/removed, etc.)"""
+	if category == "player":
+		_sync_player_stats()
+	elif category == "bullet":
+		pass # bullets pull their own stats at spawn time, see create_bullet()
+
+func _sync_player_stats():
+	"""Copy the resolved player stats into local fields used by the
+	per-frame movement/shooting/dash code."""
+	var s = Stats.get_category("player")
+	speed = s.speed
+	acceleration = s.acceleration
+	deceleration = s.deceleration
+	max_shield = s.max_shield
+	if shield > max_shield:
+		shield = max_shield  # never top the player back up just from a stat change
+	shield_regen_rate = s.shield_regen_rate
+	shield_regen_delay = s.shield_regen_delay
+	shoot_cooldown = max(0.05, s.shoot_cooldown)
+	can_multi_shoot = s.can_multi_shoot
+	shot_count = s.shot_count
+	shot_spread = s.shot_spread
+	absorb_cooldown = s.absorb_cooldown
+	dash_speed = s.dash_speed
+	dash_duration = s.dash_duration
+	dash_cooldown = s.dash_cooldown
+	spin_speed = s.spin_speed
+	circle_radius = s.circle_radius
+	circle_speed = s.circle_speed
+	steering_influence = s.steering_influence
+	bullet_invincible_during_dash = s.dash_invincible
+	do_dash_damage_to_enemies = s.dash_damages_enemies
+	dash_damage_amount = s.dash_damage_amount
+	
+	if is_instance_valid(self) and has_node("GunCooldown"):
+		$GunCooldown.wait_time = shoot_cooldown
+	if is_instance_valid(self) and has_node("AbsorbCooldown"):
+		$AbsorbCooldown.wait_time = absorb_cooldown
+	if not is_dashing:
+		original_speed = speed
 	
 func reset_position():
 	"""Reset player to starting position"""
@@ -470,9 +509,24 @@ func create_bullet(bullet_type: PackedScene) -> Node2D:
 	return bullet_type.instantiate()
 
 func configure_bullet(bullet: Node2D):
-	"""Configure bullet properties before launching"""
-	# Override this for custom bullet configuration
-	pass
+	"""Apply the player's current bullet stats (from Stats) to a freshly
+	spawned bullet, overriding whatever the bullet scene's script set as
+	its own hardcoded defaults."""
+	var b = Stats.get_category("bullet")
+	if b.is_empty():
+		return
+	if bullet.has_method("set_damage"):
+		bullet.set_damage(b.damage)
+	if bullet.has_method("set_speed"):
+		bullet.set_speed(b.speed)
+	if bullet.has_method("set_pierce_count"):
+		bullet.set_pierce_count(b.pierce_count if b.can_pierce else 0)
+	if "max_distance" in bullet:
+		bullet.max_distance = b.max_distance
+	if "homing_enabled" in bullet:
+		bullet.homing_enabled = b.homing_enabled
+	if "homing_strength" in bullet:
+		bullet.homing_strength = b.homing_strength
 
 func launch_bullet(bullet: Node2D, spawn_pos: Vector2):
 	"""Launch a bullet into the game"""
@@ -564,28 +618,12 @@ func reset_to_default_form():
 	if transformation_timer:
 		transformation_timer.stop()
 	
-	speed = 150
-	shoot_cooldown = 0.25  # Your default value
-	$GunCooldown.wait_time = shoot_cooldown
-	max_shield = 10  # Your default value
-	shield = min(shield, max_shield)
-	shield_regen_rate = 0.0  # Your default value
-	absorb_cooldown = 2.0  # Your default value
-	$AbsorbCooldown.wait_time = absorb_cooldown
-	can_multi_shoot = false  # Your default value
-	shot_count = 1  # Your default value
-	bullet_scene=load("res://bullets/bullet.tscn")
-	circle_radius = 0
-	circle_speed = 0
-	spin_speed=0
-	steering_influence=5
-	dash_duration=0.15
-	bullet_invincible_during_dash=false
-	do_dash_damage_to_enemies=false
-	dash_speed= 400.0  # Speed while dashing
-	dash_duration = 0.15  # How long the dash lasts
-	dash_cooldown= 0.5  # Cooldown between dashes
-
+	# Undo whichever transformation modifier is currently active. This
+	# restores exactly whatever the player's stats were before transforming
+	# (including any permanent progression upgrades) - no hand-written
+	# "reset to hardcoded defaults" needed, and nothing gets lost.
+	Stats.remove_modifier("transform_" + current_form)
+	bullet_scene = load("res://bullets/bullet.tscn")
 	
 	# Reset visual appearance
 	modulate = player_color
@@ -785,24 +823,25 @@ func handle_enemy_collision(area: Area2D):
 	take_damage(int(max_shield / 2.0))
 	
 # ===== HELPER METHODS =====
+# These write PERMANENT (progression-tier) changes via Stats, so they
+# persist across transformations and levels instead of being silently
+# overwritten the next time _sync_player_stats() runs. For a TEMPORARY
+# change, use Stats.add_modifier()/remove_modifier() directly instead.
 func set_speed(new_speed: float):
-	"""Change player speed"""
-	speed = new_speed
+	"""Permanently change player speed"""
+	Stats.set_progression_stat("player", "speed", new_speed)
 
 func set_shoot_cooldown(new_cooldown: float):
-	"""Change shooting cooldown"""
-	shoot_cooldown = new_cooldown
-	$GunCooldown.wait_time = shoot_cooldown
+	"""Permanently change shooting cooldown"""
+	Stats.set_progression_stat("player", "shoot_cooldown", new_cooldown)
 
 func set_absorb_cooldown(new_cooldown: float):
-	"""Change absorption cooldown"""
-	absorb_cooldown = new_cooldown
-	$AbsorbCooldown.wait_time = absorb_cooldown
+	"""Permanently change absorption cooldown"""
+	Stats.set_progression_stat("player", "absorb_cooldown", new_cooldown)
 
 func set_max_shield(new_max_shield: int):
-	"""Change maximum shield"""
-	max_shield = new_max_shield
-	shield = min(shield, max_shield)
+	"""Permanently change maximum shield"""
+	Stats.set_progression_stat("player", "max_shield", new_max_shield)
 
 func set_bullet_type(new_bullet_scene: PackedScene, is_yellow: bool = false):
 	"""Change bullet type"""
@@ -812,10 +851,10 @@ func set_bullet_type(new_bullet_scene: PackedScene, is_yellow: bool = false):
 		bullet_scene = new_bullet_scene
 
 func set_multi_shot(enabled: bool, count: int = 1, spread: float = 10.0):
-	"""Configure multi-shot"""
-	can_multi_shoot = enabled
-	shot_count = count
-	shot_spread = spread
+	"""Permanently configure multi-shot"""
+	Stats.set_progression_stat("player", "can_multi_shoot", enabled)
+	Stats.set_progression_stat("player", "shot_count", count)
+	Stats.set_progression_stat("player", "shot_spread", spread)
 
 func set_absorption_level(level: int):
 	"""Set absorption level (0 = normal, 1+ = absorbed enemy types)"""
@@ -852,9 +891,22 @@ func transform_yellow():
 	if transformation_timer:
 		transformation_timer.stop()
 		transformation_timer.start(transformation_duration)
-		
-	original_speed = original_speed * 2
-	speed = speed * 2
+	
+	Stats.add_modifier("transform_yellow", {
+		"player": {
+			"speed": {"op": "mult", "value": 2.0},
+			"circle_radius": {"op": "set", "value": 600.0},
+			"circle_speed": {"op": "set", "value": 20.0},
+			"dash_duration": {"op": "mult", "value": 2.5},
+			"dash_speed": {"op": "mult", "value": 0.5},
+			"dash_invincible": {"op": "set", "value": true},
+		},
+		"bullet": {
+			"damage": {"op": "set", "value": 3},
+			"max_distance": {"op": "set", "value": 500.0},
+		},
+	})
+	
 	# Optional visual feedback
 	modulate = Color.YELLOW
 	var timer = get_tree().create_timer(0.5)
@@ -864,13 +916,6 @@ func transform_yellow():
 	$Ship.texture = yellow_texture
 	$Ship.hframes = 3  # Adjust this to match your yellow sprite's frame count
 	
-	circle_radius = 600.0
-	circle_speed = 20.0
-	dash_duration=dash_duration*2.5
-	dash_speed=dash_speed*.5
-	
-	bullet_invincible_during_dash=true
-	
 	# Change bullets to yellow bullets
 	# If you want ALL bullets to be yellow while transformed:
 	bullet_scene = load("res://bullets/bullet_yellow.tscn")
@@ -879,9 +924,17 @@ func transform_red():
 	if transformation_timer:
 		transformation_timer.stop()
 		transformation_timer.start(transformation_duration)
-		
-	shoot_cooldown = max(0.05, shoot_cooldown * 0.75)  # Halve cooldown (faster shooting)
-	$GunCooldown.wait_time = shoot_cooldown
+	
+	Stats.add_modifier("transform_red", {
+		"player": {
+			"shoot_cooldown": {"op": "mult", "value": 0.75},
+			"dash_duration": {"op": "mult", "value": 15.0},
+			"dash_speed": {"op": "mult", "value": 0.2},
+			"spin_speed": {"op": "set", "value": 2080.0},
+			"steering_influence": {"op": "mult", "value": 4.0},
+			"dash_damages_enemies": {"op": "set", "value": true},
+		},
+	})
 	
 	# Visual feedback
 	modulate = Color.RED
@@ -891,12 +944,6 @@ func transform_red():
 	var red_texture = load("res://Art assets/Player assets and transformations/Player_topdown_placeholder_transformation_sprite.png")
 	$Ship.texture = red_texture
 	$Ship.hframes = 3 
-	
-	dash_duration=dash_duration*15
-	dash_speed=dash_speed/5
-	spin_speed=2080
-	steering_influence=steering_influence*4
-	do_dash_damage_to_enemies=true
 	
 #Shoot Bubble
 func shoot_bubble():
@@ -922,10 +969,26 @@ func shoot_bubble():
 
 func create_bubble() -> Node2D:
 	"""Create bubble projectile instance"""
+	var bubble: Node2D
 	if not bubble_scene:
 		# Create a simple bubble if no scene is assigned
-		return create_simple_bubble()
-	return bubble_scene.instantiate()
+		bubble = create_simple_bubble()
+	else:
+		bubble = bubble_scene.instantiate()
+	_apply_bubble_stats(bubble)
+	return bubble
+
+func _apply_bubble_stats(bubble: Node2D):
+	"""Apply the player's current bubble stats (from Stats) to the bubble."""
+	var bub = Stats.get_category("bubble")
+	if bub.is_empty():
+		return
+	bubble.damage = bub.damage
+	bubble.speed = bub.speed
+	bubble.travel_distance = bub.travel_distance
+	bubble.bubble_lifetime = bub.lifetime
+	if "hit_points" in bubble:
+		bubble.hit_points = bub.hit_points
 
 func create_simple_bubble() -> Node2D:
 	"""Fallback bubble creation if no bubble scene is assigned"""
@@ -948,12 +1011,6 @@ func create_simple_bubble() -> Node2D:
 	
 	# Add bubble script
 	bubble.set_script(preload("res://bullets/bubble.gd"))
-	
-	# Set properties
-	bubble.damage = 1
-	bubble.speed = 100
-	bubble.travel_distance = bubble_travel_distance
-	bubble.bubble_lifetime = bubble_lifetime
 	
 	return bubble
 

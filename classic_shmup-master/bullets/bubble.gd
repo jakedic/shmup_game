@@ -12,7 +12,7 @@ class_name Bubble
 
 var absorbed_enemy_type: String = "" 
 
-var hit_points: int = 3  # Number of hits before bubble disappears
+var hit_points: int = 3  # Editor-time fallback; player._apply_bubble_stats() sets this from Stats.get_category("bubble") when spawned
 var current_hits: int = 0
 
 #var distance_traveled: float = 0.0
