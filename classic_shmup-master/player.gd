@@ -1,6 +1,24 @@
 # player_base.gd
 extends Area2D
-#class_name Player
+class_name Player
+
+# NOTE ON STRUCTURE:
+# This script holds the player's state (signals, exported properties,
+# stats, timers) plus its core lifecycle (_process, initialize_player,
+# stat syncing). Almost every behavior method below is a one-line
+# delegate into a focused helper script:
+#   player/player_movement.gd       - PlayerMovement   (move, dash)
+#   player/player_shooting.gd       - PlayerShooting    (bullets)
+#   player/player_absorption.gd     - PlayerAbsorption  (absorb, bubble, revert)
+#   player/player_health.gd         - PlayerHealth      (shield, damage, death)
+#   player/player_visuals.gd        - PlayerVisuals     (sprite/tween effects)
+#   transformations/player_transformations.gd - PlayerTransformations
+#
+# Methods that other scripts call by name (start, absorb_complete,
+# absorb_fail, update_multiplier, transform_yellow, transform_red) and the
+# three methods wired up directly in player.tscn (_on_area_entered,
+# _on_gun_cooldown_timeout, _on_absorb_cooldown_timeout) are kept here as
+# real methods for that reason - they just forward to the helper scripts.
 
 signal shield_changed(max_shield: int, current_shield: int)
 signal died
@@ -13,7 +31,7 @@ signal player_healed(amount: int)
 
 #Transformation Timer Properties
 var transformation_timer: Timer
-var transformation_duration: float = 5.0 
+var transformation_duration: float = 5.0
 
 # ===== GAMEPLAY STATS =====
 # These are no longer hand-set here. They're synced from the Stats autoload
@@ -108,35 +126,35 @@ func start():
 
 func initialize_player():
 	"""Initialize all player systems"""
-	
+
 	is_alive = true
 	show()
-	
+
 	# Pull current stats from the central Stats system and stay subscribed
 	# so transformations (add_modifier/remove_modifier) update us live.
 	if not Stats.stats_changed.is_connected(_on_stats_changed):
 		Stats.stats_changed.connect(_on_stats_changed)
 	_sync_player_stats()
-	
+
 	# Set initial position
 	reset_position()
-	
+
 	# Set initial shield
 	shield = max_shield
-	
+
 	# Apply visual properties
 	apply_visuals()
-	
+
 	setup_dash_timers()
 	original_speed = speed
 	can_dash = true
 	is_dashing = false
-	
+
 	# Set up transformation timer
 	setup_transformation_timer()
 	add_to_group("player")
-	
-	
+
+
 func _on_stats_changed(category: String):
 	"""Called whenever Stats recomputes a category (progression change,
 	transformation applied/removed, etc.)"""
@@ -172,34 +190,33 @@ func _sync_player_stats():
 	bullet_invincible_during_dash = s.dash_invincible
 	do_dash_damage_to_enemies = s.dash_damages_enemies
 	dash_damage_amount = s.dash_damage_amount
-	
+
 	if is_instance_valid(self) and has_node("GunCooldown"):
 		$GunCooldown.wait_time = shoot_cooldown
 	if is_instance_valid(self) and has_node("AbsorbCooldown"):
 		$AbsorbCooldown.wait_time = absorb_cooldown
 	if not is_dashing:
 		original_speed = speed
-	
+
 func reset_position():
 	"""Reset player to starting position"""
 	position = Vector2(screensize.x / 2, screensize.y - 64)
 
 func apply_visuals():
 	"""Apply visual properties like color and texture"""
-	modulate = player_color
-	update_sprite()
+	PlayerVisuals.apply_visuals(self)
 
 # ===== MOVEMENT SYSTEM =====
 func _process(delta):
 	if not is_alive:
 		return
-	
+
 	process_input(delta)
 	process_shield_regen(delta)
-	
+
 	# Update double-tap timers
 	update_doubletap_timers(delta)
-	
+
 	if is_dashing and is_instance_valid($Ship):
 		$Ship.rotation += deg_to_rad(spin_speed) * delta
 
@@ -209,619 +226,139 @@ func process_input(delta):
 	handle_absorb_input()
 	handle_movement(delta)
 	handle_shoot_input()
-	handle_dash_input()  # Add this line
+	handle_dash_input()
 
 func handle_movement(delta):
-	"""Process player movement with smooth acceleration"""
-	var input = Input.get_vector("left", "right", "up", "down")
-	
-	# If dashing, override input with dash direction
-	
-	if is_dashing:
-		# Get the dash direction (initial direction when dash started)
-		var base_dash_dir = dash_direction
-		
-		# Track dash time for circular motion
-		dash_time += delta
-
-		# Create perpendicular vector (90 degrees)
-		var perpendicular_dir = base_dash_dir.rotated(PI/2)
-
-		# Adjust circle size and speed
-
-		# Create a vector that will rotate in a circle
-		# Start with a vector pointing to the "right" of the perpendicular direction
-		var circle_vector = Vector2(circle_radius, 0)
-
-		# Rotate it over time
-		var rotation_angle = dash_time * circle_speed
-		circle_vector = circle_vector.rotated(rotation_angle)
-
-		# Now rotate this circle to align with our perpendicular plane
-		# We need to rotate it so it's perpendicular to our dash direction
-		var circle_offset = circle_vector.rotated(perpendicular_dir.angle())
-
-		# Apply player input to modify dash direction
-		var modified_direction = (base_dash_dir + input * steering_influence).normalized()
-
-		# Smoothly transition to new direction
-		dash_direction = dash_direction.lerp(modified_direction, 2.0 * delta)
-
-		# Apply dash velocity with circular motion added
-		current_velocity = (dash_direction * dash_speed) - circle_offset
-	elif !currently_absorbing:
-		# Reset dash time when not dashing
-		dash_time = 0
-		
-		# Normal movement with acceleration/deceleration
-		if input.length() > 0:
-			current_velocity = current_velocity.lerp(input * speed, acceleration * delta)
-		else:
-			current_velocity = current_velocity.lerp(Vector2.ZERO, deceleration * delta)
-		
-	# Update animations (skip animation during dash for different effect)
-	if not is_dashing:
-		update_movement_animation(input.x)
-	else:
-		# Special dash animation
-		$Ship.frame = 1  # Forward frame during dash
-		$Ship/Boosters.animation = "forward"
-		#$Ship.modulate = Color(0.5, 0.8, 1.0)  # Blue tint
-	
-	# Apply movement
-	position += current_velocity * delta
-	
-	# Enforce screen boundaries
-	clamp_to_screen()
+	PlayerMovement.handle_movement(self, delta)
 
 func can_player_dash() -> bool:
-	"""Check if player can dash"""
-	return can_dash and is_alive and not is_dashing
+	return PlayerMovement.can_player_dash(self)
 
 func update_movement_animation(x_input: float):
-	"""Update ship animation based on movement direction"""
-	if x_input > 0:
-		$Ship.frame = 2
-		$Ship/Boosters.animation = "right"
-	elif x_input < 0:
-		$Ship.frame = 0
-		$Ship/Boosters.animation = "left"
-	else:
-		$Ship.frame = 1
-		$Ship/Boosters.animation = "forward"
+	PlayerMovement.update_movement_animation(self, x_input)
 
 func clamp_to_screen():
-	"""Keep player within screen boundaries"""
-	position = position.clamp(Vector2(8, 8), screensize - Vector2(8, 8))
+	PlayerMovement.clamp_to_screen(self)
 
 func setup_dash_timers():
-	"""Set up timers for dash duration and cooldown"""
-	dash_timer = Timer.new()
-	dash_timer.name = "DashTimer"
-	dash_timer.one_shot = true
-	dash_timer.timeout.connect(_on_dash_timer_timeout)
-	add_child(dash_timer)
-	
-	dash_cooldown_timer = Timer.new()
-	dash_cooldown_timer.name = "DashCooldownTimer"
-	dash_cooldown_timer.one_shot = true
-	dash_cooldown_timer.timeout.connect(_on_dash_cooldown_timeout)
-	add_child(dash_cooldown_timer)
-	
+	PlayerMovement.setup_dash_timers(self)
+
 func update_doubletap_timers(delta: float):
-	"""Update all double-tap detection timers"""
-	if doubletap_time_left > 0:
-		doubletap_time_left -= delta
-	if doubletap_time_right > 0:
-		doubletap_time_right -= delta
-	if doubletap_time_up > 0:
-		doubletap_time_up -= delta
-	if doubletap_time_down > 0:
-		doubletap_time_down -= delta
-		
+	PlayerMovement.update_doubletap_timers(self, delta)
+
 func handle_dash_input():
-	"""Handle dash input based on double-tap detection"""
-	if not is_alive or not can_dash or is_dashing:
-		return
-	
-	# Check for double-tap in each direction
-	if Input.is_action_just_pressed("left"):
-		if doubletap_time_left > 0:
-			start_dash(Vector2.LEFT)
-		else:
-			doubletap_time_left = DOUBLETAP_DELAY
-	
-	if Input.is_action_just_pressed("right"):
-		if doubletap_time_right > 0:
-			start_dash(Vector2.RIGHT)
-		else:
-			doubletap_time_right = DOUBLETAP_DELAY
-	
-	if Input.is_action_just_pressed("up"):
-		if doubletap_time_up > 0:
-			start_dash(Vector2.UP)
-		else:
-			doubletap_time_up = DOUBLETAP_DELAY
-	
-	if Input.is_action_just_pressed("down"):
-		if doubletap_time_down > 0:
-			start_dash(Vector2.DOWN)
-		else:
-			doubletap_time_down = DOUBLETAP_DELAY
-	
-	# Also check for double-tap using held direction + opposite press
-	# (Alternative method: tap direction, release, tap same direction quickly)
-	var input = Input.get_vector("left", "right", "up", "down")
-	if input != Vector2.ZERO and input != last_direction_input:
-		# Check if this is a quick return to the same direction
-		if last_direction_input != Vector2.ZERO and input.dot(last_direction_input) > 0.7:
-			# This detects quick direction changes (like left-right-left)
-			pass
-	last_direction_input = input
-	
+	PlayerMovement.handle_dash_input(self)
+
 func start_dash(direction: Vector2):
-	"""Start a dash in the given direction"""
-	if not can_dash or is_dashing:
-		return
-	
-	# Normalize diagonal dashes
-	if direction.length() > 1:
-		direction = direction.normalized()
-	
-	dash_direction = direction
-	is_dashing = true
-	can_dash = false
-	
-	# Change to dash speed
-	speed = dash_speed
-	
-	if bullet_invincible_during_dash:
-		# Disable collision with enemy bullets
-		set_collision_layer_value(1, false)  # Disable player collision layer
-		set_collision_mask_value(2, false)   # Disable enemy bullet collision mask
-		# Also disable collision with enemies themselves if desired
-		#set_collision_mask_value(1, false)   # Disable enemy collision mask
-	
-	
-	# Start dash duration timer
-	dash_timer.start(dash_duration)
-	
-	# Visual feedback for dash
-	on_dash_start()
+	PlayerMovement.start_dash(self, direction)
 
 func on_dash_start():
-	"""Visual and audio effects for dash start"""
-	# Visual effect
-	modulate = Color(0.5, 0.8, 1.0, 0.7)  # Blue tint during dash
-	
-	# Particle effect (if you have one)
-	if has_node("DashParticles"):
-		$DashParticles.emitting = true
-	
-	# Sound effect
-	# if dash_sound and $DashSound:
-	#     $DashSound.stream = dash_sound
-	#     $DashSound.play()
+	PlayerMovement.on_dash_start(self)
 
 func on_dash_end():
-	"""Clean up dash effects"""
-	# Restore normal speed
-	speed = original_speed
-	is_dashing = false
-	
-	if bullet_invincible_during_dash:
-		set_collision_layer_value(1, true)    # Re-enable player collision layer
-		set_collision_mask_value(2, true)     # Re-enable enemy bullet collision mask
-		#set_collision_mask_value(1, true)     # Re-enable enemy collision mask
-	
-	# Restore normal appearance
-	modulate = player_color
-	
-	# Stop particle effects
-	if has_node("DashParticles"):
-		$DashParticles.emitting = false
-	
-	# Start cooldown timer
-	dash_cooldown_timer.start(dash_cooldown)
-	
-	if is_instance_valid($Ship):
-		$Ship.rotation = 0
-	
-	# Restore collision (if disabled)
-	# set_collision_layer_value(1, true)
-	# set_collision_mask_value(2, true)
+	PlayerMovement.on_dash_end(self)
 
 func _on_dash_timer_timeout():
 	"""Called when dash duration ends"""
-	on_dash_end()
+	PlayerMovement.on_dash_timer_timeout(self)
 
 func _on_dash_cooldown_timeout():
 	"""Called when dash cooldown ends"""
-	can_dash = true
+	PlayerMovement.on_dash_cooldown_timeout(self)
 
 # ===== SHOOTING SYSTEM =====
 func handle_shoot_input():
-	"""Check for shoot input and handle shooting"""
-	if Input.is_action_pressed("shoot"):
-		shoot()
+	PlayerShooting.handle_shoot_input(self)
 
 func shoot():
-	"""Fire bullets based on current state"""
-	if not can_shoot or not is_alive:
-		return
-	
-	can_shoot = false
-	$GunCooldown.start()
-	
-	# Choose bullet type
-	var bullet_type = get_current_bullet_type()
-	
-	# Fire bullets
-	if can_multi_shoot and shot_count > 1:
-		shoot_multiple(bullet_type)
-	else:
-		shoot_single(bullet_type)
-	
-	# Visual/sound effects
-	on_shoot()
+	PlayerShooting.shoot(self)
 
 func get_current_bullet_type() -> PackedScene:
-	"""Get the appropriate bullet scene based on absorption state"""
-	if is_absorbing > 0:
-		return bullet_yellow_scene if bullet_yellow_scene else bullet_scene
-	return bullet_scene
+	return PlayerShooting.get_current_bullet_type(self)
 
 func shoot_single(bullet_type: PackedScene):
-	"""Shoot a single bullet"""
-	var bullet = create_bullet(bullet_type)
-	if bullet:
-		configure_bullet(bullet)
-		launch_bullet(bullet, position + Vector2(0, -8))
+	PlayerShooting.shoot_single(self, bullet_type)
 
 func shoot_multiple(bullet_type: PackedScene):
-	"""Shoot multiple bullets in a spread"""
-	var base_direction = Vector2.UP
-	var bullet_spawn = position + Vector2(0, -8)
-	
-	for i in range(shot_count):
-		# Calculate spread angle
-		var t = float(i) / max(1, shot_count - 1)
-		var angle = shot_spread * (t - 0.5)  # Center the spread
-		var direction = base_direction.rotated(deg_to_rad(angle))
-		
-		var bullet = create_bullet(bullet_type)
-		if bullet:
-			configure_bullet(bullet)
-			
-			# Set bullet direction if supported
-			if bullet.has_method("set_direction"):
-				bullet.set_direction(direction)
-			elif bullet.has_method("start"):
-				# Pass direction to start method if it accepts it
-				bullet.start(bullet_spawn, direction)
-			else:
-				bullet.start(bullet_spawn)
+	PlayerShooting.shoot_multiple(self, bullet_type)
 
 func create_bullet(bullet_type: PackedScene) -> Node2D:
-	"""Create a bullet instance"""
-	if not bullet_type:
-		return null
-	return bullet_type.instantiate()
+	return PlayerShooting.create_bullet(bullet_type)
 
 func configure_bullet(bullet: Node2D):
-	"""Apply the player's current bullet stats (from Stats) to a freshly
-	spawned bullet, overriding whatever the bullet scene's script set as
-	its own hardcoded defaults."""
-	var b = Stats.get_category("bullet")
-	if b.is_empty():
-		return
-	if bullet.has_method("set_damage"):
-		bullet.set_damage(b.damage)
-	if bullet.has_method("set_speed"):
-		bullet.set_speed(b.speed)
-	if bullet.has_method("set_pierce_count"):
-		bullet.set_pierce_count(b.pierce_count if b.can_pierce else 0)
-	if "max_distance" in bullet:
-		bullet.max_distance = b.max_distance
-	if "homing_enabled" in bullet:
-		bullet.homing_enabled = b.homing_enabled
-	if "homing_strength" in bullet:
-		bullet.homing_strength = b.homing_strength
+	PlayerShooting.configure_bullet(bullet)
 
 func launch_bullet(bullet: Node2D, spawn_pos: Vector2):
-	"""Launch a bullet into the game"""
-	get_tree().root.add_child(bullet)
-	
-	# Start the bullet
-	if bullet.has_method("start"):
-		bullet.start(spawn_pos)
-	
-	# Emit signal
-	player_shot.emit(bullet)
-	
+	PlayerShooting.launch_bullet(self, bullet, spawn_pos)
 
 func on_shoot():
-	"""Handle visual and audio effects for shooting"""
-	if has_recoil_animation:
-		animate_recoil()
-	
-	# Play shoot sound if available
-	# if shoot_sound and $ShootSound:
-	#     $ShootSound.stream = shoot_sound
-	#     $ShootSound.play()
+	PlayerShooting.on_shoot(self)
 
 # ===== ABSORPTION SYSTEM =====
 func handle_absorb_input():
-	"""Process absorption input"""
-	if Input.is_action_pressed("absorb") and can_absorb and current_form=='default' and score_multiplier >= 1:
-		absorb()
-	if Input.is_action_pressed("absorb") and can_absorb and current_form!='default':
-		shoot_bubble()
-		revert_absorption()
-	if Input.is_action_pressed("revert") and !is_dashing:
-		revert_absorption()
+	PlayerAbsorption.handle_absorb_input(self)
 
 func absorb():
-	"""Fire absorption projectile"""
-	current_velocity=Vector2.ZERO
-	if not can_absorb or not is_alive:
-		return
-	
-	can_absorb = false
-	currently_absorbing=true
-	$GunCooldown.start()
-	$AbsorbCooldown.start()
-	
-	# Create absorption projectile
-	var boomerang = create_absorption_projectile()
-	if boomerang:
-		launch_absorption_projectile(boomerang)
-	
-	# Visual/sound effects
-	on_absorb()
+	PlayerAbsorption.absorb(self)
 
 func create_absorption_projectile() -> Node2D:
-	"""Create absorption projectile instance"""
-	if not absorb_scene:
-		return null
-	return absorb_scene.instantiate()
-	
+	return PlayerAbsorption.create_absorption_projectile(self)
+
 func update_multiplier(new_multiplier: int):
 	score_multiplier = new_multiplier
 
 func launch_absorption_projectile(projectile: Node2D):
-	"""Launch absorption projectile"""
-	get_tree().root.add_child(projectile)
-	
-	if projectile.has_method("start"):
-		projectile.start(position + Vector2(0, -8), self)
-	
+	PlayerAbsorption.launch_absorption_projectile(self, projectile)
 
 func on_absorb():
-	"""Handle visual and audio effects for absorption"""
-	if has_recoil_animation:
-		animate_recoil()
-	
-	# Play absorb sound if available
-	# if absorb_sound and $AbsorbSound:
-	#     $AbsorbSound.stream = absorb_sound
-	#     $AbsorbSound.play()
+	PlayerAbsorption.on_absorb(self)
 
 func revert_absorption():
-	if current_form != 'default':
-		# Reset to default form
-		reset_to_default_form()
-		current_form = 'default'
+	PlayerAbsorption.revert_absorption(self)
 
 func reset_to_default_form():
-	# Stop the transformation timer
-	if transformation_timer:
-		transformation_timer.stop()
-	
-	# Undo whichever transformation modifier is currently active. This
-	# restores exactly whatever the player's stats were before transforming
-	# (including any permanent progression upgrades) - no hand-written
-	# "reset to hardcoded defaults" needed, and nothing gets lost.
-	Stats.remove_modifier("transform_" + current_form)
-	bullet_scene = load("res://bullets/bullet.tscn")
-	
-	# Reset visual appearance
-	modulate = player_color
-	update_sprite()
-		
+	PlayerAbsorption.reset_to_default_form(self)
 
-'''func absorb_complete(hit_enemy_type: String):
-	"""Called when absorption projectile returns successfully"""
-	if hit_enemy_type:
-
-		form_path = "res://transformations/%s.tres" % hit_enemy_type.to_lower()
-		form_resource = load(form_path)
-		self.set_form(form_resource.get_modified_properties())
-		current_form=hit_enemy_type'''
-		
 func setup_transformation_timer():
 	"""Set up the timer for automatic transformation reversion"""
-	transformation_timer = Timer.new()
-	transformation_timer.name = "TransformationTimer"
-	transformation_timer.one_shot = true
-	transformation_timer.timeout.connect(_on_transformation_timer_timeout)
-	add_child(transformation_timer)
-	
+	PlayerTransformations.setup_transformation_timer(self)
+
 func _on_transformation_timer_timeout():
 	"""Called when transformation duration expires"""
-	if current_form != 'default':
-		revert_absorption()
-		
+	PlayerTransformations.on_transformation_timer_timeout(self)
+
+func get_transformation_function_name(enemy_type: String) -> String:
+	return PlayerTransformations.get_transformation_function_name(enemy_type)
+
 func absorb_complete(hit_enemy_type: String):
-	currently_absorbing=false
-	if hit_enemy_type:
-		current_form = hit_enemy_type
-		
-		# Call the corresponding transformation function
-		var transform_func_name = get_transformation_function_name(hit_enemy_type)
-		
-		if has_method(transform_func_name):
-			call(transform_func_name)
-		else:
-			print("No transformation function found for: ", hit_enemy_type)
-			# Fall back to resource-based transformation
-		'''form_path = "res://transformations/%s.tres" % hit_enemy_type.to_lower()
-		if ResourceLoader.exists(form_path):
-			form_resource = load(form_path)
-			self.set_form(form_resource.get_modified_properties())'''
+	# Called by bullets/absorb.gd and bullets/bubble.gd via has_method()/call(),
+	# so this needs to stay a real method on the player's own script.
+	PlayerAbsorption.absorb_complete(self, hit_enemy_type)
 
 func absorb_fail():
-	currently_absorbing=false
-# ===== SHIELD/HEALTH SYSTEM =====
-func set_shield(value: int):
-	"""Setter function for shield"""
-	shield = clamp(value, 0, max_shield)
-	shield_changed.emit(max_shield, shield)
-	
-	if shield <= 0 and is_alive:
-		die()
+	# Called by bullets/absorb.gd via has_method()/call() - see note above.
+	PlayerAbsorption.absorb_fail(self)
 
-func take_damage(damage_amount: int = 1):
-	"""Take damage from enemies or hazards"""
-	if not is_alive:
-		return
-	
-	shield -= damage_amount
-	time_since_last_damage = 0.0
-	
-	# Visual feedback
-	flash_damage()
-	
-	# Play hit sound if available
-	# if hit_sound and $HitSound:
-	#     $HitSound.stream = hit_sound
-	#     $HitSound.play()
-	
+# Shoot Bubble
+func shoot_bubble():
+	"""Shoot a bubble projectile (used when trying to absorb while having an ability)"""
+	PlayerAbsorption.shoot_bubble(self)
 
-func flash_damage():
-	"""Visual feedback when taking damage"""
-	var original_color = modulate
-	modulate = Color.RED
-	
-	var timer = get_tree().create_timer(0.1)
-	timer.timeout.connect(func(): modulate = original_color)
+func create_bubble() -> Node2D:
+	return PlayerAbsorption.create_bubble(self)
 
-func heal(amount: int):
-	"""Heal the player"""
-	if not is_alive:
-		return
-	
-	var old_shield = shield
-	shield = min(shield + amount, max_shield)
-	
-	if shield > old_shield:
-		player_healed.emit(shield - old_shield)
-		
-		# Visual feedback
-		modulate = Color.GREEN
-		var timer = get_tree().create_timer(0.2)
-		timer.timeout.connect(func(): modulate = player_color)
+func _apply_bubble_stats(bubble: Node2D):
+	PlayerAbsorption.apply_bubble_stats(bubble)
 
-func process_shield_regen(delta: float):
-	"""Process automatic shield regeneration"""
-	if shield_regen_rate > 0 and shield < max_shield:
-		time_since_last_damage += delta
-		
-		if time_since_last_damage >= shield_regen_delay:
-			shield += int(shield_regen_rate * delta)
-			shield = min(shield, max_shield)
+func create_simple_bubble() -> Node2D:
+	return PlayerAbsorption.create_simple_bubble()
 
-func die():
-	"""Handle player death"""
-	if not is_alive:
-		return
-	
-	is_alive = false
-	hide()
-	died.emit()
-	
-	# Custom death behavior
-	custom_die()
+func launch_bubble(bubble: Node2D):
+	PlayerAbsorption.launch_bubble(self, bubble)
 
-func custom_die():
-	"""Override this for custom death behavior"""
-	pass
+func on_bubble_shot():
+	PlayerAbsorption.on_bubble_shot(self)
 
-func revive():
-	"""Revive the player"""
-	if not is_alive:
-		is_alive = true
-		initialize_player()
-
-# ===== VISUAL SYSTEM =====
-func update_sprite():
-	"""Update ship sprite based on absorption state"""
-	if is_absorbing == 1:
-		$Ship.texture = yellow_sprite_texture
-		$Ship.hframes = 4
-	elif is_absorbing == 2:
-		var texture = load("res://Mini Pixel Pack 3/Enemies/Lips (16 x 16).png")
-		$Ship.texture = texture
-		$Ship.hframes = 5
-	else:
-		if $Ship is Sprite2D:
-			$Ship.hframes = 3
-			$Ship.texture = default_sprite_texture
-	
-
-
-func animate_recoil():
-	"""Play the ship recoil animation when shooting"""
-	var tween = create_tween().set_parallel(false)
-	tween.tween_property($Ship, "position:y", recoil_distance, recoil_duration)
-	tween.tween_property($Ship, "position:y", 0, recoil_duration * 0.5)
-
-# ===== COLLISION HANDLING =====
-func _on_area_entered(area):
-	"""Handle collision with enemies"""
-	if area.is_in_group("enemies"):
-		handle_enemy_collision(area)
-
-func handle_enemy_collision(area: Area2D):
-	"""Handle collision with enemy"""
-	
-	# Check if we're dashing and should damage enemies instead of taking damage
-	if is_dashing and do_dash_damage_to_enemies:
-		# Player deals damage to enemy during dash
-		var damage_dealt = false
-		
-		if area.has_method("take_damage"):
-			area.take_damage(dash_damage_amount)
-			damage_dealt = true
-		elif area.has_method("explode"):
-			area.explode()
-			damage_dealt = true
-		
-		# Optional: Apply knockback to enemy
-		if area.has_method("apply_knockback") and damage_dealt:
-			var knockback_direction = (area.global_position - global_position).normalized()
-			area.apply_knockback(knockback_direction, dash_speed * 0.5)
-		
-		# Optional: Add visual feedback for damaging enemies during dash
-		if damage_dealt:
-			if has_node("DashDamageParticles"):
-				$DashDamageParticles.global_position = area.global_position
-				$DashDamageParticles.emitting = true
-			
-			# Optional screen shake effect
-			if get_tree().has_group("camera"):
-				get_tree().call_group("camera", "add_trauma", 0.3)
-		
-		# Return early - player doesn't take damage during dash
-		return
-	
-	# Normal collision handling (player takes damage)
-	if area.has_method("explode"):
-		area.explode()
-	
-	# Take damage
-	take_damage(int(max_shield / 2.0))
-	
 # ===== HELPER METHODS =====
 # These write PERMANENT (progression-tier) changes via Stats, so they
 # persist across transformations and levels instead of being silently
@@ -870,6 +407,7 @@ func get_absorption_level() -> int:
 	return is_absorbing
 
 # ===== TIMER SIGNALS =====
+# Wired up directly in player.tscn, so these two must stay real methods here.
 func _on_gun_cooldown_timeout():
 	can_shoot = true
 
@@ -878,170 +416,77 @@ func _on_absorb_cooldown_timeout():
 
 func play_simple_transition_effect():
 	"""Play a simple transformation effect"""
-	var tween = create_tween()
-	tween.tween_property($Ship, "modulate", Color(1, 1, 1, 0.5), 0.1)
-	tween.tween_property($Ship, "modulate", player_color, 0.1)
+	PlayerTransformations.play_simple_transition_effect(self)
 
-func get_transformation_function_name(enemy_type: String) -> String:
-	return "transform_" + enemy_type.to_lower()
-	
 # ===== TRANSFORMATION FUNCTIONS =====
+# Dispatched to by name (has_method/call) from PlayerAbsorption.absorb_complete()
+# and from bullets/bubble.gd, so transform_yellow/transform_red must stay real
+# methods on the player's own script rather than moving fully into
+# PlayerTransformations.
 
 func transform_yellow():
-	if transformation_timer:
-		transformation_timer.stop()
-		transformation_timer.start(transformation_duration)
-	
-	Stats.add_modifier("transform_yellow", {
-		"player": {
-			"speed": {"op": "mult", "value": 2.0},
-			"circle_radius": {"op": "set", "value": 600.0},
-			"circle_speed": {"op": "set", "value": 20.0},
-			"dash_duration": {"op": "mult", "value": 2.5},
-			"dash_speed": {"op": "mult", "value": 0.5},
-			"dash_invincible": {"op": "set", "value": true},
-		},
-		"bullet": {
-			"damage": {"op": "set", "value": 3},
-			"max_distance": {"op": "set", "value": 500.0},
-		},
-	})
-	
-	# Optional visual feedback
-	modulate = Color.YELLOW
-	var timer = get_tree().create_timer(0.5)
-	timer.timeout.connect(func(): modulate = player_color)
-	
-	var yellow_texture = load("res://Art assets/Player assets and transformations/Player_topdown_placeholder_transformation_sprite.png")
-	$Ship.texture = yellow_texture
-	$Ship.hframes = 3  # Adjust this to match your yellow sprite's frame count
-	
-	# Change bullets to yellow bullets
-	# If you want ALL bullets to be yellow while transformed:
-	bullet_scene = load("res://bullets/bullet_yellow.tscn")
+	PlayerTransformations.transform_yellow(self)
 
 func transform_red():
-	if transformation_timer:
-		transformation_timer.stop()
-		transformation_timer.start(transformation_duration)
-	
-	Stats.add_modifier("transform_red", {
-		"player": {
-			"shoot_cooldown": {"op": "mult", "value": 0.75},
-			"dash_duration": {"op": "mult", "value": 15.0},
-			"dash_speed": {"op": "mult", "value": 0.2},
-			"spin_speed": {"op": "set", "value": 2080.0},
-			"steering_influence": {"op": "mult", "value": 4.0},
-			"dash_damages_enemies": {"op": "set", "value": true},
-		},
-	})
-	
-	# Visual feedback
-	modulate = Color.RED
-	var timer = get_tree().create_timer(0.5)
-	timer.timeout.connect(func(): modulate = player_color)
-	
-	var red_texture = load("res://Art assets/Player assets and transformations/Player_topdown_placeholder_transformation_sprite.png")
-	$Ship.texture = red_texture
-	$Ship.hframes = 3 
-	
-#Shoot Bubble
-func shoot_bubble():
-	"""Shoot a bubble projectile (used when trying to absorb while having an ability)"""
-	if not can_shoot or not is_alive or not can_absorb:
-		return
-	
-	can_shoot = false
-	can_absorb = false
-	$GunCooldown.start()
-	$AbsorbCooldown.start()
-	
-	# Create bubble projectile
-	var bubble = create_bubble()
-	if bubble:
-		# Pass the current enemy type to the bubble
-		if bubble.has_method("set_enemy_type"):
-			bubble.set_enemy_type(current_form)
-		launch_bubble(bubble)
-	
-	# Visual/sound effects
-	on_bubble_shot()
+	PlayerTransformations.transform_red(self)
 
-func create_bubble() -> Node2D:
-	"""Create bubble projectile instance"""
-	var bubble: Node2D
-	if not bubble_scene:
-		# Create a simple bubble if no scene is assigned
-		bubble = create_simple_bubble()
-	else:
-		bubble = bubble_scene.instantiate()
-	_apply_bubble_stats(bubble)
-	return bubble
+# ===== SHIELD/HEALTH SYSTEM =====
+func set_shield(value: int):
+	"""Setter function for shield.
+	NOTE: this one can't delegate to PlayerHealth like the others. Godot
+	only treats a bare assignment to `shield` as a direct backing-field
+	write (no re-trigger) when it happens literally inside this function,
+	the property's declared setter. If this called out to a helper script
+	that did `player.shield = ...` from outside, that write would be seen
+	as external and would re-invoke this setter -> infinite recursion."""
+	shield = clamp(value, 0, max_shield)
+	shield_changed.emit(max_shield, shield)
 
-func _apply_bubble_stats(bubble: Node2D):
-	"""Apply the player's current bubble stats (from Stats) to the bubble."""
-	var bub = Stats.get_category("bubble")
-	if bub.is_empty():
-		return
-	bubble.damage = bub.damage
-	bubble.speed = bub.speed
-	bubble.travel_distance = bub.travel_distance
-	bubble.bubble_lifetime = bub.lifetime
-	if "hit_points" in bubble:
-		bubble.hit_points = bub.hit_points
+	if shield <= 0 and is_alive:
+		die()
 
-func create_simple_bubble() -> Node2D:
-	"""Fallback bubble creation if no bubble scene is assigned"""
-	var bubble = Area2D.new()
-	
-	# Add sprite
-	var sprite = Sprite2D.new()
-	sprite.texture = preload("res://Mini Pixel Pack 3/Projectiles/Player_charged_donut_shot (16 x 16).png")  # Add your bubble texture
-	sprite.hframes = 4  # Set horizontal frames to 4
-	sprite.frame = 0    # Start with first frame
-	sprite.scale = Vector2(3.0, 3.0)
-	bubble.add_child(sprite)
-	
-	# Add collision shape
-	var collision = CollisionShape2D.new()
-	var shape = CircleShape2D.new()
-	shape.radius = 8
-	collision.shape = shape
-	bubble.add_child(collision)
-	
-	# Add bubble script
-	bubble.set_script(preload("res://bullets/bubble.gd"))
-	
-	return bubble
+func take_damage(damage_amount: int = 1):
+	"""Take damage from enemies or hazards"""
+	PlayerHealth.take_damage(self, damage_amount)
 
-func launch_bubble(bubble: Node2D):
-	"""Launch bubble projectile"""
-	get_tree().root.add_child(bubble)
-	
-	# Launch in the direction the player is facing or default up
-	var shoot_direction = Vector2.UP
-	
-	# Optional: Shoot in direction of movement or mouse
-	if current_velocity.length() > 0:
-		shoot_direction = current_velocity.normalized()
-	
-	if bubble.has_method("start"):
-		bubble.start(position + Vector2(0, -8), Vector2(0, -1))
-	
-	# Emit signal if desired
-	# player_shot.emit(bubble)
+func flash_damage():
+	"""Visual feedback when taking damage"""
+	PlayerHealth.flash_damage(self)
 
-func on_bubble_shot():
-	"""Handle visual effects for bubble shooting"""
-	# Play bubble-specific sound
-	# if bubble_sound and $BubbleSound:
-	#     $BubbleSound.play()
-	
-	# Optional: Different recoil animation for bubbles
-	if has_recoil_animation:
-		animate_recoil()
-	
-	# Optional: Visual feedback
-	modulate = Color(0.8, 0.9, 1.0, 1.0)
-	var timer = get_tree().create_timer(0.1)
-	timer.timeout.connect(func(): modulate = player_color)
+func heal(amount: int):
+	"""Heal the player"""
+	PlayerHealth.heal(self, amount)
+
+func process_shield_regen(delta: float):
+	PlayerHealth.process_shield_regen(self, delta)
+
+func die():
+	"""Handle player death"""
+	PlayerHealth.die(self)
+
+func custom_die():
+	"""Override this for custom death behavior"""
+	PlayerHealth.custom_die(self)
+
+func revive():
+	"""Revive the player"""
+	PlayerHealth.revive(self)
+
+# ===== VISUAL SYSTEM =====
+func update_sprite():
+	"""Update ship sprite based on absorption state"""
+	PlayerVisuals.update_sprite(self)
+
+func animate_recoil():
+	"""Play the ship recoil animation when shooting"""
+	PlayerVisuals.animate_recoil(self)
+
+# ===== COLLISION HANDLING =====
+func _on_area_entered(area):
+	"""Handle collision with enemies. Wired up directly in player.tscn, so
+	this must stay a real method on the player's own script."""
+	PlayerHealth.on_area_entered(self, area)
+
+func handle_enemy_collision(area: Area2D):
+	"""Handle collision with enemy"""
+	PlayerHealth.handle_enemy_collision(self, area)

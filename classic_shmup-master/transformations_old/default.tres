@@ -1,8 +1,8 @@
-[gd_resource type="Resource" script_class="ShipForm" format=3 uid="uid://drdp1p8htvc1w"]
+[gd_resource type="Resource" script_class="ShipForm" format=3 uid="uid://4mvulyatckuc"]
 
 [ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://bullets/bullet.tscn" id="1_1ay56"]
 [ext_resource type="Texture2D" uid="uid://c7uwy5ydmq5in" path="res://Mini Pixel Pack 3/Player ship/Player_ship (16 x 16).png" id="1_o1cis"]
-[ext_resource type="Script" uid="uid://c1h2fsj5x1ywo" path="res://transformations_old/ship_form.gd" id="1_p3hvp"]
+[ext_resource type="Script" uid="uid://c1h2fsj5x1ywo" path="res://transformations/ship_form.gd" id="1_p3hvp"]
 
 [resource]
 script = ExtResource("1_p3hvp")

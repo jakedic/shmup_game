@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ShipForm" format=3 uid="uid://c1eoae3qpy38v"]
+[gd_resource type="Resource" script_class="ShipForm" format=3 uid="uid://b4rc5scsg5n7g"]
 
 [ext_resource type="PackedScene" uid="uid://c75hkmg7jyox6" path="res://bullets/bullet_yellow.tscn" id="1_0kbna"]
 [ext_resource type="Texture2D" uid="uid://cd3kds3g0kblv" path="res://Mini Pixel Pack 3/Enemies/Lips (16 x 16).png" id="2_0kbna"]

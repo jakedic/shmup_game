@@ -30,14 +30,24 @@ var loop_start_pos: Vector2 = Vector2.ZERO
 
 var last_position: Vector2 = Vector2.ZERO
 
+# ===== SHOOTING =====
+@export var shot_charge_duration: float = 1.5      # brief telegraph before any shot, seconds
+@export var dive_shot_extra_pause: float = 0.0     # ADDED on top of the above if diving when it fires
+@export var charge_flash_color: Color = Color(0.008, 0.0, 1.0, 1.0)  # stark magenta for now - easy to confirm; tune to taste once working
+@export var charge_flash_blink_interval: float = 0.05
+
+var is_charging_shot: bool = false
+var charge_freeze_pos: Vector2 = Vector2.ZERO
+
 func _ready():
 	# Set yellow enemy specific properties
 	max_health = 3  # Yellow enemies have 3 health
 	current_health = max_health
 	bullet_scene = preload("res://enemy_bullets/enemy_bullet.tscn")
-	multi_shot=true
-	shot_count=3
-	shot_spread=60
+	multi_shot = false
+	shot_count = 1
+	bullet_damage = 4     # powerful - well above the base_enemy default of 1
+	bullet_speed = 450.0  # fast - well above the base_enemy default of 150
 	
 	add_to_group("enemy")
 	
@@ -80,6 +90,13 @@ func custom_process(delta: float):
 	loop-de-loop on a fixed schedule, then faces the sprite toward
 	wherever it actually just moved."""
 	if not is_diving:
+		return
+	
+	if is_charging_shot:
+		# Hold perfectly still while winding up a shot - same technique as
+		# the loop's suspended-descent, override whatever base_enemy's
+		# per-frame fall just added this frame.
+		position = charge_freeze_pos
 		return
 	
 	dive_time += delta
@@ -140,3 +157,59 @@ func _update_facing(delta: float):
 
 func get_enemy_type():
 	return 'yellow'
+
+func shoot():
+	"""Override base_enemy.shoot(): telegraph with a flash before firing,
+	pausing (and freezing in place) longer if currently mid-dive."""
+	
+	if is_charging_shot:
+		return  # already winding up, don't stack another
+	_charge_and_fire()
+
+func _charge_and_fire():
+	is_charging_shot = true
+	var charge_time = shot_charge_duration
+	
+	if is_diving:
+		charge_time += dive_shot_extra_pause
+		rotation = 0
+		charge_freeze_pos = position  # freeze the dive in place while charging
+	
+	_start_charge_flash(charge_time)
+	
+	await get_tree().create_timer(charge_time).timeout
+	
+	is_charging_shot = false
+	if not is_instance_valid(self) or not is_alive:
+		return
+	shoot_single()
+
+func _start_charge_flash(duration: float):
+	"""Pulse modulate between the normal color and charge_flash_color for
+	`duration` seconds using a Tween, as a telegraph that a shot is coming."""
+	var home_color = enemy_color
+	var pulse_time = charge_flash_blink_interval * 0.5
+	
+	var tween = create_tween()
+	tween.set_loops()  # repeats until killed below
+	tween.tween_property(self, "modulate", charge_flash_color, pulse_time)
+	tween.tween_property(self, "modulate", home_color, pulse_time)
+	
+	get_tree().create_timer(duration).timeout.connect(func():
+		if is_instance_valid(tween):
+			tween.kill()
+		if is_instance_valid(self):
+			modulate = home_color
+	)
+
+func custom_bullet_launch(bullet: Node2D):
+	"""base_enemy already added the bullet to the tree and called start()
+	by the time this fires - which means the bullet's own _ready() has
+	already run and overwritten whatever create_bullet() set (both
+	bullet.gd and enemy_bullet.gd hardcode their own speed/damage in
+	_ready()). Reapply our stronger values here, after _ready(), so the
+	"powerful and fast" stats actually stick."""
+	if bullet.has_method("set_damage"):
+		bullet.set_damage(bullet_damage)
+	if bullet.has_method("set_speed"):
+		bullet.set_speed(bullet_speed)
