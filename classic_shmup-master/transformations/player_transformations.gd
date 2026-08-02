@@ -43,7 +43,7 @@ static func transform_yellow(player: Player) -> void:
 		"bullet": {
 			"damage": {"op": "set", "value": 3},
 			"max_distance": {"op": "set", "value": 500.0},
-			"speed": {"op": "mult", "value": 2.0}
+			"speed": {"op": "mult", "value": 10.0}
 		},
 	})
 

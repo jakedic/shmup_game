@@ -40,7 +40,6 @@ static func shoot_single(player: Player, bullet_type: PackedScene) -> void:
 	"""Shoot a single bullet"""
 	var bullet = create_bullet(bullet_type)
 	if bullet:
-		configure_bullet(bullet)
 		launch_bullet(player, bullet, player.position + Vector2(0, -8))
 
 static func shoot_multiple(player: Player, bullet_type: PackedScene) -> void:
@@ -55,17 +54,22 @@ static func shoot_multiple(player: Player, bullet_type: PackedScene) -> void:
 		var direction = base_direction.rotated(deg_to_rad(angle))
 
 		var bullet = create_bullet(bullet_type)
-		if bullet:
-			configure_bullet(bullet)
+		if not bullet:
+			continue
 
-			# Set bullet direction if supported
-			if bullet.has_method("set_direction"):
-				bullet.set_direction(direction)
-			elif bullet.has_method("start"):
-				# Pass direction to start method if it accepts it
-				bullet.start(bullet_spawn, direction)
-			else:
-				bullet.start(bullet_spawn)
+		# Add to the tree first so _ready() runs, THEN reapply the
+		# Stats-driven values - same fix and same reason as launch_bullet().
+		player.get_tree().root.add_child(bullet)
+		configure_bullet(bullet)
+
+		# Set bullet direction if supported
+		if bullet.has_method("set_direction"):
+			bullet.set_direction(direction)
+		elif bullet.has_method("start"):
+			# Pass direction to start method if it accepts it
+			bullet.start(bullet_spawn, direction)
+		else:
+			bullet.start(bullet_spawn)
 
 static func create_bullet(bullet_type: PackedScene) -> Node2D:
 	"""Create a bullet instance"""
@@ -96,6 +100,14 @@ static func configure_bullet(bullet: Node2D) -> void:
 static func launch_bullet(player: Player, bullet: Node2D, spawn_pos: Vector2) -> void:
 	"""Launch a bullet into the game"""
 	player.get_tree().root.add_child(bullet)
+
+	# The bullet's own _ready() just fired via add_child() above, and it
+	# hardcodes fallback stats (see bullet.gd / bullet_yellow.gd) - those
+	# would otherwise silently overwrite whatever configure_bullet() set
+	# earlier (since that ran before the bullet was in the tree, i.e.
+	# before _ready() existed to clobber it). Reapply now that _ready()
+	# has already had its say, so the real Stats-driven values stick.
+	configure_bullet(bullet)
 
 	# Start the bullet
 	if bullet.has_method("start"):
