@@ -39,11 +39,19 @@ static func transform_yellow(player: Player) -> void:
 			"dash_duration": {"op": "mult", "value": 2.5},
 			"dash_speed": {"op": "mult", "value": 0.5},
 			"dash_invincible": {"op": "set", "value": true},
+			# Uncomment to make the charge take a different amount of time
+			# specifically while in yellow form (defaults to 1.0s otherwise):
+			"charge_shot_duration": {"op": "set", "value": 0.5},
 		},
 		"bullet": {
+			# These are the ONLY bullet stats now - the charge shot pulls
+			# from this same category (via PlayerShooting.configure_bullet),
+			# so there's one place that defines "how strong is yellow's shot".
 			"damage": {"op": "set", "value": 3},
 			"max_distance": {"op": "set", "value": 500.0},
-			"speed": {"op": "mult", "value": 10.0}
+			"speed": {"op": "mult", "value": 2.0},
+			"pierce_count": {"op": "set", "value": 3},
+			"can_pierce": {"op": "set", "value": true},
 		},
 	})
 

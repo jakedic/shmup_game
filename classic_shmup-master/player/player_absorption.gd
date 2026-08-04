@@ -64,6 +64,11 @@ static func reset_to_default_form(player: Player) -> void:
 	if player.transformation_timer:
 		player.transformation_timer.stop()
 
+	# In case yellow's charge shot was mid-charge when this form ended
+	# (e.g. the auto-revert timer fired), cancel it cleanly rather than
+	# leaving is_charging_shot true and the flash color stuck on.
+	PlayerChargeShot.cancel_charge(player)
+
 	# Undo whichever transformation modifier is currently active. This
 	# restores exactly whatever the player's stats were before transforming
 	# (including any permanent progression upgrades) - no hand-written

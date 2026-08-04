@@ -5,8 +5,13 @@ class_name PlayerShooting
 ## pulling live stats onto a freshly spawned bullet. Called from player.gd
 ## as e.g. PlayerShooting.shoot(self).
 
-static func handle_shoot_input(player: Player) -> void:
+static func handle_shoot_input(player: Player, delta: float) -> void:
 	"""Check for shoot input and handle shooting"""
+	if player.current_form == 'yellow':
+		# Yellow form replaces normal tap-fire with hold-to-charge/release-to-fire.
+		PlayerChargeShot.handle_input(player, delta)
+		return
+
 	if Input.is_action_pressed("shoot"):
 		shoot(player)
 

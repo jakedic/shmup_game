@@ -41,6 +41,9 @@ var default_stats: Dictionary = {
 		"circle_speed": 0.0,
 		"steering_influence": 5.0,
 		"dash_damage_amount": 1,
+		# yellow form's charge shot
+		"charge_shot_duration": 1.0,     # seconds held to fully charge
+		"charge_flash_interval": 0.15,   # blink speed while charging (pre-full-charge)
 		# categorical / boolean examples
 		"dash_invincible": false,
 		"dash_damages_enemies": false,

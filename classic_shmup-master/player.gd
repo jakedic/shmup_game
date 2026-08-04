@@ -70,6 +70,22 @@ var currently_absorbing=false
 #Bubble properties
 @export var bubble_scene: PackedScene  # The bubble projectile scene
 
+# ===== YELLOW FORM: CHARGE SHOT =====
+# While in yellow form, holding "shoot" charges up a single powerful,
+# piercing bullet instead of firing normally; releasing early cancels it.
+# Damage/speed/pierce/max_distance are NOT duplicated here - the charged
+# bullet is configured the exact same way a normal bullet is, straight
+# from Stats.get_category("bullet") (see player/player_charge_shot.gd),
+# so the transform_yellow modifier is the one place that defines both.
+# charge_shot_duration/charge_flash_interval ARE synced from Stats below,
+# same as absorb_cooldown etc., so they're tunable the same way as any
+# other transformation parameter (see stats.gd + transform_yellow()).
+var charge_shot_duration: float
+var charge_flash_interval: float
+
+var is_charging_shot: bool = false
+var charge_shot_time: float = 0.0
+
 var dash_time = 0.0
 
 # Double-tap detection variables
@@ -190,6 +206,8 @@ func _sync_player_stats():
 	bullet_invincible_during_dash = s.dash_invincible
 	do_dash_damage_to_enemies = s.dash_damages_enemies
 	dash_damage_amount = s.dash_damage_amount
+	charge_shot_duration = s.charge_shot_duration
+	charge_flash_interval = s.charge_flash_interval
 
 	if is_instance_valid(self) and has_node("GunCooldown"):
 		$GunCooldown.wait_time = shoot_cooldown
@@ -225,7 +243,7 @@ func process_input(delta):
 	"""Process all player input"""
 	handle_absorb_input()
 	handle_movement(delta)
-	handle_shoot_input()
+	handle_shoot_input(delta)
 	handle_dash_input()
 
 func handle_movement(delta):
@@ -267,8 +285,8 @@ func _on_dash_cooldown_timeout():
 	PlayerMovement.on_dash_cooldown_timeout(self)
 
 # ===== SHOOTING SYSTEM =====
-func handle_shoot_input():
-	PlayerShooting.handle_shoot_input(self)
+func handle_shoot_input(delta: float):
+	PlayerShooting.handle_shoot_input(self, delta)
 
 func shoot():
 	PlayerShooting.shoot(self)
