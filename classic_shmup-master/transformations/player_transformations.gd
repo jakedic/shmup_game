@@ -34,11 +34,11 @@ static func transform_yellow(player: Player) -> void:
 	Stats.add_modifier("transform_yellow", {
 		"player": {
 			"speed": {"op": "mult", "value": 2.0},
-			"circle_radius": {"op": "set", "value": 600.0},
-			"circle_speed": {"op": "set", "value": 20.0},
-			"dash_duration": {"op": "mult", "value": 2.5},
-			"dash_speed": {"op": "mult", "value": 0.5},
-			"dash_invincible": {"op": "set", "value": true},
+			#"circle_radius": {"op": "set", "value": 600.0},
+			#"circle_speed": {"op": "set", "value": 20.0},
+			#"dash_duration": {"op": "mult", "value": 2.5},
+			#"dash_speed": {"op": "mult", "value": 0.5},
+			#"dash_invincible": {"op": "set", "value": true},
 			# Uncomment to make the charge take a different amount of time
 			# specifically while in yellow form (defaults to 1.0s otherwise):
 			"charge_shot_duration": {"op": "set", "value": 0.5},
