@@ -100,9 +100,20 @@ func _on_area_entered(area):
 			queue_free()
 		else:
 			current_pierce += 1
+	elif area.is_in_group("player_bullet"):
+		handle_player_bullet_collision(area)
 	
 	# Call custom collision handler for child classes
 	custom_collision(area)
+
+func handle_player_bullet_collision(area: Area2D):
+	"""A player bullet hit us. Enemy bullets don't pierce, so we're always
+	destroyed - whether the player bullet also gets destroyed or pierces
+	through is decided independently by its own
+	handle_enemy_bullet_collision."""
+	if is_queued_for_deletion():
+		return
+	queue_free()
 
 func _on_body_entered(body):
 	"""Handle collisions with physics bodies"""

@@ -180,6 +180,8 @@ func _on_area_entered(area: Area2D):
 	"""Handle collisions with other areas"""
 	if area.is_in_group("enemies"):
 		handle_enemy_collision(area)
+	elif area.is_in_group("enemy_bullet"):
+		handle_enemy_bullet_collision(area)
 	
 	# Call custom collision handler
 	custom_area_collision(area)
@@ -213,6 +215,24 @@ func handle_enemy_collision(area: Area2D):
 		else:
 			# Enemy survived with health remaining, destroy bullet
 			queue_free()
+
+func handle_enemy_bullet_collision(area: Area2D):
+	"""Handle collision with an enemy bullet - the two cancel each other out.
+	The enemy bullet destroys itself independently (see its own
+	handle_player_bullet_collision), so this only decides our own fate: with
+	no piercing left we're destroyed too, same as a normal 1-for-1 trade.
+	With piercing, this consumes a charge from the same pierce budget used
+	against enemies and we keep going."""
+	if is_queued_for_deletion():
+		return
+
+	if pierce_count == 0:
+		queue_free()
+		return
+
+	current_pierce += 1
+	if current_pierce >= pierce_count:
+		queue_free()
 
 func _on_body_entered(body: Node2D):
 	"""Handle collisions with physics bodies"""
