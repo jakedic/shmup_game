@@ -17,6 +17,9 @@ var auto_start_timer : Timer = Timer.new() #timer that auto-triggers the game st
 @onready var start_button = $CanvasLayer/CenterContainer/Start
 @onready var game_over = $CanvasLayer/CenterContainer/GameOver
 @onready var ui = $CanvasLayer/UI
+@onready var pause_menu = $CanvasLayer/PauseMenu
+
+var is_paused = false
 
 # Common nodes
 @onready var enemy_anchor = $EnemyAnchor
@@ -31,6 +34,7 @@ var spawn_pattern = null  # Function to override for custom spawn patterns
 func _ready():
 	game_over.hide()
 	start_button.show()
+	pause_menu.hide()
 	setup_enemy_anchor_animation()
 	initialize_level()
 	add_child(multiplier_timer)
@@ -199,6 +203,36 @@ func _input(event):
 		# Only start if we're at the start screen
 		if start_button.visible and not playing:
 			_on_start_pressed()
+
+	if event.is_action_pressed("pause"):
+		# Only allow pausing mid-game (not on the start popup or after death)
+		if playing and not is_paused:
+			pause_game()
+
+func pause_game():
+	# get_tree().paused = true automatically halts _process/_physics_process
+	# for the player, enemies, bullets, etc. (they use the default
+	# "pausable" process mode). The pause menu itself is set to "Always"
+	# process mode in the scene, so its buttons keep working.
+	is_paused = true
+	get_tree().paused = true
+	pause_menu.show()
+
+func resume_game():
+	is_paused = false
+	pause_menu.hide()
+	get_tree().paused = false
+
+func _on_continue_pressed():
+	resume_game()
+
+func _on_quit_pressed():
+	# Unpause the tree BEFORE switching scenes, otherwise the title
+	# screen loads in a paused state and its Start button won't respond.
+	is_paused = false
+	get_tree().paused = false
+	playing = false
+	get_tree().change_scene_to_file("res://levels/title_screen.tscn")
 func timeout_multiplier_timer():
 	score_multiplier = score_multiplier - 1
 	multiplier_increase_tracker = 0
@@ -208,3 +242,4 @@ func timeout_multiplier_timer():
 		pass
 	else:
 		multiplier_timer.stop()
+	
