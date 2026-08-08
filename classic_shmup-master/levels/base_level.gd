@@ -11,6 +11,8 @@ var max_waves = 3  # Default value, can be overridden
 var score_multiplier = 1
 var multiplier_increase_tracker = 0 #tracks when the multiplier should be increased
 var multiplier_timer : Timer = Timer.new() #creates the multiplier timer variable
+var auto_start_delay: float = 1.5 #how long the start popup stays up before the game auto-starts
+var auto_start_timer : Timer = Timer.new() #timer that auto-triggers the game start
 # Common UI elements (assumes similar structure in all levels)
 @onready var start_button = $CanvasLayer/CenterContainer/Start
 @onready var game_over = $CanvasLayer/CenterContainer/GameOver
@@ -34,6 +36,18 @@ func _ready():
 	add_child(multiplier_timer)
 	multiplier_timer.autostart = false # tells the timer not to start on creation
 	multiplier_timer.wait_time = 5.0 # defines how long the timer is
+
+	# Put the player in its proper starting state (full shield, start position)
+	# right away, so it looks correct while the start popup is showing instead
+	# of only snapping into place once the popup timer fires.
+	if player and player.has_method("start"):
+		player.start()
+
+	add_child(auto_start_timer)
+	auto_start_timer.one_shot = true
+	auto_start_timer.wait_time = auto_start_delay
+	auto_start_timer.timeout.connect(_on_auto_start_timeout)
+	auto_start_timer.start()
 func start_score_multipliplier_timer():#this creates a function that checks if the score multiplier should start counting dowwn
 	if score_multiplier >= 2:
 		multiplier_timer.start()
@@ -169,8 +183,15 @@ func game_started():
 	pass
 
 func _on_start_pressed():
+	# Guard against this firing twice (e.g. auto-start timer + a click both firing)
+	if not start_button.visible or playing:
+		return
+	auto_start_timer.stop()
 	start_button.hide()
 	new_game()
+
+func _on_auto_start_timeout():
+	_on_start_pressed()
 
 func _input(event):
 	# Use the action you created in Input Map
@@ -187,4 +208,3 @@ func timeout_multiplier_timer():
 		pass
 	else:
 		multiplier_timer.stop()
-	
