@@ -12,6 +12,7 @@ class_name Player
 #   player/player_absorption.gd     - PlayerAbsorption  (absorb, bubble, revert)
 #   player/player_health.gd         - PlayerHealth      (shield, damage, death)
 #   player/player_visuals.gd        - PlayerVisuals     (sprite/tween effects)
+#   player/player_powerups.gd       - PlayerPowerUps    (power-bubble power-ups)
 #   transformations/player_transformations.gd - PlayerTransformations
 #
 # Methods that other scripts call by name (start, absorb_complete,
@@ -356,6 +357,13 @@ func absorb_complete(hit_enemy_type: String):
 func absorb_fail():
 	# Called by bullets/absorb.gd via has_method()/call() - see note above.
 	PlayerAbsorption.absorb_fail(self)
+
+# ===== POWER-UPS (granted by power bubbles) =====
+func apply_random_powerup(enemy_type: String) -> Dictionary:
+	# Called by bullets/bubble.gd via has_method()/call() when a power
+	# bubble (formed from two bubbles colliding) is touched, so this needs
+	# to stay a real method on the player's own script - see note above.
+	return PlayerPowerUps.apply_random_powerup(self, enemy_type)
 
 # Shoot Bubble
 func shoot_bubble():

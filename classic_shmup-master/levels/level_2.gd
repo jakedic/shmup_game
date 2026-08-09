@@ -54,6 +54,11 @@ func _on_player_died():
 func new_game():
 	score = 0
 	$CanvasLayer/UI.update_score(score)
+
+	# See BaseLevel.new_game() / stats.gd - power bubble power-ups persist
+	# for a level, so clear them out at the start of a fresh run.
+	Stats.clear_level_modifiers()
+
 	$Player.start()
 	spawn_enemies()
 	playing = true 

@@ -172,7 +172,12 @@ func new_game():
 	score = 0
 	current_wave = 0
 	ui.update_score(score)
-	
+
+	# Power bubbles grant power-ups that persist for the whole level (see
+	# stats.gd's level_modifiers tier) - clear them out here so a fresh
+	# level/run always starts with none carried over from before.
+	Stats.clear_level_modifiers()
+
 	if player and player.has_method("start"):
 		player.start()
 	

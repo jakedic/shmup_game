@@ -12,6 +12,26 @@ class_name Bubble
 
 var absorbed_enemy_type: String = "" 
 
+# Every enemy type absorbed into this bubble, in the order absorbed. For a
+# normal bubble this is just [absorbed_enemy_type] (or empty). When two
+# bubbles fuse into a power bubble (see _try_merge_with_bubble), the two
+# lists are concatenated - enemy_types[0] is then "the first enemy in the
+# bubble" that PlayerPowerUps uses to pick which power-up pool to grant from.
+var enemy_types: Array = []
+
+# Power bubbles are formed when one bubble hits another (see
+# _on_area_entered/_try_merge_with_bubble). They glow a different color and,
+# instead of transforming the player on touch, grant a random power-up.
+var is_power_bubble: bool = false
+
+# Glow color per "first enemy type" for a power bubble. Falls back to
+# DEFAULT_POWER_BUBBLE_COLOR for enemy types that aren't listed (or none).
+const POWER_BUBBLE_COLORS := {
+	"yellow": Color(1.0, 0.92, 0.15, 1.0),
+	"red": Color(1.0, 0.25, 0.25, 1.0),
+}
+const DEFAULT_POWER_BUBBLE_COLOR := Color(0.75, 0.3, 1.0, 1.0)
+
 var hit_points: int = 3  # Editor-time fallback; player._apply_bubble_stats() sets this from Stats.get_category("bubble") when spawned
 var current_hits: int = 0
 
@@ -24,9 +44,11 @@ var original_speed: float
 func _ready():
 	# Connect to area entered signal
 	area_entered.connect(_on_area_entered)
+	add_to_group("bubble")
 	
 func set_enemy_type(enemy_type: String):
 	absorbed_enemy_type = enemy_type
+	enemy_types = [enemy_type] if enemy_type != "" else []
 	print("Bubble contains: ", enemy_type)
 
 func custom_start():
@@ -187,13 +209,22 @@ func create_visual_explosion():
 				queue_free()'''
 				
 func _on_area_entered(area: Area2D):
+	# Check if this bubble hit another bubble - if so, fuse into a power
+	# bubble instead of any of the normal collision handling below.
+	if area is Bubble and area != self:
+		_try_merge_with_bubble(area)
+		return
+
 	# Check if player touched the bubble
 	if area.is_in_group("player") or area.name == "Player":
-		print("Player touched bubble! Enemy type: ", absorbed_enemy_type)
-		
-		# Apply transformation to player if we have an enemy type
-		if absorbed_enemy_type != "":
-			apply_transformation_to_player(area)
+		if is_power_bubble:
+			print("Player touched power bubble! First enemy: ", absorbed_enemy_type)
+			apply_powerup_to_player(area)
+		else:
+			print("Player touched bubble! Enemy type: ", absorbed_enemy_type)
+			# Apply transformation to player if we have an enemy type
+			if absorbed_enemy_type != "":
+				apply_transformation_to_player(area)
 		
 		# Bubble gets absorbed/disappears
 		queue_free()
@@ -237,6 +268,61 @@ func _on_area_entered(area: Area2D):
 		# Remove the bubble
 		queue_free()
 		return
+func _try_merge_with_bubble(other: Bubble) -> void:
+	"""Two overlapping bubbles fuse into one power bubble. Both bubbles get
+	an area_entered callback for the same overlap (once per side), so only
+	the lower-instance-id bubble (the one that existed first) performs the
+	merge and frees the other one; the higher-id bubble just no-ops here and
+	waits to be freed."""
+	if is_power_bubble or other.is_power_bubble:
+		return  # power bubbles don't fuse further
+	if is_queued_for_deletion() or other.is_queued_for_deletion():
+		return
+	if get_instance_id() > other.get_instance_id():
+		return  # the other (older) bubble will perform the merge instead
+
+	# Self is the older bubble, so its enemy type(s) come first - that's
+	# "the first enemy in the bubble" that decides the power-up pool.
+	var combined_types: Array = enemy_types.duplicate()
+	combined_types.append_array(other.enemy_types)
+
+	other.queue_free()
+	become_power_bubble(combined_types)
+
+func become_power_bubble(combined_types: Array) -> void:
+	"""Turn this bubble into a power bubble containing combined_types
+	(first entry = the enemy type its power-up will be drawn from)."""
+	is_power_bubble = true
+	enemy_types = combined_types
+	absorbed_enemy_type = combined_types[0] if combined_types.size() > 0 else absorbed_enemy_type
+	current_hits = 0  # fresh health pool for the fused bubble
+
+	print("Power bubble formed! First enemy: ", absorbed_enemy_type, " (all: ", enemy_types, ")")
+	apply_power_bubble_visuals()
+
+func apply_power_bubble_visuals() -> void:
+	"""Glow a different color than a normal bubble, based on the first
+	absorbed enemy type."""
+	var glow_color: Color = POWER_BUBBLE_COLORS.get(absorbed_enemy_type, DEFAULT_POWER_BUBBLE_COLOR)
+	modulate = glow_color
+
+	var glow_tween = create_tween().set_loops()
+	glow_tween.tween_property(self, "modulate", glow_color.lightened(0.5), 0.5)
+	glow_tween.tween_property(self, "modulate", glow_color, 0.5)
+
+func apply_powerup_to_player(player: Area2D) -> void:
+	"""A power bubble was touched - grant a random power-up (from the pool
+	belonging to the first enemy type absorbed into this bubble) instead of
+	the normal transformation."""
+	var first_enemy_type: String = enemy_types[0] if enemy_types.size() > 0 else absorbed_enemy_type
+
+	if player.has_method("apply_random_powerup"):
+		player.apply_random_powerup(first_enemy_type)
+	else:
+		print("Player cannot receive power-ups")
+
+	create_absorption_effect()
+
 func apply_transformation_to_player(player: Area2D):
 	print("Applying transformation: ", absorbed_enemy_type)
 	

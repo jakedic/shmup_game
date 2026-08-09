@@ -4,15 +4,21 @@
 # Layered stat system:
 #   default_stats          -> immutable baseline, never written to at runtime
 #   progression_overrides  -> permanent deltas earned across levels/sessions
+#   level_modifiers        -> named, stackable changes that persist for the
+#                              current level only (e.g. power-bubble power-ups).
+#                              Cleared with clear_level_modifiers() whenever a
+#                              level starts (see BaseLevel.new_game()).
 #   active_modifiers       -> named, stackable, TEMPORARY changes (absorb/transform)
 #   current_stats          -> resolved cache that gameplay code actually reads
 #
-# current = default, then progression applied on top, then each active modifier
-# applied in the order it was added. Removing a modifier just erases its entry
-# and recomputes — no manual "undo the math" step required anywhere.
+# current = default, then progression, then level modifiers, then each active
+# modifier, applied in the order each was added. Removing a modifier just
+# erases its entry and recomputes — no manual "undo the math" step required
+# anywhere.
 extends Node
 
 signal stats_changed(category: String)
+signal powerup_collected(powerup_id: String)
 
 const CATEGORIES = ["player", "bullet", "bubble"]
 
@@ -75,11 +81,22 @@ var progression_overrides: Dictionary = {
 	"bubble": {},
 }
 
-# ===== TIER 3: MODIFIERS (temporary, stackable, named) =====
+# ===== TIER 3: LEVEL MODIFIERS (persist for the current level, stackable, named) =====
+# Same shape as active_modifiers below, but these are NOT tied to a
+# transformation's lifetime - they stick around (e.g. power-bubble power-ups)
+# until clear_level_modifiers() is called at the start of a new level/run.
+# mod_name -> { category -> { stat_key -> {"op": "set"|"add"|"mult", "value": x} } }
+var level_modifiers: Dictionary = {}
+
+# IDs of power-ups collected so far this level, in collection order. Handy
+# for UI or debugging; add_powerup() keeps this in sync with level_modifiers.
+var collected_powerups: Array = []
+
+# ===== TIER 4: MODIFIERS (temporary, stackable, named) =====
 # mod_name -> { category -> { stat_key -> {"op": "set"|"add"|"mult", "value": x} } }
 var active_modifiers: Dictionary = {}
 
-# ===== TIER 4: CURRENT (resolved cache) =====
+# ===== TIER 5: CURRENT (resolved cache) =====
 var current_stats: Dictionary = {}
 
 
@@ -99,6 +116,15 @@ func recompute(category: String):
 
 	for key in progression_overrides[category]:
 		result[key] = progression_overrides[category][key]
+
+	# Level modifiers (power-ups picked up this level) apply next, in
+	# insertion order, then active modifiers (transformations etc.) on top -
+	# so a transformation can still temporarily override a power-up's effect
+	# without losing it once the transformation ends.
+	for mod_name in level_modifiers:
+		var level_mods: Dictionary = level_modifiers[mod_name].get(category, {})
+		for key in level_mods:
+			result[key] = _apply_op(result.get(key), level_mods[key])
 
 	# Modifiers apply in insertion order, so if you ever stack two at once
 	# (e.g. transform + a temporary powerup) the order they were added matters.
@@ -140,6 +166,47 @@ func clear_progression():
 	for category in CATEGORIES:
 		progression_overrides[category] = {}
 	recompute_all()
+
+
+# ---------- Level modifiers (persist for the current level, e.g. power-bubble power-ups) ----------
+
+func add_level_modifier(mod_name: String, modifiers: Dictionary):
+	level_modifiers[mod_name] = modifiers
+	for category in modifiers:
+		recompute(category)
+
+func remove_level_modifier(mod_name: String):
+	if not level_modifiers.has(mod_name):
+		return
+	var affected_categories = level_modifiers[mod_name].keys()
+	level_modifiers.erase(mod_name)
+	for category in affected_categories:
+		recompute(category)
+
+func has_level_modifier(mod_name: String) -> bool:
+	return level_modifiers.has(mod_name)
+
+func clear_level_modifiers():
+	"""Call at the start of every new level/run (see BaseLevel.new_game())
+	so power-ups collected in a previous level don't carry over."""
+	var affected_categories = {}
+	for mod_name in level_modifiers:
+		for category in level_modifiers[mod_name]:
+			affected_categories[category] = true
+	level_modifiers.clear()
+	collected_powerups.clear()
+	for category in affected_categories:
+		recompute(category)
+
+func add_powerup(powerup_id: String, modifiers: Dictionary):
+	"""Convenience wrapper around add_level_modifier() for power-ups granted
+	by power bubbles. Each call gets its own unique internal modifier name
+	(so collecting the same power-up twice stacks rather than overwriting),
+	while collected_powerups keeps the plain ids for UI/debugging."""
+	var unique_mod_name = "powerup_%s_%d" % [powerup_id, collected_powerups.size()]
+	collected_powerups.append(powerup_id)
+	add_level_modifier(unique_mod_name, modifiers)
+	powerup_collected.emit(powerup_id)
 
 
 # ---------- Modifiers (temporary, e.g. absorb transformations) ----------
