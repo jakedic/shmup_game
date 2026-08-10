@@ -18,8 +18,10 @@ var auto_start_timer : Timer = Timer.new() #timer that auto-triggers the game st
 @onready var game_over = $CanvasLayer/CenterContainer/GameOver
 @onready var ui = $CanvasLayer/UI
 @onready var pause_menu = $CanvasLayer/PauseMenu
+@onready var powerup_popup = $CanvasLayer/PowerupPopup
 
 var is_paused = false
+var is_powerup_popup_active = false
 
 # Common nodes
 @onready var enemy_anchor = $EnemyAnchor
@@ -35,6 +37,9 @@ func _ready():
 	game_over.hide()
 	start_button.show()
 	pause_menu.hide()
+	powerup_popup.hide()
+	powerup_popup.continue_pressed.connect(_on_powerup_popup_continue_pressed)
+	Stats.powerup_collected.connect(_on_powerup_collected)
 	setup_enemy_anchor_animation()
 	initialize_level()
 	add_child(multiplier_timer)
@@ -210,8 +215,9 @@ func _input(event):
 			_on_start_pressed()
 
 	if event.is_action_pressed("pause"):
-		# Only allow pausing mid-game (not on the start popup or after death)
-		if playing and not is_paused:
+		# Only allow pausing mid-game (not on the start popup, after death,
+		# or while the power-up popup already owns the pause).
+		if playing and not is_paused and not is_powerup_popup_active:
 			pause_game()
 
 func pause_game():
@@ -231,10 +237,31 @@ func resume_game():
 func _on_continue_pressed():
 	resume_game()
 
+func _on_powerup_collected(powerup_id: String) -> void:
+	# Stats.add_powerup() already applied the power-up's stat changes by the
+	# time this fires - this just looks up its name/description for display
+	# and pauses the game until the player acknowledges it.
+	var powerup: Dictionary = PlayerPowerUps.get_powerup_by_id(powerup_id)
+	show_powerup_popup(powerup)
+
+func show_powerup_popup(powerup: Dictionary) -> void:
+	# Same pattern as pause_game() - get_tree().paused = true halts
+	# gameplay's _process/_physics_process, while the popup (process_mode
+	# "Always", set in the level scene) keeps working so it can be dismissed.
+	is_powerup_popup_active = true
+	get_tree().paused = true
+	powerup_popup.show_powerup(powerup)
+
+func _on_powerup_popup_continue_pressed() -> void:
+	is_powerup_popup_active = false
+	powerup_popup.hide()
+	get_tree().paused = false
+
 func _on_quit_pressed():
 	# Unpause the tree BEFORE switching scenes, otherwise the title
 	# screen loads in a paused state and its Start button won't respond.
 	is_paused = false
+	is_powerup_popup_active = false
 	get_tree().paused = false
 	playing = false
 	get_tree().change_scene_to_file("res://levels/title_screen.tscn")
