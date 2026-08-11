@@ -61,9 +61,19 @@ var bullet_invincible_during_dash: bool
 var do_dash_damage_to_enemies: bool
 var dash_damage_amount: int
 
+# ===== YELLOW POWER-UP: POLLEN SHOT =====
+# Secondary fire granted by the "Pollen Shot" power-up (see
+# player/player_powerups.gd + player/player_pollen_shot.gd). Unrelated to
+# the normal bullet: while has_pollen_shot is true, holding "shoot" also
+# fires a pair of weak, wiggling pollen balls from the ship's sides, on
+# their own cooldown (pollen_cooldown_remaining, ticked down in _process).
+var has_pollen_shot: bool = false
+var pollen_cooldown_remaining: float = 0.0
+
 # Scene/visual references stay as exports - they aren't numeric stats.
 @export var bullet_scene: PackedScene
 @export var bullet_yellow_scene: PackedScene
+@export var bullet_pollen_scene: PackedScene
 @export var absorb_scene: PackedScene
 @export var max_absorption_level: int = 2  # Maximum enemy types that can be absorbed
 var currently_absorbing=false
@@ -209,6 +219,7 @@ func _sync_player_stats():
 	dash_damage_amount = s.dash_damage_amount
 	charge_shot_duration = s.charge_shot_duration
 	charge_flash_interval = s.charge_flash_interval
+	has_pollen_shot = s.has_pollen_shot
 
 	if is_instance_valid(self) and has_node("GunCooldown"):
 		$GunCooldown.wait_time = shoot_cooldown
@@ -245,6 +256,7 @@ func process_input(delta):
 	handle_absorb_input()
 	handle_movement(delta)
 	handle_shoot_input(delta)
+	handle_pollen_shot_input(delta)
 	handle_dash_input()
 
 func handle_movement(delta):
@@ -312,6 +324,9 @@ func launch_bullet(bullet: Node2D, spawn_pos: Vector2):
 
 func on_shoot():
 	PlayerShooting.on_shoot(self)
+
+func handle_pollen_shot_input(delta: float):
+	PlayerPollenShot.handle_input(self, delta)
 
 # ===== ABSORPTION SYSTEM =====
 func handle_absorb_input():

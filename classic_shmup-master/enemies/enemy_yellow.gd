@@ -170,16 +170,31 @@ func _charge_and_fire():
 	is_charging_shot = true
 	var charge_time = shot_charge_duration
 	
+	# Remember the dive-fall speed so it can be restored after charging -
+	# NOT just visually frozen. custom_process() re-pins `position` to
+	# charge_freeze_pos every frame while charging, but base_enemy's own
+	# _process() still runs position.y += current_speed * delta BEFORE
+	# that override happens each frame. Left alone, that hidden y growth
+	# eventually crosses base_enemy's off-screen-bottom check mid-charge
+	# and triggers a reset_position()/respawn - which is what was causing
+	# the enemy to suddenly snap back to its original spawn slot (often a
+	# side/corner of the formation) once the charge ended. Zeroing
+	# current_speed here stops that hidden accumulation at the source.
+	var frozen_speed = current_speed
+	
 	if is_diving:
 		charge_time += dive_shot_extra_pause
 		rotation = 0
 		charge_freeze_pos = position  # freeze the dive in place while charging
+		current_speed = 0
 	
 	_start_charge_flash(charge_time)
 	
 	await get_tree().create_timer(charge_time).timeout
 	
 	is_charging_shot = false
+	if is_diving:
+		current_speed = frozen_speed  # resume falling at the same speed as before
 	if not is_instance_valid(self) or not is_alive:
 		return
 	shoot_single()

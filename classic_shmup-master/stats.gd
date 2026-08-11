@@ -20,7 +20,7 @@ extends Node
 signal stats_changed(category: String)
 signal powerup_collected(powerup_id: String)
 
-const CATEGORIES = ["player", "bullet", "bubble"]
+const CATEGORIES = ["player", "bullet", "bubble", "pollen"]
 
 # ===== TIER 1: DEFAULT =====
 # Never mutate this dictionary at runtime. If you want to tweak a base value,
@@ -53,6 +53,10 @@ var default_stats: Dictionary = {
 		# categorical / boolean examples
 		"dash_invincible": false,
 		"dash_damages_enemies": false,
+		# yellow power-up: secondary "pollen shot" fire (see
+		# player/player_powerups.gd + player/player_pollen_shot.gd) - off
+		# unless granted by a power bubble this level.
+		"has_pollen_shot": false,
 	},
 	"bullet": {
 		"speed": 250.0,
@@ -70,6 +74,18 @@ var default_stats: Dictionary = {
 		"lifetime": 30.0,
 		"hit_points": 3,
 	},
+	# Weak, slow, wiggling secondary-fire bullets fired in pairs from the
+	# left/right of the ship while "has_pollen_shot" is active (see
+	# player/player_pollen_shot.gd). Completely independent of the "bullet"
+	# category used for the player's normal shot.
+	"pollen": {
+		"speed": 90.0,
+		"damage": 1,
+		"cooldown": 0.35,
+		"max_distance": 220.0,
+		"wiggle_amplitude": 10.0,   # how far side-to-side it drifts, in px
+		"wiggle_frequency": 6.0,    # how fast it wiggles, in radians/sec
+	},
 }
 
 # ===== TIER 2: PROGRESSION =====
@@ -79,6 +95,7 @@ var progression_overrides: Dictionary = {
 	"player": {},
 	"bullet": {},
 	"bubble": {},
+	"pollen": {},
 }
 
 # ===== TIER 3: LEVEL MODIFIERS (persist for the current level, stackable, named) =====

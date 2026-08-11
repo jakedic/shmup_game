@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://ce2sbgdju6rp7" path="res://bullets/bullet.tscn" id="2_6pkbm"]
 [ext_resource type="PackedScene" uid="uid://c75hkmg7jyox6" path="res://bullets/bullet_yellow.tscn" id="3_dw050"]
 [ext_resource type="Texture2D" uid="uid://4nsv8l6yppaf" path="res://Mini Pixel Pack 3/Player ship/Boosters_left (16 x 16).png" id="3_n7bvj"]
+[ext_resource type="PackedScene" path="res://bullets/bullet_pollen.tscn" id="3_pollen"]
 [ext_resource type="PackedScene" uid="uid://bb1nkdpy32wgs" path="res://bullets/absorb.tscn" id="4_b26j0"]
 [ext_resource type="Texture2D" uid="uid://b1jinxtgd3rv0" path="res://Mini Pixel Pack 3/Player ship/Boosters_right (16 x 16).png" id="4_bbrn4"]
 [ext_resource type="Texture2D" uid="uid://8sql62rflh1i" path="res://Art assets/Player assets and transformations/Player_topdown.png" id="5_n7ghd"]
@@ -77,11 +78,10 @@ size = Vector2(50.000072, 25.000032)
 position = Vector2(0, 6.9999995)
 scale = Vector2(0.4, 0.4)
 script = ExtResource("1_4pouc")
-speed = 125.0
 bullet_scene = ExtResource("2_6pkbm")
 bullet_yellow_scene = ExtResource("3_dw050")
+bullet_pollen_scene = ExtResource("3_pollen")
 absorb_scene = ExtResource("4_b26j0")
-dash_speed = 300.0
 default_sprite_texture = ExtResource("5_n7ghd")
 yellow_sprite_texture = ExtResource("6_b26j0")
 

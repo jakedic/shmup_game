@@ -39,6 +39,16 @@ const YELLOW_POWERUPS: Array[Dictionary] = [
 			},
 		},
 	},
+	{
+		"id": "yellow_pollen_shot",
+		"name": "Pollen Shot",
+		"description": "While holding shoot, the ship also fires weak, wiggling pollen balls from its left and right sides, for the rest of the level.",
+		"stats": {
+			"player": {
+				"has_pollen_shot": {"op": "set", "value": true},
+			},
+		},
+	},
 ]
 
 # enemy_type (as returned by e.g. YellowEnemy.get_enemy_type()) -> pool of
