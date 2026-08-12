@@ -56,7 +56,7 @@ var default_stats: Dictionary = {
 		# yellow power-up: secondary "pollen shot" fire (see
 		# player/player_powerups.gd + player/player_pollen_shot.gd) - off
 		# unless granted by a power bubble this level.
-		"has_pollen_shot": true,
+		"has_pollen_shot": false,
 	},
 	"bullet": {
 		"speed": 250.0,
@@ -66,6 +66,16 @@ var default_stats: Dictionary = {
 		"max_distance": 125.0,
 		"homing_enabled": false,
 		"homing_strength": 1.0,
+		# Status-effect infliction for the player's PRIMARY shot (see
+		# bullets/bullet.gd - same generic status_effect_name/status_effect_chance
+		# plumbing the pollen shot uses). Empty/0 by default - normal bullets
+		# don't inflict anything unless a power-up sets these.
+		"status_effect_name": "",
+		"status_effect_chance": 0.0,
+		# If true, a bullet won't try to inflict its status effect on the
+		# very first enemy it hits - only on enemies hit afterward via
+		# piercing (see yellow_piercing_pollen power-up).
+		"status_effect_skip_first_hit": false,
 	},
 	"bubble": {
 		"speed": 100.0,
@@ -73,6 +83,11 @@ var default_stats: Dictionary = {
 		"travel_distance": 50.0,
 		"lifetime": 30.0,
 		"hit_points": 3,
+		# If true, popping a power bubble (player bullet hits it) no longer
+		# damages enemies caught in the pop explosion - it guarantees the
+		# "pollinated" status on all of them instead. See bullets/bubble.gd
+		# create_pop_damage() and the yellow_bubble_pollen_pop power-up.
+		"pop_applies_pollination": false,
 	},
 	# Weak, slow, wiggling secondary-fire bullets fired in pairs from the
 	# left/right of the ship while "has_pollen_shot" is active (see
@@ -88,6 +103,10 @@ var default_stats: Dictionary = {
 		# Chance (0.0-1.0) per enemy hit to inflict the "pollinated" status
 		# effect (see status_effects/pollinated_status.gd).
 		"status_effect_chance": 0.2,
+		# Radius of the small chain-reaction explosion triggered when a
+		# pollinated enemy dies (see status_effects/pollinated_status.gd).
+		# Boosted by the yellow_pollen_blast_radius power-up.
+		"chain_explosion_radius": 40.0,
 	},
 }
 

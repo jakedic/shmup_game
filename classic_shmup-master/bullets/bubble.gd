@@ -118,7 +118,9 @@ func pop_bubble():
 	create_pop_damage()
 
 func create_pop_damage():
-	"""Create explosion damage using a simple timer approach"""
+	"""Create explosion damage (or, with the yellow_bubble_pollen_pop
+	power-up active, guaranteed pollination instead of damage) using a
+	simple timer approach"""
 	print("Creating explosion at: ", global_position)
 	
 	# Get all enemies in range manually
@@ -134,6 +136,19 @@ func create_pop_damage():
 			if distance <= explosion_radius:
 				enemies_in_range.append(enemy)
 				print("Found enemy in range: ", enemy.name, " at distance: ", distance)
+	
+	# yellow_bubble_pollen_pop power-up: the pop explosion no longer deals
+	# damage at all - it guarantees the "pollinated" status effect on every
+	# enemy it hits instead (see status_effects/pollinated_status.gd for
+	# what pollination actually does).
+	if Stats.get_stat("bubble", "pop_applies_pollination"):
+		for enemy in enemies_in_range:
+			if enemy.has_method("apply_status_effect"):
+				print("Pollinating enemy: ", enemy.name)
+				enemy.apply_status_effect(StatusEffects.POLLINATED, {})
+		create_visual_explosion()
+		print("Pollinated ", enemies_in_range.size(), " enemies")
+		return
 	
 	# Damage all enemies in range
 	var damage_amount = damage * 3
@@ -356,4 +371,3 @@ func flash_white():
 
 func explode_or_disappear():
 	queue_free()
-	

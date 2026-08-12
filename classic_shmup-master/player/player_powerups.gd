@@ -49,6 +49,62 @@ const YELLOW_POWERUPS: Array[Dictionary] = [
 			},
 		},
 	},
+	{
+		"id": "yellow_bubble_pollen_pop",
+		"name": "Pollen Burst",
+		"description": "Popping a power bubble with your shot no longer damages enemies caught in the blast - it guarantees the pollinated status on all of them instead, for the rest of the level.",
+		"stats": {
+			"bubble": {
+				"pop_applies_pollination": {"op": "set", "value": true},
+			},
+		},
+	},
+	{
+		"id": "yellow_pollen_blast_radius",
+		"name": "Blast Radius",
+		"description": "Increases the radius of the small explosion triggered when a pollinated enemy dies, for the rest of the level.",
+		# Only offered once the player already has some way to actually
+		# apply pollination - otherwise this power-up would do nothing.
+		"requires_pollination_source": true,
+		"stats": {
+			"pollen": {
+				"chain_explosion_radius": {"op": "add", "value": 40.0},
+			},
+		},
+	},
+	{
+		"id": "yellow_piercing_rounds",
+		"name": "Piercing Rounds",
+		"description": "The player's main shot pierces through one additional enemy, for the rest of the level.",
+		"stats": {
+			"bullet": {
+				"can_pierce": {"op": "set", "value": true},
+				"pierce_count": {"op": "add", "value": 1},
+			},
+		},
+	},
+	{
+		"id": "yellow_piercing_pollen",
+		"name": "Cross-Pollination",
+		"description": "The player's main shot pollinates every enemy it pierces through after the first one it hits, for the rest of the level.",
+		"stats": {
+			"bullet": {
+				"status_effect_name": {"op": "set", "value": "pollinated"},
+				"status_effect_chance": {"op": "set", "value": 1.0},
+				"status_effect_skip_first_hit": {"op": "set", "value": true},
+			},
+		},
+	},
+]
+
+# ids of every power-up that can, by itself, apply the "pollinated" status
+# effect to an enemy. Used to gate power-ups like yellow_pollen_blast_radius
+# that only make sense once the player has some way to actually pollinate
+# something. Add new pollination-granting power-ups' ids here too.
+const POLLINATION_SOURCE_POWERUP_IDS: Array[String] = [
+	"yellow_pollen_shot",
+	"yellow_bubble_pollen_pop",
+	"yellow_piercing_pollen",
 ]
 
 # enemy_type (as returned by e.g. YellowEnemy.get_enemy_type()) -> pool of
@@ -60,19 +116,47 @@ const POWERUPS_BY_ENEMY_TYPE: Dictionary = {
 
 
 static func get_powerups_for_enemy_type(enemy_type: String) -> Array:
-	"""Return the power-up pool for the given enemy type, or an empty array
-	if that enemy type has no power-ups defined yet."""
+	"""Return the FULL power-up pool for the given enemy type (including
+	ones the player can't currently receive, e.g. gated by
+	requires_pollination_source), or an empty array if that enemy type has
+	no power-ups defined yet. Use get_available_powerups_for_enemy_type()
+	when picking what a bubble can actually grant right now."""
 	return POWERUPS_BY_ENEMY_TYPE.get(enemy_type, [])
 
 
-static func apply_random_powerup(player: Player, enemy_type: String) -> Dictionary:
-	"""Pick a random power-up from enemy_type's pool and apply it to the
-	player via Stats.add_powerup() (persists for the rest of the level).
-	Returns the chosen power-up dict, or an empty dict if enemy_type has no
-	pool defined (e.g. any type other than "yellow" for now)."""
+static func get_available_powerups_for_enemy_type(enemy_type: String) -> Array:
+	"""Same as get_powerups_for_enemy_type(), but filtered down to power-ups
+	the player is currently eligible to receive (e.g. excludes
+	yellow_pollen_blast_radius until the player already has some way to
+	apply pollination)."""
 	var pool: Array = get_powerups_for_enemy_type(enemy_type)
+	var available: Array = []
+	for powerup: Dictionary in pool:
+		if powerup.get("requires_pollination_source", false) and not _player_has_pollination_source():
+			continue
+		available.append(powerup)
+	return available
+
+
+static func _player_has_pollination_source() -> bool:
+	"""True if the player has already collected a power-up that can, by
+	itself, apply the "pollinated" status effect (see
+	POLLINATION_SOURCE_POWERUP_IDS)."""
+	for collected_id in Stats.collected_powerups:
+		if collected_id in POLLINATION_SOURCE_POWERUP_IDS:
+			return true
+	return false
+
+
+static func apply_random_powerup(player: Player, enemy_type: String) -> Dictionary:
+	"""Pick a random power-up from enemy_type's pool (filtered to ones the
+	player is currently eligible for) and apply it to the player via
+	Stats.add_powerup() (persists for the rest of the level). Returns the
+	chosen power-up dict, or an empty dict if enemy_type has no eligible
+	power-ups right now."""
+	var pool: Array = get_available_powerups_for_enemy_type(enemy_type)
 	if pool.is_empty():
-		print("No power-ups defined for enemy type: ", enemy_type)
+		print("No available power-ups for enemy type: ", enemy_type)
 		return {}
 
 	var powerup: Dictionary = pool[randi() % pool.size()]

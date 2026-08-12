@@ -23,6 +23,11 @@
 class_name PollinatedStatus
 extends StatusEffectHandler
 
+# Fallback/default only - the actual radius used at runtime comes from
+# Stats.get_stat("pollen", "chain_explosion_radius") (see stats.gd), which
+# starts at this same value and can be increased by the
+# yellow_pollen_blast_radius power-up. Kept as a const so PollenExplosionVisual
+# has a sane default even if Stats isn't available for some reason.
 const EXPLOSION_RADIUS := 40.0
 const BASE_EXPLOSION_DAMAGE := 8
 const MIN_EXPLOSION_DAMAGE := 1
@@ -56,8 +61,9 @@ func on_owner_died(enemy: BaseEnemy, context: Dictionary) -> void:
 	var damage := _damage_for_chain(chain_state.count)
 	chain_state.count += 1  # this explosion now counts toward the chain
 
-	_spawn_explosion_visual(enemy)
-	_detonate(enemy, damage, chain_state)
+	var explosion_radius := _current_explosion_radius()
+	_spawn_explosion_visual(enemy, explosion_radius)
+	_detonate(enemy, damage, chain_state, explosion_radius)
 
 
 func blocks_pierce_consumption() -> bool:
@@ -69,7 +75,7 @@ func _damage_for_chain(chain_count: int) -> int:
 	return int(max(MIN_EXPLOSION_DAMAGE, round(scaled)))
 
 
-func _detonate(dying_enemy: BaseEnemy, damage: int, chain_state: Dictionary) -> void:
+func _detonate(dying_enemy: BaseEnemy, damage: int, chain_state: Dictionary, explosion_radius: float) -> void:
 	if not is_instance_valid(dying_enemy) or not dying_enemy.is_inside_tree():
 		return
 
@@ -82,7 +88,7 @@ func _detonate(dying_enemy: BaseEnemy, damage: int, chain_state: Dictionary) -> 
 			continue
 		if "is_alive" in other and not other.is_alive:
 			continue
-		if origin.distance_to(other.global_position) > EXPLOSION_RADIUS:
+		if origin.distance_to(other.global_position) > explosion_radius:
 			continue
 
 		if other.has_status_effect(StatusEffects.POLLINATED):
@@ -92,9 +98,17 @@ func _detonate(dying_enemy: BaseEnemy, damage: int, chain_state: Dictionary) -> 
 			other.apply_status_effect(StatusEffects.POLLINATED, {})
 
 
-func _spawn_explosion_visual(enemy: BaseEnemy) -> void:
+func _current_explosion_radius() -> float:
+	var radius = Stats.get_stat("pollen", "chain_explosion_radius")
+	if radius == null:
+		return EXPLOSION_RADIUS
+	return radius
+
+
+func _spawn_explosion_visual(enemy: BaseEnemy, explosion_radius: float) -> void:
 	if not is_instance_valid(enemy) or not enemy.is_inside_tree():
 		return
 	var explosion := PollenExplosionVisual.new()
 	explosion.global_position = enemy.global_position
+	explosion.max_radius = explosion_radius
 	enemy.get_tree().root.add_child(explosion)

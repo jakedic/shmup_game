@@ -101,6 +101,14 @@ static func configure_bullet(bullet: Node2D) -> void:
 		bullet.homing_enabled = b.homing_enabled
 	if "homing_strength" in bullet:
 		bullet.homing_strength = b.homing_strength
+	# Status-effect infliction for the primary shot (see bullets/bullet.gd) -
+	# off by default, only set by power-ups like yellow_piercing_pollen.
+	if "status_effect_name" in bullet:
+		bullet.status_effect_name = b.get("status_effect_name", "")
+	if "status_effect_chance" in bullet:
+		bullet.status_effect_chance = b.get("status_effect_chance", 0.0)
+	if "status_effect_skip_first_hit" in bullet:
+		bullet.status_effect_skip_first_hit = b.get("status_effect_skip_first_hit", false)
 
 static func launch_bullet(player: Player, bullet: Node2D, spawn_pos: Vector2) -> void:
 	"""Launch a bullet into the game"""

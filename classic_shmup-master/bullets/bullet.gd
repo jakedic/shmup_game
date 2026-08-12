@@ -18,6 +18,11 @@ class_name Bullet extends Area2D
 # status_effect_chance = 0.2.
 @export var status_effect_name: String = ""  # empty = doesn't inflict anything
 @export var status_effect_chance: float = 0.0  # 0.0-1.0 chance per hit
+# If true, this bullet won't try to inflict its status effect on the very
+# first enemy it hits - only on enemies hit afterward via piercing (see
+# yellow_piercing_pollen power-up in player/player_powerups.gd). No effect
+# on a non-piercing bullet, since it never gets a "second hit" anyway.
+@export var status_effect_skip_first_hit: bool = false
 
 # Homing properties
 @export var homing_enabled: bool = false
@@ -41,6 +46,10 @@ var current_pierce: int = 0
 var current_bounce: int = 0
 var time_alive: float = 0.0
 var is_homing_active: bool = false
+# How many enemies this bullet has hit so far (regardless of whether they
+# died), used by status_effect_skip_first_hit to tell "the first enemy shot"
+# apart from anything hit afterward while piercing.
+var enemies_hit_count: int = 0
 
 var slow_down: int = 0
 
@@ -48,6 +57,13 @@ func _ready():
 	"""Called when bullet is added to scene"""
 	# Apply visual properties
 	apply_visuals()
+	
+	# Needed so things like Bubble._on_area_entered() (which only reacts to
+	# area.is_in_group("player_bullet")) can recognize the default player
+	# shot. bullet_yellow.gd and bullet_pollen.gd already add themselves to
+	# this group in their own _ready(); the base/default bullet was missing
+	# it, which is why bubbles never exploded from a normal shot.
+	add_to_group("player_bullet")
 	
 	# Custom initialization for child classes
 	custom_ready()
@@ -206,6 +222,11 @@ func handle_enemy_collision(area: Area2D):
 		# not anything this same hit might apply below.
 		var blocks_pierce := _enemy_blocks_pierce(area)
 		
+		# Count this enemy toward "enemies hit" BEFORE applying/rolling the
+		# status effect below, so status_effect_skip_first_hit can tell this
+		# was (or wasn't) the first enemy this bullet has hit.
+		enemies_hit_count += 1
+		
 		# Damage the enemy
 		var enemy_died = false
 		if area.has_method("take_damage"):
@@ -271,6 +292,8 @@ func handle_enemy_body_collision(body: Node2D):
 	"""Handle collision with enemy body"""
 	var blocks_pierce := _enemy_blocks_pierce(body)
 	
+	enemies_hit_count += 1
+	
 	var enemy_died = false
 	if body.has_method("take_damage"):
 		enemy_died = body.take_damage(damage)
@@ -293,6 +316,10 @@ func _maybe_inflict_status_effect(target) -> void:
 	`target` (an enemy Area2D/body). No-op if this bullet doesn't inflict a
 	status at all, or if the target doesn't support the status system."""
 	if status_effect_name == "" or status_effect_chance <= 0.0:
+		return
+	# yellow_piercing_pollen power-up: skip the first enemy this bullet
+	# ever hits - only enemies hit afterward (i.e. via piercing) qualify.
+	if status_effect_skip_first_hit and enemies_hit_count <= 1:
 		return
 	if not target.has_method("apply_status_effect"):
 		return
