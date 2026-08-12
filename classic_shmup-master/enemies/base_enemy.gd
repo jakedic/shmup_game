@@ -50,6 +50,14 @@ var follow_anchor = false
 var current_health: int
 var is_alive: bool = true
 
+# ===== STATUS EFFECTS =====
+# status_name (String, see status_effects/status_effect_registry.gd) ->
+# whatever data Dictionary was passed to apply_status_effect() for it.
+# Generic on purpose - this enemy doesn't know or care what "pollinated" or
+# any future status condition actually does, that's all in each status's
+# own StatusEffectHandler. See status_effects/status_effect_handler.gd.
+var status_effects: Dictionary = {}
+
 @onready var screensize = get_viewport_rect().size
 
 func _ready():
@@ -149,7 +157,7 @@ func custom_process(delta: float):
 	pass
 
 # ===== HEALTH & DAMAGE SYSTEM =====
-func take_damage(damage_amount: int = 1) -> bool:
+func take_damage(damage_amount: int = 1, context: Dictionary = {}) -> bool:
 	if not is_alive:
 		return true
 	
@@ -161,7 +169,7 @@ func take_damage(damage_amount: int = 1) -> bool:
 		return true
 	
 	if current_health <= 0:
-		die()
+		die(context)
 		return true
 	
 	# Visual damage feedback
@@ -203,8 +211,11 @@ func get_health_percentage() -> float:
 	"""Get current health as percentage (0.0 to 1.0)"""
 	return float(current_health) / float(max_health)
 
-func die():
-	"""Handle enemy death"""
+func die(context: Dictionary = {}):
+	"""Handle enemy death. `context` is passed through from take_damage() and
+	forwarded to each active status effect's on_owner_died() - lets a status
+	like "pollinated" carry state (e.g. explosion-chain count) across a
+	cascade of deaths it causes. See status_effects/status_effect_handler.gd."""
 	if not is_alive:
 		return
 	
@@ -217,12 +228,71 @@ func die():
 	# Custom death logic
 	custom_die()
 	
+	# Let every status effect currently on this enemy react to the death
+	# (e.g. pollinated's chain explosion) before it's gone. status_effects
+	# isn't cleared here - the node is about to be freed anyway (see
+	# explode()), and a handler's on_owner_died may still want has_status_effect()
+	# to read true on this enemy while it does its thing.
+	for status_name in status_effects.keys():
+		var handler: StatusEffectHandler = StatusEffects.get_handler(status_name)
+		if handler:
+			handler.on_owner_died(self, context)
+	
 	# Explode for visual effect
 	explode()
 
 func custom_die():
 	"""Override this for custom death behavior"""
 	pass
+
+# ===== STATUS EFFECTS =====
+# Generic hook-up for the status-condition system in status_effects/ - see
+# status_effect_registry.gd (StatusEffects) and status_effect_handler.gd
+# (StatusEffectHandler) for how a status's actual behavior is defined.
+# Nothing here is specific to "pollinated" or any other single status; new
+# status conditions just need a new StatusEffectHandler registered with
+# StatusEffects, no changes needed here or in bullet_base.gd.
+
+func has_status_effect(status_name: String) -> bool:
+	return status_effects.has(status_name)
+
+func apply_status_effect(status_name: String, data: Dictionary = {}) -> void:
+	"""Apply (or refresh) a status effect on this enemy. `data` is whatever
+	per-application info the inflicting source wants to pass along (e.g.
+	who inflicted it) - forwarded to the handler's on_apply()/on_reapply()."""
+	if not is_alive:
+		return
+	
+	var handler: StatusEffectHandler = StatusEffects.get_handler(status_name)
+	if not handler:
+		return
+	
+	if status_effects.has(status_name):
+		status_effects[status_name] = data
+		handler.on_reapply(self, data)
+	else:
+		status_effects[status_name] = data
+		handler.on_apply(self, data)
+
+func remove_status_effect(status_name: String) -> void:
+	if not status_effects.has(status_name):
+		return
+	
+	var handler: StatusEffectHandler = StatusEffects.get_handler(status_name)
+	status_effects.erase(status_name)
+	if handler:
+		handler.on_remove(self)
+
+func blocks_pierce_consumption() -> bool:
+	"""True if a piercing bullet hitting this enemy right now shouldn't
+	consume a charge of its pierce budget (still deals damage, bullet just
+	keeps going) - because of some status effect currently on it. See
+	bullets/bullet_base.gd."""
+	for status_name in status_effects.keys():
+		var handler: StatusEffectHandler = StatusEffects.get_handler(status_name)
+		if handler and handler.blocks_pierce_consumption():
+			return true
+	return false
 
 func explode():
 	"""Play explosion animation and remove enemy"""

@@ -26,6 +26,12 @@ func _ready():
 	damage = 1
 	max_distance = 220.0
 	bullet_color = Color(1.0, 0.85, 0.2)  # pollen yellow
+	# 20% chance per hit to inflict "pollinated" (see
+	# status_effects/pollinated_status.gd). Generic Bullet plumbing -
+	# handle_enemy_collision() in bullet_base.gd rolls this and calls
+	# apply_status_effect() on whatever it hits.
+	status_effect_name = StatusEffects.POLLINATED
+	status_effect_chance = 0.2
 	_wiggle_phase = randf() * TAU
 	apply_visuals()
 	custom_ready()

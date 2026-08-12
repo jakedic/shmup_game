@@ -56,7 +56,7 @@ var default_stats: Dictionary = {
 		# yellow power-up: secondary "pollen shot" fire (see
 		# player/player_powerups.gd + player/player_pollen_shot.gd) - off
 		# unless granted by a power bubble this level.
-		"has_pollen_shot": false,
+		"has_pollen_shot": true,
 	},
 	"bullet": {
 		"speed": 250.0,
@@ -85,6 +85,9 @@ var default_stats: Dictionary = {
 		"max_distance": 220.0,
 		"wiggle_amplitude": 10.0,   # how far side-to-side it drifts, in px
 		"wiggle_frequency": 6.0,    # how fast it wiggles, in radians/sec
+		# Chance (0.0-1.0) per enemy hit to inflict the "pollinated" status
+		# effect (see status_effects/pollinated_status.gd).
+		"status_effect_chance": 0.2,
 	},
 }
 

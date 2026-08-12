@@ -62,6 +62,8 @@ static func _spawn_one(player: Player, spawn_pos: Vector2, p: Dictionary) -> voi
 		bullet.wiggle_amplitude = p.get("wiggle_amplitude", 10.0)
 	if "wiggle_frequency" in bullet:
 		bullet.wiggle_frequency = p.get("wiggle_frequency", 6.0)
+	if "status_effect_chance" in bullet:
+		bullet.status_effect_chance = p.get("status_effect_chance", 0.2)
 
 	if bullet.has_method("start"):
 		bullet.start(spawn_pos, Vector2.UP)
