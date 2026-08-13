@@ -39,6 +39,14 @@ var last_position: Vector2 = Vector2.ZERO
 var is_charging_shot: bool = false
 var charge_freeze_pos: Vector2 = Vector2.ZERO
 
+# True only while the CURRENT charge is the one holding a dive frozen (i.e.
+# it began while is_diving was already true). Needed because is_diving can
+# flip from false to true *during* a charge that started before any dive was
+# happening (shooting and diving are on independent timers) - see
+# _charge_and_fire() for why re-checking is_diving alone at the end of a
+# charge is not safe.
+var _charge_froze_dive: bool = false
+
 func _ready():
 	# Set yellow enemy specific properties
 	max_health = 3  # Yellow enemies have 3 health
@@ -92,10 +100,13 @@ func custom_process(delta: float):
 	if not is_diving:
 		return
 	
-	if is_charging_shot:
+	if is_charging_shot and _charge_froze_dive:
 		# Hold perfectly still while winding up a shot - same technique as
 		# the loop's suspended-descent, override whatever base_enemy's
-		# per-frame fall just added this frame.
+		# per-frame fall just added this frame. Gated on _charge_froze_dive
+		# (not just is_charging_shot) because a charge that started before
+		# this dive began never captured a valid charge_freeze_pos - see
+		# _charge_and_fire().
 		position = charge_freeze_pos
 		return
 	
@@ -169,7 +180,7 @@ func shoot():
 func _charge_and_fire():
 	is_charging_shot = true
 	var charge_time = shot_charge_duration
-	
+
 	# Remember the dive-fall speed so it can be restored after charging -
 	# NOT just visually frozen. custom_process() re-pins `position` to
 	# charge_freeze_pos every frame while charging, but base_enemy's own
@@ -181,20 +192,37 @@ func _charge_and_fire():
 	# side/corner of the formation) once the charge ended. Zeroing
 	# current_speed here stops that hidden accumulation at the source.
 	var frozen_speed = current_speed
-	
+
+	# Capture whether THIS charge is the one pausing an in-progress dive, and
+	# use that same flag (not a fresh is_diving check) when the charge ends.
+	# Shooting and diving run on independent timers, so a charge can start
+	# while the enemy is still calmly sitting in formation (is_diving false,
+	# frozen_speed correctly 0) and only *become* a diving enemy partway
+	# through the charge, once the dive timer separately fires. If the
+	# restore below re-checked is_diving instead of remembering this, it
+	# would see "is_diving = true" at the end and slam the freshly-started
+	# dive's real speed back down to the stale frozen_speed (0) it captured
+	# before the dive even began - leaving the enemy marked as diving but
+	# never actually falling again: stuck in place (often near the top of
+	# the screen, right where it started diving) forever, since it can never
+	# reach the bottom-of-screen check that would let it respawn and rejoin
+	# the formation.
+	_charge_froze_dive = is_diving
+
 	if is_diving:
 		charge_time += dive_shot_extra_pause
 		rotation = 0
 		charge_freeze_pos = position  # freeze the dive in place while charging
 		current_speed = 0
-	
+
 	_start_charge_flash(charge_time)
-	
+
 	await get_tree().create_timer(charge_time).timeout
-	
+
 	is_charging_shot = false
-	if is_diving:
+	if _charge_froze_dive:
 		current_speed = frozen_speed  # resume falling at the same speed as before
+	_charge_froze_dive = false
 	if not is_instance_valid(self) or not is_alive:
 		return
 	shoot_single()

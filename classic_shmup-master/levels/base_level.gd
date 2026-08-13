@@ -242,15 +242,16 @@ func _on_powerup_collected(powerup_id: String) -> void:
 	# time this fires - this just looks up its name/description for display
 	# and pauses the game until the player acknowledges it.
 	var powerup: Dictionary = PlayerPowerUps.get_powerup_by_id(powerup_id)
-	show_powerup_popup(powerup)
+	var accent_color: Color = PlayerPowerUps.get_accent_color_for_powerup_id(powerup_id)
+	show_powerup_popup(powerup, accent_color)
 
-func show_powerup_popup(powerup: Dictionary) -> void:
+func show_powerup_popup(powerup: Dictionary, accent_color: Color = PlayerPowerUps.DEFAULT_ACCENT_COLOR) -> void:
 	# Same pattern as pause_game() - get_tree().paused = true halts
 	# gameplay's _process/_physics_process, while the popup (process_mode
 	# "Always", set in the level scene) keeps working so it can be dismissed.
 	is_powerup_popup_active = true
 	get_tree().paused = true
-	powerup_popup.show_powerup(powerup)
+	powerup_popup.show_powerup(powerup, accent_color)
 
 func _on_powerup_popup_continue_pressed() -> void:
 	is_powerup_popup_active = false

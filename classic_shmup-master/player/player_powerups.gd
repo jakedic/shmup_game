@@ -114,6 +114,17 @@ const POWERUPS_BY_ENEMY_TYPE: Dictionary = {
 	"yellow": YELLOW_POWERUPS,
 }
 
+# enemy_type -> accent color PowerupPopup uses for that type's border/header
+# (see PowerupPopup.show_powerup()). Add an entry here alongside each new
+# entry in POWERUPS_BY_ENEMY_TYPE so its popups get their own color.
+const ENEMY_TYPE_ACCENT_COLORS: Dictionary = {
+	"yellow": Color(1.0, 0.85882353, 0.2),
+}
+
+# Fallback accent color for a power-up whose enemy type isn't in
+# ENEMY_TYPE_ACCENT_COLORS yet (also PowerupPopup's own default).
+const DEFAULT_ACCENT_COLOR := Color(0.54901961, 0.85098039, 1.0)
+
 
 static func get_powerups_for_enemy_type(enemy_type: String) -> Array:
 	"""Return the FULL power-up pool for the given enemy type (including
@@ -175,3 +186,23 @@ static func get_powerup_by_id(powerup_id: String) -> Dictionary:
 			if powerup.get("id", "") == powerup_id:
 				return powerup
 	return {}
+
+
+static func get_enemy_type_for_powerup_id(powerup_id: String) -> String:
+	"""Look up which enemy type's pool a power-up id belongs to (used to
+	pick the popup's accent color - see get_accent_color_for_powerup_id()).
+	Empty string if no power-up with that id exists."""
+	for enemy_type in POWERUPS_BY_ENEMY_TYPE:
+		for powerup: Dictionary in POWERUPS_BY_ENEMY_TYPE[enemy_type]:
+			if powerup.get("id", "") == powerup_id:
+				return enemy_type
+	return ""
+
+
+static func get_accent_color_for_powerup_id(powerup_id: String) -> Color:
+	"""The color PowerupPopup should border/highlight itself with for a given
+	power-up id, based on the enemy type it came from (e.g. yellow for a
+	yellow-enemy power-up). Falls back to DEFAULT_ACCENT_COLOR for an
+	unknown id or an enemy type with no color registered yet."""
+	var enemy_type := get_enemy_type_for_powerup_id(powerup_id)
+	return ENEMY_TYPE_ACCENT_COLORS.get(enemy_type, DEFAULT_ACCENT_COLOR)
