@@ -19,4 +19,13 @@ offset_right = 160.0
 offset_bottom = 155.0
 text = "Start"
 
+[node name="TutorialButton" type="Button" parent="." unique_id=233015019]
+layout_mode = 0
+offset_left = 83.0
+offset_top = 165.0
+offset_right = 160.0
+offset_bottom = 213.0
+text = "Tutorial"
+
 [connection signal="pressed" from="StartButton" to="." method="_on_start_button_pressed"]
+[connection signal="pressed" from="TutorialButton" to="." method="_on_tutorial_button_pressed"]

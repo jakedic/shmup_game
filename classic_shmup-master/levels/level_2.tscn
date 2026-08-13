@@ -1,12 +1,13 @@
-[gd_scene load_steps=12 format=3 uid="uid://donxqsjx40qkr"]
+[gd_scene format=3]
 
-[ext_resource type="Script" uid="uid://cmheeg1cr2841" path="res://levels/level_2.gd" id="1_ep78u"]
-[ext_resource type="PackedScene" uid="uid://b54c7ad6cogrm" path="res://ui.tscn" id="2_k40iv"]
-[ext_resource type="Texture2D" uid="uid://cr7usmfo6apt8" path="res://Mini Pixel Pack 3/UI objects/GAME_OVER (72 x 8).png" id="3_solx0"]
-[ext_resource type="Texture2D" uid="uid://o6gwbftsnc8c" path="res://Mini Pixel Pack 3/UI objects/START (48 x 8).png" id="4_bjquc"]
-[ext_resource type="Texture2D" uid="uid://cwuy4b17rh7ql" path="res://Mini Pixel Pack 3/Space_BG (2 frames) (64 x 64).png" id="5_6eoiu"]
-[ext_resource type="PackedScene" uid="uid://b32476hejmrnj" path="res://player.tscn" id="6_kjwqk"]
-[ext_resource type="Script" uid="uid://crpidppxf8f7t" path="res://Camera2D.gd" id="7_osobe"]
+[ext_resource type="Texture2D" uid="uid://cwuy4b17rh7ql" path="res://Mini Pixel Pack 3/Space_BG (2 frames) (64 x 64).png" id="1_hjad5"]
+[ext_resource type="Script" path="res://levels/level_2.gd" id="1_vtt5l"]
+[ext_resource type="PackedScene" uid="uid://b32476hejmrnj" path="res://player.tscn" id="2_tiq3a"]
+[ext_resource type="Texture2D" uid="uid://cr7usmfo6apt8" path="res://Mini Pixel Pack 3/UI objects/GAME_OVER (72 x 8).png" id="3_5ueml"]
+[ext_resource type="Texture2D" uid="uid://o6gwbftsnc8c" path="res://Mini Pixel Pack 3/UI objects/START (48 x 8).png" id="4_37xqa"]
+[ext_resource type="PackedScene" uid="uid://b54c7ad6cogrm" path="res://ui.tscn" id="4_hy8xi"]
+[ext_resource type="Script" uid="uid://crpidppxf8f7t" path="res://Camera2D.gd" id="7_qw2vk"]
+[ext_resource type="Script" path="res://powerup_popup.gd" id="8_pwrup"]
 
 [sub_resource type="Animation" id="Animation_frim2"]
 length = 0.001
@@ -48,28 +49,56 @@ _data = {
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_uf0tv"]
 
-[node name="Main" type="Node2D"]
-script = ExtResource("1_ep78u")
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_popup_box"]
+bg_color = Color(0.06666667, 0.07058824, 0.14901961, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.54901961, 0.85098039, 1, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+anti_aliasing = false
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 3
+shadow_offset = Vector2(2, 2)
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_popup_titlebar"]
+bg_color = Color(0.54901961, 0.85098039, 1, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+anti_aliasing = false
+content_margin_left = 4
+content_margin_right = 4
+content_margin_top = 3
+content_margin_bottom = 3
 
-[node name="UI" parent="CanvasLayer" instance=ExtResource("2_k40iv")]
+[node name="Main" type="Node2D" unique_id=701015459]
+script = ExtResource("1_vtt5l")
 
-[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer"]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=636135408]
+
+[node name="UI" parent="CanvasLayer" unique_id=835239457 instance=ExtResource("4_hy8xi")]
+
+[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer" unique_id=1767026620]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="GameOver" type="TextureRect" parent="CanvasLayer/CenterContainer"]
+[node name="GameOver" type="TextureRect" parent="CanvasLayer/CenterContainer" unique_id=1261768952]
 layout_mode = 2
-texture = ExtResource("3_solx0")
+texture = ExtResource("3_5ueml")
 
-[node name="Start" type="TextureButton" parent="CanvasLayer/CenterContainer"]
+[node name="Start" type="TextureButton" parent="CanvasLayer/CenterContainer" unique_id=522097307]
 layout_mode = 2
 size_flags_horizontal = 4
-texture_normal = ExtResource("4_bjquc")
+texture_normal = ExtResource("4_37xqa")
 
 [node name="PauseMenu" type="Control" parent="CanvasLayer"]
 process_mode = 3
@@ -112,29 +141,108 @@ text = "Continue"
 layout_mode = 2
 text = "Quit"
 
-[node name="Background" type="Sprite2D" parent="."]
+[node name="PowerupPopup" type="Control" parent="CanvasLayer"]
+process_mode = 3
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("8_pwrup")
+
+[node name="Dim" type="ColorRect" parent="CanvasLayer/PowerupPopup"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.7)
+
+[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer/PowerupPopup"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="PanelContainer" parent="CanvasLayer/PowerupPopup/CenterContainer"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_popup_box")
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/PowerupPopup/CenterContainer/Box"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 9
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin"]
+layout_mode = 2
+custom_minimum_size = Vector2(176, 0)
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="TitleBar" type="PanelContainer" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_popup_titlebar")
+
+[node name="TitleLabel" type="Label" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin/VBoxContainer/TitleBar"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.08235294, 0.08235294, 0.10980392, 1)
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+text = "★ POWER-UP! ★"
+
+[node name="NameLabel" type="Label" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54901961, 0.85098039, 1, 1)
+theme_override_font_sizes/font_size = 15
+horizontal_alignment = 1
+text = "Power-Up Name"
+
+[node name="DescriptionLabel" type="Label" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.84705882, 0.85882353, 0.90196078, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+autowrap_mode = 2
+custom_minimum_size = Vector2(176, 0)
+text = "Description text"
+
+[node name="ContinueHint" type="Label" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68235294, 0.69803922, 0.74901961, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+text = "▸ PRESS ANY BUTTON ◂"
+
+[node name="MinDisplayTimer" type="Timer" parent="CanvasLayer/PowerupPopup"]
+wait_time = 1.0
+one_shot = true
+
+[node name="Background" type="Sprite2D" parent="." unique_id=2468625999]
 texture_repeat = 2
 position = Vector2(120, 160)
 scale = Vector2(1.1, 1.1)
-texture = ExtResource("5_6eoiu")
+texture = ExtResource("1_hjad5")
 region_enabled = true
 region_rect = Rect2(2.08165e-12, 2.08165e-12, 240, 320)
 
-[node name="Player" parent="." instance=ExtResource("6_kjwqk")]
+[node name="Player" parent="." unique_id=1487184306 instance=ExtResource("2_tiq3a")]
 position = Vector2(120, 240)
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
-libraries = {
-&"": SubResource("AnimationLibrary_d33qh")
-}
-autoplay = "new_animation"
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=991913609]
+libraries/ = SubResource("AnimationLibrary_d33qh")
+autoplay = &"new_animation"
 
-[node name="Camera2D" type="Camera2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="." unique_id=661284007]
 position = Vector2(120, 160)
-script = ExtResource("7_osobe")
+script = ExtResource("7_qw2vk")
 noise = SubResource("FastNoiseLite_uf0tv")
 
-[node name="EnemyAnchor" type="Node2D" parent="."]
+[node name="EnemyAnchor" type="Node2D" parent="." unique_id=2620168100]
 
 [connection signal="pressed" from="CanvasLayer/CenterContainer/Start" to="." method="_on_start_pressed"]
 [connection signal="pressed" from="CanvasLayer/PauseMenu/CenterContainer/VBoxContainer/ContinueButton" to="." method="_on_continue_pressed"]

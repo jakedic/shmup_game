@@ -1,0 +1,183 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://levels/tutorial_screen.gd" id="1_tut"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_titlebar"]
+bg_color = Color(0.54901961, 0.85098039, 1, 1)
+content_margin_left = 6
+content_margin_right = 6
+content_margin_top = 4
+content_margin_bottom = 4
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_section"]
+bg_color = Color(0.11764706, 0.1254902, 0.21960784, 1)
+content_margin_left = 8
+content_margin_top = 6
+content_margin_right = 8
+content_margin_bottom = 8
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+anti_aliasing = false
+border_width_left = 2
+border_color = Color(0.54901961, 0.85098039, 1, 1)
+
+[node name="TutorialScreen" type="Control" unique_id=233015020]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_tut")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.06666667, 0.07058824, 0.14901961, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TitleBar" type="PanelContainer" parent="Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_titlebar")
+
+[node name="TitleLabel" type="Label" parent="Margin/VBoxContainer/TitleBar"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.08235294, 0.08235294, 0.10980392, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+text = "★ HOW TO PLAY ★"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Margin/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Content" type="VBoxContainer" parent="Margin/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="ControlsSection" type="PanelContainer" parent="Margin/VBoxContainer/ScrollContainer/Content"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_section")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Margin/VBoxContainer/ScrollContainer/Content/ControlsSection"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="Label" parent="Margin/VBoxContainer/ScrollContainer/Content/ControlsSection/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54901961, 0.85098039, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "CONTROLS"
+
+[node name="Body" type="RichTextLabel" parent="Margin/VBoxContainer/ScrollContainer/Content/ControlsSection/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/default_color = Color(0.84705882, 0.85882353, 0.90196078, 1)
+theme_override_font_sizes/normal_font_size = 9
+bbcode_enabled = true
+text = "[b]Move[/b]  —  Arrow Keys / WASD
+[b]Shoot[/b]  —  Space or J
+[b]Absorb[/b]  —  K
+   Fires an absorb beam — hit an enemy with it to transform into that enemy and gain its special shot.
+[b]Revert[/b]  —  L
+   Instantly change back into your normal ship.
+[b]Dash[/b]  —  double-tap Left or Right
+   Burst-dodge out of danger.
+[b]Pause[/b]  —  P"
+fit_content = true
+scroll_active = false
+
+[node name="ScoringSection" type="PanelContainer" parent="Margin/VBoxContainer/ScrollContainer/Content"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_section")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Margin/VBoxContainer/ScrollContainer/Content/ScoringSection"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="Label" parent="Margin/VBoxContainer/ScrollContainer/Content/ScoringSection/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54901961, 0.85098039, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "SCORING & MULTIPLIER"
+
+[node name="Body" type="RichTextLabel" parent="Margin/VBoxContainer/ScrollContainer/Content/ScoringSection/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/default_color = Color(0.84705882, 0.85882353, 0.90196078, 1)
+theme_override_font_sizes/normal_font_size = 9
+bbcode_enabled = true
+text = "Destroying enemies earns points, shown at the bottom of the screen.
+
+Chain your kills together to build a score multiplier — the more enemies you destroy in a row, the higher it climbs.
+
+Go too long without a kill (about 5 seconds) and the multiplier starts dropping back down, so keep the pressure on!
+
+Points earned = an enemy's value [b]×[/b] your current multiplier, so a high multiplier is always worth protecting."
+fit_content = true
+scroll_active = false
+
+[node name="PowerupsSection" type="PanelContainer" parent="Margin/VBoxContainer/ScrollContainer/Content"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_section")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Margin/VBoxContainer/ScrollContainer/Content/PowerupsSection"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="Label" parent="Margin/VBoxContainer/ScrollContainer/Content/PowerupsSection/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54901961, 0.85098039, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "POWER-UPS"
+
+[node name="Body" type="RichTextLabel" parent="Margin/VBoxContainer/ScrollContainer/Content/PowerupsSection/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/default_color = Color(0.84705882, 0.85882353, 0.90196078, 1)
+theme_override_font_sizes/normal_font_size = 9
+bbcode_enabled = true
+text = "Absorbing an enemy (see Controls above) transforms you into that enemy and gives you its unique shot.
+
+While transformed, pressing Absorb again fires a bubble instead of absorbing — this also reverts you back to your normal ship.
+
+If two of these bubbles collide in mid-air, they fuse together into a glowing power bubble.
+
+Fly into a power bubble to receive a random power-up that lasts for the rest of the level — things like extra speed, piercing shots, or dash invincibility.
+
+[b][color=#ffdb4d]You can only absorb an enemy once your score multiplier reaches 5x[/color][/b] — build your combo up first!"
+fit_content = true
+scroll_active = false
+
+[node name="BackButton" type="Button" parent="Margin/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Back"
+
+[connection signal="pressed" from="Margin/VBoxContainer/BackButton" to="." method="_on_back_button_pressed"]
