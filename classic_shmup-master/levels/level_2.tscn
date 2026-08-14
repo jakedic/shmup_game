@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://b54c7ad6cogrm" path="res://ui.tscn" id="4_hy8xi"]
 [ext_resource type="Script" uid="uid://crpidppxf8f7t" path="res://Camera2D.gd" id="7_qw2vk"]
 [ext_resource type="Script" path="res://powerup_popup.gd" id="8_pwrup"]
+[ext_resource type="Script" path="res://powerup_choice_popup.gd" id="9_pwrchoice"]
 
 [sub_resource type="Animation" id="Animation_frim2"]
 length = 0.001
@@ -76,6 +77,19 @@ content_margin_left = 4
 content_margin_right = 4
 content_margin_top = 3
 content_margin_bottom = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_choice_card_panel"]
+bg_color = Color(0.06666667, 0.07058824, 0.14901961, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.54901961, 0.85098039, 1, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+anti_aliasing = false
 
 [node name="Main" type="Node2D" unique_id=701015459]
 script = ExtResource("1_vtt5l")
@@ -222,6 +236,169 @@ text = "▸ PRESS ANY BUTTON ◂"
 wait_time = 1.0
 one_shot = true
 
+[node name="PowerupChoicePopup" type="Control" parent="CanvasLayer"]
+process_mode = 3
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("9_pwrchoice")
+
+[node name="Dim" type="ColorRect" parent="CanvasLayer/PowerupChoicePopup"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.7)
+
+[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer/PowerupChoicePopup"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="PanelContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_popup_box")
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 5
+alignment = 1
+
+[node name="HeaderBar" type="PanelContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_popup_titlebar")
+
+[node name="HeaderLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/HeaderBar"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.08235294, 0.08235294, 0.10980392, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+text = "★ CHOOSE A POWER-UP ★"
+
+[node name="CardsRow" type="HBoxContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Card0" type="PanelContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(70, 0)
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_choice_card_panel")
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card0"]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card0/Margin"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_constants/separation = 3
+
+[node name="NameLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card0/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54901961, 0.85098039, 1, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Power-Up"
+
+[node name="DescriptionLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card0/Margin/VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_colors/font_color = Color(0.84705882, 0.85882353, 0.90196078, 1)
+theme_override_font_sizes/font_size = 7
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Description"
+
+[node name="Card1" type="PanelContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(70, 0)
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_choice_card_panel")
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card1"]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card1/Margin"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_constants/separation = 3
+
+[node name="NameLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card1/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54901961, 0.85098039, 1, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Power-Up"
+
+[node name="DescriptionLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card1/Margin/VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_colors/font_color = Color(0.84705882, 0.85882353, 0.90196078, 1)
+theme_override_font_sizes/font_size = 7
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Description"
+
+[node name="Card2" type="PanelContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(70, 0)
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_choice_card_panel")
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card2"]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card2/Margin"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_constants/separation = 3
+
+[node name="NameLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card2/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54901961, 0.85098039, 1, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Power-Up"
+
+[node name="DescriptionLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card2/Margin/VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_colors/font_color = Color(0.84705882, 0.85882353, 0.90196078, 1)
+theme_override_font_sizes/font_size = 7
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Description"
+
 [node name="Background" type="Sprite2D" parent="." unique_id=2468625999]
 texture_repeat = 2
 position = Vector2(120, 160)
@@ -249,3 +426,6 @@ noise = SubResource("FastNoiseLite_uf0tv")
 [connection signal="pressed" from="CanvasLayer/PauseMenu/CenterContainer/VBoxContainer/QuitButton" to="." method="_on_quit_pressed"]
 [connection signal="died" from="Player" to="." method="_on_player_died"]
 [connection signal="shield_changed" from="Player" to="CanvasLayer/UI" method="update_shield"]
+[connection signal="gui_input" from="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card0" to="CanvasLayer/PowerupChoicePopup" method="_on_card_0_gui_input"]
+[connection signal="gui_input" from="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card1" to="CanvasLayer/PowerupChoicePopup" method="_on_card_1_gui_input"]
+[connection signal="gui_input" from="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card2" to="CanvasLayer/PowerupChoicePopup" method="_on_card_2_gui_input"]

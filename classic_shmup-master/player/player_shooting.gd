@@ -109,6 +109,17 @@ static func configure_bullet(bullet: Node2D) -> void:
 		bullet.status_effect_chance = b.get("status_effect_chance", 0.0)
 	if "status_effect_skip_first_hit" in bullet:
 		bullet.status_effect_skip_first_hit = b.get("status_effect_skip_first_hit", false)
+	# Cross-Pollination power-up's pollen cone (see bullets/bullet.gd
+	# _release_pollen_cone()) - off by default, only set by
+	# yellow_piercing_pollen.
+	if "pollen_cone_enabled" in bullet:
+		bullet.pollen_cone_enabled = b.get("pollen_cone_enabled", false)
+	if "pollen_cone_chance" in bullet:
+		bullet.pollen_cone_chance = b.get("pollen_cone_chance", 0.0)
+	if "pollen_cone_range" in bullet:
+		bullet.pollen_cone_range = b.get("pollen_cone_range", 60.0)
+	if "pollen_cone_angle_degrees" in bullet:
+		bullet.pollen_cone_angle_degrees = b.get("pollen_cone_angle_degrees", 70.0)
 
 static func launch_bullet(player: Player, bullet: Node2D, spawn_pos: Vector2) -> void:
 	"""Launch a bullet into the game"""

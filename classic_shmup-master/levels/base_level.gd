@@ -2,6 +2,11 @@
 class_name BaseLevel
 extends Node2D
 
+# How many earned power-ups the end-of-level choice popup offers at once
+# (see _offer_run_powerup_choice()). If the player earned more than this
+# many distinct power-ups this level, this many are picked at random.
+const MAX_POWERUP_CHOICES := 3
+
 # Common variables for all levels
 var score = 0
 var playing = false
@@ -19,9 +24,11 @@ var auto_start_timer : Timer = Timer.new() #timer that auto-triggers the game st
 @onready var ui = $CanvasLayer/UI
 @onready var pause_menu = $CanvasLayer/PauseMenu
 @onready var powerup_popup = $CanvasLayer/PowerupPopup
+@onready var powerup_choice_popup = $CanvasLayer/PowerupChoicePopup
 
 var is_paused = false
 var is_powerup_popup_active = false
+var is_powerup_choice_active = false
 
 # Common nodes
 @onready var enemy_anchor = $EnemyAnchor
@@ -39,6 +46,8 @@ func _ready():
 	pause_menu.hide()
 	powerup_popup.hide()
 	powerup_popup.continue_pressed.connect(_on_powerup_popup_continue_pressed)
+	powerup_choice_popup.hide()
+	powerup_choice_popup.powerup_chosen.connect(_on_run_powerup_chosen)
 	Stats.powerup_collected.connect(_on_powerup_collected)
 	setup_enemy_anchor_animation()
 	initialize_level()
@@ -60,12 +69,9 @@ func _ready():
 func start_score_multipliplier_timer():#this creates a function that checks if the score multiplier should start counting dowwn
 	if score_multiplier >= 2:
 		multiplier_timer.start()
-		print(score_multiplier)
 		multiplier_timer.wait_time = 5.0
 	else:
 		multiplier_timer.stop()
-		print("timer does nothing")
-		print(score_multiplier)
 	multiplier_timer.timeout.connect(timeout_multiplier_timer)
 # Virtual method - override in child classes
 func initialize_level():
@@ -136,11 +142,23 @@ func _process(_delta):
 
 func handle_wave_completion():
 	current_wave += 1
-	
+
 	if current_wave < max_waves:
 		spawn_enemies()
 		wave_cleared(current_wave)  # Optional callback
 	else:
+		# Stop _process() from calling this again before the scene actually
+		# finishes changing (change_levels() below can go a frame or more
+		# without pausing the tree - e.g. change_scene_to_file() itself is
+		# deferred to the end of the frame, and the no-power-ups-earned path
+		# through _offer_run_powerup_choice() doesn't pause at all). Without
+		# this, "enemies == 0 and playing" would still be true on the very
+		# next _process() call and this whole branch would fire again,
+		# calling GameProgress.on_level_won() a second time with
+		# pending_node_id already reset to -1 - corrupting current_node_id
+		# and making the overworld (and any run power-ups picked afterward)
+		# look like progress reset.
+		playing = false
 		change_levels()
 
 # Virtual method - called when a wave is cleared
@@ -150,6 +168,19 @@ func wave_cleared(wave_number):
 
 # Virtual method - override for custom level progression
 func change_levels():
+	if GameProgress.is_active():
+		# Launched from the overworld - award shop currency equal to this
+		# level's final score (see stats.gd's currency section / the
+		# overworld shop in levels/shop.gd), then offer a choice of any
+		# power-ups earned this level to keep for the rest of the run (see
+		# _offer_run_powerup_choice()), which reports the win back to
+		# GameProgress once the player picks (or immediately, if nothing was
+		# earned this level) instead of following this level's own
+		# hardcoded next-level logic below.
+		Stats.add_currency(score)
+		_offer_run_powerup_choice()
+		return
+
 	if level_paths.has("next_level"):
 		get_tree().change_scene_to_file(level_paths["next_level"])
 	else:
@@ -157,12 +188,56 @@ func change_levels():
 		var current_scene = get_tree().current_scene.scene_file_path
 		var level_num = current_scene.get_file().trim_suffix(".tscn").substr(6).to_int()
 		var next_level = "res://levels/level_%d.tscn" % (level_num + 1)
-		
+
 		if ResourceLoader.exists(next_level):
 			get_tree().change_scene_to_file(next_level)
 		else:
 			# If no next level exists, go to victory screen or title
 			get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+
+func _offer_run_powerup_choice() -> void:
+	"""Called at the end of a level that's part of an overworld run. If the
+	player earned any power-ups this level (see Stats.collected_powerups),
+	offer up to MAX_POWERUP_CHOICES of them (chosen at random if more than
+	that were earned) as a small choice popup - only the one they pick gets
+	added to Stats.run_modifiers and carried into future levels. If nothing
+	was earned this level, skip straight to GameProgress.on_level_won()."""
+	var earned_ids: Array = _unique_collected_powerup_ids()
+	if earned_ids.is_empty():
+		GameProgress.on_level_won()
+		return
+
+	earned_ids.shuffle()
+	var offered_ids: Array = earned_ids.slice(0, min(MAX_POWERUP_CHOICES, earned_ids.size()))
+	var offered_powerups: Array = []
+	for powerup_id in offered_ids:
+		offered_powerups.append(PlayerPowerUps.get_powerup_by_id(powerup_id))
+
+	is_powerup_choice_active = true
+	get_tree().paused = true
+	powerup_choice_popup.show_choices(offered_powerups)
+
+func _unique_collected_powerup_ids() -> Array:
+	"""Stats.collected_powerups can contain the same id more than once (the
+	player collected it from multiple bubbles this level) - de-duplicate
+	before offering it as a choice, so it doesn't take up more than one of
+	the (up to 3) card slots."""
+	var seen := {}
+	var unique_ids: Array = []
+	for powerup_id in Stats.collected_powerups:
+		if not seen.has(powerup_id):
+			seen[powerup_id] = true
+			unique_ids.append(powerup_id)
+	return unique_ids
+
+func _on_run_powerup_chosen(powerup: Dictionary) -> void:
+	Stats.choose_run_powerup(powerup.get("id", ""), powerup.get("stats", {}))
+	is_powerup_choice_active = false
+	# Unpause the tree BEFORE switching scenes (see _on_quit_pressed() for
+	# why - loading the overworld while still paused would leave it unable
+	# to respond to input).
+	get_tree().paused = false
+	GameProgress.on_level_won()
 
 func _on_player_died():
 	playing = false
@@ -170,7 +245,12 @@ func _on_player_died():
 	game_over.show()
 	await get_tree().create_timer(2).timeout
 	game_over.hide()
-	get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+	if GameProgress.is_active():
+		# Losing mid-run resets the overworld progress and sends the player
+		# all the way back to the title screen.
+		GameProgress.on_level_lost()
+	else:
+		get_tree().change_scene_to_file("res://levels/title_screen.tscn")
 	start_button.show()
 
 func new_game():
@@ -216,8 +296,8 @@ func _input(event):
 
 	if event.is_action_pressed("pause"):
 		# Only allow pausing mid-game (not on the start popup, after death,
-		# or while the power-up popup already owns the pause).
-		if playing and not is_paused and not is_powerup_popup_active:
+		# or while a power-up popup already owns the pause).
+		if playing and not is_paused and not is_powerup_popup_active and not is_powerup_choice_active:
 			pause_game()
 
 func pause_game():
@@ -263,6 +343,7 @@ func _on_quit_pressed():
 	# screen loads in a paused state and its Start button won't respond.
 	is_paused = false
 	is_powerup_popup_active = false
+	is_powerup_choice_active = false
 	get_tree().paused = false
 	playing = false
 	get_tree().change_scene_to_file("res://levels/title_screen.tscn")
@@ -270,7 +351,6 @@ func timeout_multiplier_timer():
 	score_multiplier = score_multiplier - 1
 	multiplier_increase_tracker = 0
 	ui.update_score_multiplier(score_multiplier)
-	print(score_multiplier)
 	if score_multiplier >= 2:
 		pass
 	else:

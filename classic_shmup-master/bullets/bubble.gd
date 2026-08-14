@@ -49,7 +49,6 @@ func _ready():
 func set_enemy_type(enemy_type: String):
 	absorbed_enemy_type = enemy_type
 	enemy_types = [enemy_type] if enemy_type != "" else []
-	print("Bubble contains: ", enemy_type)
 
 func custom_start():
 	"""Initialize bubble behavior"""
@@ -121,7 +120,6 @@ func create_pop_damage():
 	"""Create explosion damage (or, with the yellow_bubble_pollen_pop
 	power-up active, guaranteed pollination instead of damage) using a
 	simple timer approach"""
-	print("Creating explosion at: ", global_position)
 	
 	# Get all enemies in range manually
 	var explosion_radius = 80
@@ -135,7 +133,6 @@ func create_pop_damage():
 			var distance = global_position.distance_to(enemy.global_position)
 			if distance <= explosion_radius:
 				enemies_in_range.append(enemy)
-				print("Found enemy in range: ", enemy.name, " at distance: ", distance)
 	
 	# yellow_bubble_pollen_pop power-up: the pop explosion no longer deals
 	# damage at all - it guarantees the "pollinated" status effect on every
@@ -144,26 +141,21 @@ func create_pop_damage():
 	if Stats.get_stat("bubble", "pop_applies_pollination"):
 		for enemy in enemies_in_range:
 			if enemy.has_method("apply_status_effect"):
-				print("Pollinating enemy: ", enemy.name)
 				enemy.apply_status_effect(StatusEffects.POLLINATED, {})
 		create_visual_explosion()
-		print("Pollinated ", enemies_in_range.size(), " enemies")
 		return
 	
 	# Damage all enemies in range
 	var damage_amount = damage * 3
 	for enemy in enemies_in_range:
 		if enemy.has_method("take_damage"):
-			print("Damaging enemy: ", enemy.name)
 			enemy.take_damage(damage_amount)
 		elif enemy.has_method("explode"):
-			print("Exploding enemy: ", enemy.name)
 			enemy.explode()
 	
 	# Create a visual explosion effect (optional)
 	create_visual_explosion()
 	
-	print("Damaged ", enemies_in_range.size(), " enemies")
 
 func create_visual_explosion():
 	"""Create a blue circular explosion effect using a Polygon2D"""
@@ -233,10 +225,8 @@ func _on_area_entered(area: Area2D):
 	# Check if player touched the bubble
 	if area.is_in_group("player") or area.name == "Player":
 		if is_power_bubble:
-			print("Player touched power bubble! First enemy: ", absorbed_enemy_type)
 			apply_powerup_to_player(area)
 		else:
-			print("Player touched bubble! Enemy type: ", absorbed_enemy_type)
 			# Apply transformation to player if we have an enemy type
 			if absorbed_enemy_type != "":
 				apply_transformation_to_player(area)
@@ -248,7 +238,6 @@ func _on_area_entered(area: Area2D):
 	# Check if what hit us is an enemy bullet
 	if area.is_in_group("enemy_bullet"):
 		current_hits += 1
-		print("Bubble hit by enemy bullet! Hits: ", current_hits, "/", hit_points)
 		
 		# Visual feedback (optional)
 		flash_white()
@@ -258,13 +247,11 @@ func _on_area_entered(area: Area2D):
 		
 		# Check if bubble should disappear
 		if current_hits >= hit_points:
-			print("Bubble destroyed by bullets")
 			queue_free()
 		return
 	
 	# Check if hit by enemy (optional - makes bubble pop on enemy contact)
 	if area.is_in_group("enemies") or area.is_in_group("enemy"):
-		print("Bubble hit enemy! Popping...")
 		current_hits += 3
 		flash_white()
 		
@@ -272,7 +259,6 @@ func _on_area_entered(area: Area2D):
 			queue_free()
 	# NEW: Check if hit by player's bullet
 	if area.is_in_group("player_bullet") or area.is_in_group("player_projectile"):
-		print("Bubble hit by player bullet! Popping with explosion!")
 		
 		# Remove the player bullet
 		area.queue_free()
@@ -312,7 +298,6 @@ func become_power_bubble(combined_types: Array) -> void:
 	absorbed_enemy_type = combined_types[0] if combined_types.size() > 0 else absorbed_enemy_type
 	current_hits = 0  # fresh health pool for the fused bubble
 
-	print("Power bubble formed! First enemy: ", absorbed_enemy_type, " (all: ", enemy_types, ")")
 	apply_power_bubble_visuals()
 
 func apply_power_bubble_visuals() -> void:
@@ -333,14 +318,10 @@ func apply_powerup_to_player(player: Area2D) -> void:
 
 	if player.has_method("apply_random_powerup"):
 		player.apply_random_powerup(first_enemy_type)
-	else:
-		print("Player cannot receive power-ups")
 
 	create_absorption_effect()
 
 func apply_transformation_to_player(player: Area2D):
-	print("Applying transformation: ", absorbed_enemy_type)
-	
 	# Call the player's absorb_complete function to trigger transformation
 	if player.has_method("absorb_complete"):
 		# This will trigger the player's transformation
@@ -349,9 +330,7 @@ func apply_transformation_to_player(player: Area2D):
 		# Directly call the transformation function
 		var transform_func = "transform_" + absorbed_enemy_type.to_lower()
 		player.call(transform_func)
-	else:
-		print("Player cannot absorb enemy type: ", absorbed_enemy_type)
-	
+
 	# Optional: Add visual effect
 	create_absorption_effect()
 

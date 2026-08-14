@@ -49,7 +49,7 @@ var _charge_froze_dive: bool = false
 
 func _ready():
 	# Set yellow enemy specific properties
-	max_health = 3  # Yellow enemies have 3 health
+	max_health = 1  # Yellow enemies have 3 health
 	current_health = max_health
 	bullet_scene = preload("res://enemy_bullets/enemy_bullet.tscn")
 	multi_shot = false

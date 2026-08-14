@@ -22,6 +22,7 @@ config/icon="res://Mini Pixel Pack 3/UI objects/Player_life_icon (16 x 16).png"
 [autoload]
 
 Stats="*uid://cyy6jsw7coouo"
+GameProgress="*res://game_progress.gd"
 
 [display]
 

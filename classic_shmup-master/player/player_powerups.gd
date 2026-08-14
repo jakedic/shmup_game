@@ -86,12 +86,14 @@ const YELLOW_POWERUPS: Array[Dictionary] = [
 	{
 		"id": "yellow_piercing_pollen",
 		"name": "Cross-Pollination",
-		"description": "The player's main shot pollinates every enemy it pierces through after the first one it hits, for the rest of the level.",
+		"description": "The first enemy the player's main shot hits releases a cone of pollen behind it, with a 50% chance to pollinate each other enemy caught in the cone, for the rest of the level.",
 		"stats": {
 			"bullet": {
 				"status_effect_name": {"op": "set", "value": "pollinated"},
-				"status_effect_chance": {"op": "set", "value": 1.0},
-				"status_effect_skip_first_hit": {"op": "set", "value": true},
+				"pollen_cone_enabled": {"op": "set", "value": true},
+				"pollen_cone_chance": {"op": "set", "value": 0.5},
+				"pollen_cone_range": {"op": "set", "value": 60.0},
+				"pollen_cone_angle_degrees": {"op": "set", "value": 70.0},
 			},
 		},
 	},
@@ -149,12 +151,39 @@ static func get_available_powerups_for_enemy_type(enemy_type: String) -> Array:
 	return available
 
 
+static func get_all_available_powerups() -> Array:
+	"""Every power-up, across every enemy type's pool, the player is
+	currently eligible for (see get_available_powerups_for_enemy_type()) -
+	the FULL pool the overworld shop offers from (see
+	get_random_shop_offers() / levels/shop.gd), as opposed to a single power
+	bubble which only draws from one enemy type at a time."""
+	var all: Array = []
+	for enemy_type in POWERUPS_BY_ENEMY_TYPE:
+		all.append_array(get_available_powerups_for_enemy_type(enemy_type))
+	return all
+
+
+static func get_random_shop_offers(count: int) -> Array:
+	"""Pick up to `count` DISTINCT random power-ups from the full eligible
+	pool (see get_all_available_powerups()). Used by the shop screen
+	(levels/shop.gd) each time the player enters it - may return fewer than
+	`count` if the eligible pool itself is smaller."""
+	var pool: Array = get_all_available_powerups()
+	pool.shuffle()
+	return pool.slice(0, min(count, pool.size()))
+
+
 static func _player_has_pollination_source() -> bool:
 	"""True if the player has already collected a power-up that can, by
 	itself, apply the "pollinated" status effect (see
-	POLLINATION_SOURCE_POWERUP_IDS)."""
+	POLLINATION_SOURCE_POWERUP_IDS) - either earned this level, or chosen to
+	carry forward from an earlier level this run (see
+	Stats.choose_run_powerup())."""
 	for collected_id in Stats.collected_powerups:
 		if collected_id in POLLINATION_SOURCE_POWERUP_IDS:
+			return true
+	for chosen_id in Stats.chosen_run_powerups:
+		if chosen_id in POLLINATION_SOURCE_POWERUP_IDS:
 			return true
 	return false
 
@@ -167,12 +196,10 @@ static func apply_random_powerup(player: Player, enemy_type: String) -> Dictiona
 	power-ups right now."""
 	var pool: Array = get_available_powerups_for_enemy_type(enemy_type)
 	if pool.is_empty():
-		print("No available power-ups for enemy type: ", enemy_type)
 		return {}
 
 	var powerup: Dictionary = pool[randi() % pool.size()]
 	Stats.add_powerup(powerup.get("id", ""), powerup.get("stats", {}))
-	print("Power bubble granted power-up: ", powerup.get("name", powerup.get("id", "?")))
 	return powerup
 
 

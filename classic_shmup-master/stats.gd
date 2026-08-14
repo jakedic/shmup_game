@@ -4,21 +4,33 @@
 # Layered stat system:
 #   default_stats          -> immutable baseline, never written to at runtime
 #   progression_overrides  -> permanent deltas earned across levels/sessions
-#   level_modifiers        -> named, stackable changes that persist for the
-#                              current level only (e.g. power-bubble power-ups).
-#                              Cleared with clear_level_modifiers() whenever a
-#                              level starts (see BaseLevel.new_game()).
-#   active_modifiers       -> named, stackable, TEMPORARY changes (absorb/transform)
-#   current_stats          -> resolved cache that gameplay code actually reads
+#   run_modifiers          -> named, stackable changes that persist across
+#                              every level for the rest of the current
+#                              overworld run (the power-ups the player
+#                              specifically CHOSE to keep at the end of a
+#                              level - see choose_run_powerup() /
+#                              powerup_choice_popup.gd). Cleared with
+#                              clear_run_modifiers() whenever a run starts or
+#                              resets (see GameProgress.start_new_run() /
+#                              reset_run()) - i.e. they go away on a loss.
+#   level_modifiers         -> named, stackable changes that persist for the
+#                              current level only (every power-up earned this
+#                              level, whether or not it's later chosen to
+#                              carry forward). Cleared with
+#                              clear_level_modifiers() whenever a level starts
+#                              (see BaseLevel.new_game()).
+#   active_modifiers        -> named, stackable, TEMPORARY changes (absorb/transform)
+#   current_stats           -> resolved cache that gameplay code actually reads
 #
-# current = default, then progression, then level modifiers, then each active
-# modifier, applied in the order each was added. Removing a modifier just
-# erases its entry and recomputes — no manual "undo the math" step required
-# anywhere.
+# current = default, then progression, then run modifiers, then level
+# modifiers, then each active modifier, applied in the order each was added.
+# Removing a modifier just erases its entry and recomputes — no manual "undo
+# the math" step required anywhere.
 extends Node
 
 signal stats_changed(category: String)
 signal powerup_collected(powerup_id: String)
+signal currency_changed(new_amount: int)
 
 const CATEGORIES = ["player", "bullet", "bubble", "pollen"]
 
@@ -74,8 +86,19 @@ var default_stats: Dictionary = {
 		"status_effect_chance": 0.0,
 		# If true, a bullet won't try to inflict its status effect on the
 		# very first enemy it hits - only on enemies hit afterward via
-		# piercing (see yellow_piercing_pollen power-up).
+		# piercing.
 		"status_effect_skip_first_hit": false,
+		# Cross-Pollination power-up (see yellow_piercing_pollen in
+		# player/player_powerups.gd): once this bullet hits its first enemy
+		# this level, release a cone-shaped burst of pollen that continues on
+		# past that enemy. Each other enemy caught in the cone independently
+		# rolls pollen_cone_chance to become pollinated (see bullets/bullet.gd
+		# _release_pollen_cone()). Off by default - only pollen_cone_enabled
+		# turns this on.
+		"pollen_cone_enabled": false,
+		"pollen_cone_chance": 0.0,
+		"pollen_cone_range": 60.0,
+		"pollen_cone_angle_degrees": 70.0,
 	},
 	"bubble": {
 		"speed": 100.0,
@@ -120,7 +143,47 @@ var progression_overrides: Dictionary = {
 	"pollen": {},
 }
 
-# ===== TIER 3: LEVEL MODIFIERS (persist for the current level, stackable, named) =====
+# ===== TIER 3: RUN MODIFIERS (persist across every level for the rest of the run, stackable, named) =====
+# Same shape as level_modifiers below, but these survive scene changes
+# between levels - they're the power-ups the player specifically chose to
+# keep (see choose_run_powerup()). Cleared via clear_run_modifiers() when
+# GameProgress starts or resets a run (fresh Start press, or a loss).
+# mod_name -> { category -> { stat_key -> {"op": "set"|"add"|"mult", "value": x} } }
+var run_modifiers: Dictionary = {}
+
+# IDs of every power-up the player has chosen to carry forward this run, in
+# the order chosen. Handy for UI/debugging; choose_run_powerup() keeps this
+# in sync with run_modifiers.
+var chosen_run_powerups: Array = []
+
+# ===== CURRENCY (same lifetime as run_modifiers - persists across every =====
+# ===== level for the rest of the run, wiped on a loss/fresh run)        =====
+# Earned from level score (see BaseLevel.change_levels() -> Stats.add_currency())
+# and spent at the overworld shop (see levels/shop.gd) at a flat cost per
+# ability. Cleared via clear_currency() alongside clear_run_modifiers()
+# whenever GameProgress starts or resets a run.
+var currency: int = 0
+
+func add_currency(amount: int) -> void:
+	if amount <= 0:
+		return
+	currency += amount
+	currency_changed.emit(currency)
+
+func spend_currency(amount: int) -> bool:
+	"""Attempts to spend `amount` currency. Returns false (and spends
+	nothing) if the player can't afford it."""
+	if amount <= 0 or currency < amount:
+		return false
+	currency -= amount
+	currency_changed.emit(currency)
+	return true
+
+func clear_currency() -> void:
+	currency = 0
+	currency_changed.emit(currency)
+
+# ===== TIER 4: LEVEL MODIFIERS (persist for the current level, stackable, named) =====
 # Same shape as active_modifiers below, but these are NOT tied to a
 # transformation's lifetime - they stick around (e.g. power-bubble power-ups)
 # until clear_level_modifiers() is called at the start of a new level/run.
@@ -131,11 +194,11 @@ var level_modifiers: Dictionary = {}
 # for UI or debugging; add_powerup() keeps this in sync with level_modifiers.
 var collected_powerups: Array = []
 
-# ===== TIER 4: MODIFIERS (temporary, stackable, named) =====
+# ===== TIER 5: MODIFIERS (temporary, stackable, named) =====
 # mod_name -> { category -> { stat_key -> {"op": "set"|"add"|"mult", "value": x} } }
 var active_modifiers: Dictionary = {}
 
-# ===== TIER 5: CURRENT (resolved cache) =====
+# ===== TIER 6: CURRENT (resolved cache) =====
 var current_stats: Dictionary = {}
 
 
@@ -155,6 +218,14 @@ func recompute(category: String):
 
 	for key in progression_overrides[category]:
 		result[key] = progression_overrides[category][key]
+
+	# Run modifiers (power-ups chosen at the end of a previous level, kept
+	# for the rest of this run) apply next, so they act as this run's
+	# baseline before anything from the current level layers on top.
+	for mod_name in run_modifiers:
+		var run_mods: Dictionary = run_modifiers[mod_name].get(category, {})
+		for key in run_mods:
+			result[key] = _apply_op(result.get(key), run_mods[key])
 
 	# Level modifiers (power-ups picked up this level) apply next, in
 	# insertion order, then active modifiers (transformations etc.) on top -
@@ -205,6 +276,48 @@ func clear_progression():
 	for category in CATEGORIES:
 		progression_overrides[category] = {}
 	recompute_all()
+
+
+# ---------- Run modifiers (persist across levels for the rest of the run, e.g. a chosen power-up) ----------
+
+func add_run_modifier(mod_name: String, modifiers: Dictionary):
+	run_modifiers[mod_name] = modifiers
+	for category in modifiers:
+		recompute(category)
+
+func remove_run_modifier(mod_name: String):
+	if not run_modifiers.has(mod_name):
+		return
+	var affected_categories = run_modifiers[mod_name].keys()
+	run_modifiers.erase(mod_name)
+	for category in affected_categories:
+		recompute(category)
+
+func has_run_modifier(mod_name: String) -> bool:
+	return run_modifiers.has(mod_name)
+
+func clear_run_modifiers():
+	"""Call whenever a run starts or resets (see GameProgress.start_new_run()
+	/ reset_run()) so power-ups chosen in a previous run don't carry over -
+	losing a run should wipe these out, unlike level_modifiers which reset
+	on every single level regardless of win/loss."""
+	var affected_categories = {}
+	for mod_name in run_modifiers:
+		for category in run_modifiers[mod_name]:
+			affected_categories[category] = true
+	run_modifiers.clear()
+	chosen_run_powerups.clear()
+	for category in affected_categories:
+		recompute(category)
+
+func choose_run_powerup(powerup_id: String, modifiers: Dictionary):
+	"""Called when the player picks a power-up (from PowerupChoicePopup, at
+	the end of a level) to carry forward for the rest of the run. Adds it as
+	a run modifier - separate from level_modifiers, which resets every
+	single level regardless of what's chosen."""
+	var unique_mod_name = "run_powerup_%s_%d" % [powerup_id, chosen_run_powerups.size()]
+	chosen_run_powerups.append(powerup_id)
+	add_run_modifier(unique_mod_name, modifiers)
 
 
 # ---------- Level modifiers (persist for the current level, e.g. power-bubble power-ups) ----------

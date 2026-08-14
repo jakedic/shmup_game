@@ -19,10 +19,20 @@ class_name Bullet extends Area2D
 @export var status_effect_name: String = ""  # empty = doesn't inflict anything
 @export var status_effect_chance: float = 0.0  # 0.0-1.0 chance per hit
 # If true, this bullet won't try to inflict its status effect on the very
-# first enemy it hits - only on enemies hit afterward via piercing (see
-# yellow_piercing_pollen power-up in player/player_powerups.gd). No effect
+# first enemy it hits - only on enemies hit afterward via piercing. No effect
 # on a non-piercing bullet, since it never gets a "second hit" anyway.
 @export var status_effect_skip_first_hit: bool = false
+
+# Cross-Pollination power-up (see yellow_piercing_pollen in
+# player/player_powerups.gd). When enabled, the moment this bullet hits its
+# first enemy, it releases a cone-shaped burst of pollen that continues on
+# past that enemy - every other enemy caught in the cone independently rolls
+# pollen_cone_chance to be pollinated (using this bullet's status_effect_name,
+# so it stays in sync with whatever status the power-up is actually granting).
+@export var pollen_cone_enabled: bool = false
+@export var pollen_cone_chance: float = 0.0
+@export var pollen_cone_range: float = 60.0
+@export var pollen_cone_angle_degrees: float = 70.0
 
 # Homing properties
 @export var homing_enabled: bool = false
@@ -222,6 +232,14 @@ func handle_enemy_collision(area: Area2D):
 		# not anything this same hit might apply below.
 		var blocks_pierce := _enemy_blocks_pierce(area)
 		
+		# Whether this is the very first enemy this bullet has ever hit -
+		# used both by status_effect_skip_first_hit and by the
+		# Cross-Pollination pollen cone below. Captured (along with the
+		# enemy's position) BEFORE dealing damage, since take_damage()
+		# below can free the enemy while we are awaiting it.
+		var is_first_hit := enemies_hit_count == 0
+		var hit_position: Vector2 = area.global_position
+		
 		# Count this enemy toward "enemies hit" BEFORE applying/rolling the
 		# status effect below, so status_effect_skip_first_hit can tell this
 		# was (or wasn't) the first enemy this bullet has hit.
@@ -239,6 +257,12 @@ func handle_enemy_collision(area: Area2D):
 		# to carry it.
 		if not enemy_died:
 			_maybe_inflict_status_effect(area)
+		
+		# Cross-Pollination: release the pollen cone once, right after the
+		# first enemy this bullet ever hits - regardless of whether that
+		# enemy survived the hit.
+		if is_first_hit:
+			_release_pollen_cone(hit_position, area)
 		
 		# Destroy bullet if no piercing at all
 		if pierce_count == 0:
@@ -292,6 +316,9 @@ func handle_enemy_body_collision(body: Node2D):
 	"""Handle collision with enemy body"""
 	var blocks_pierce := _enemy_blocks_pierce(body)
 	
+	var is_first_hit := enemies_hit_count == 0
+	var hit_position: Vector2 = body.global_position
+	
 	enemies_hit_count += 1
 	
 	var enemy_died = false
@@ -300,6 +327,9 @@ func handle_enemy_body_collision(body: Node2D):
 	
 	if not enemy_died:
 		_maybe_inflict_status_effect(body)
+	
+	if is_first_hit:
+		_release_pollen_cone(hit_position, body)
 	
 	if blocks_pierce and pierce_count > 0:
 		return
@@ -330,6 +360,45 @@ func _enemy_blocks_pierce(target) -> bool:
 	"""Whether `target`'s current status (if any) means this hit shouldn't
 	consume this bullet's pierce budget. See BaseEnemy.blocks_pierce_consumption()."""
 	return target.has_method("blocks_pierce_consumption") and target.blocks_pierce_consumption()
+
+func _release_pollen_cone(origin: Vector2, hit_enemy) -> void:
+	"""Cross-Pollination power-up (yellow_piercing_pollen in
+	player/player_powerups.gd). Called once, right after this bullet hits the
+	first enemy it ever hits: sprays a cone of pollen continuing on past that
+	enemy (in this bullet's own direction of travel), and rolls
+	pollen_cone_chance independently against every OTHER enemy caught inside
+	the cone - using this bullet's own status_effect_name, so it always
+	matches whatever status the power-up is actually granting."""
+	if not pollen_cone_enabled or status_effect_name == "" or pollen_cone_chance <= 0.0:
+		return
+	var cone_dir: Vector2 = direction
+	_spawn_pollen_cone_visual(origin, cone_dir)
+	var half_angle_rad: float = deg_to_rad(pollen_cone_angle_degrees) / 2.0
+	for other in get_tree().get_nodes_in_group("enemies"):
+		if other == hit_enemy or not is_instance_valid(other):
+			continue
+		if not other.has_method("apply_status_effect"):
+			continue
+		var offset: Vector2 = other.global_position - origin
+		var dist: float = offset.length()
+		if dist <= 0.001 or dist > pollen_cone_range:
+			continue
+		if abs(cone_dir.angle_to(offset.normalized())) > half_angle_rad:
+			continue
+		if randf() < pollen_cone_chance:
+			other.apply_status_effect(status_effect_name, {})
+
+func _spawn_pollen_cone_visual(origin: Vector2, cone_dir: Vector2) -> void:
+	"""Purely cosmetic - a short-lived fading wedge showing where the pollen
+	cone from _release_pollen_cone() just went off. Spawned directly under
+	the scene root (same pattern as PollenExplosionVisual) since this bullet
+	may be about to free itself."""
+	var visual := PollenConeVisual.new()
+	visual.global_position = origin
+	visual.cone_direction = cone_dir
+	visual.cone_range = pollen_cone_range
+	visual.cone_angle_degrees = pollen_cone_angle_degrees
+	get_tree().root.add_child(visual)
 
 func custom_area_collision(area: Area2D):
 	"""Override this in child classes for custom area collision behavior"""

@@ -90,8 +90,6 @@ static func absorb_complete(player: Player, hit_enemy_type: String) -> void:
 
 		if player.has_method(transform_func_name):
 			player.call(transform_func_name)
-		else:
-			print("No transformation function found for: ", hit_enemy_type)
 
 static func absorb_fail(player: Player) -> void:
 	player.currently_absorbing = false

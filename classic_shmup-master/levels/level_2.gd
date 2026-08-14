@@ -16,8 +16,8 @@ func _ready():
 func spawn_enemies():
 	super.spawn_enemies()  # Use parent's implementation
 
-# This is the one difference from level 1: once all of this level's waves
-# are cleared, send the player back to the home/title screen instead of
-# trying to advance to a level 3.
-func change_levels():
-	get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+# No change_levels() override here anymore - BaseLevel.change_levels()
+# already handles this correctly: when launched from the overworld it
+# reports the win back to GameProgress, and when played standalone (no
+# level_paths["next_level"] set, and no level_3.tscn) it falls back to the
+# title screen on its own.
