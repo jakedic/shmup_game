@@ -19,6 +19,19 @@ class_name YellowEnemy
 # way for the wave and the loop without separate rotation logic per mode.
 @export var facing_min_speed: float = 1.0  # below this speed (px/s), keep last facing instead of jittering
 
+# ===== SPRITE FRAMES =====
+# The art sheet has 3 frames: tilt-left, straight, tilt-right. Only the
+# straight frame is actually used right now - while diving, the body
+# rotation (below) alone conveys turning (frame-swapping was tried there
+# and looked too clunky stacked on top of the rotation), and the idle
+# animation is a gentle rotation rock rather than a frame swap (see
+# idle_rock in enemy_yellow.tscn). Kept as named constants/frame=STRAIGHT
+# resets below so it's easy to bring frame-swapping back in either spot
+# later if wanted.
+const FRAME_TILT_LEFT: int = 0
+const FRAME_STRAIGHT: int = 1
+const FRAME_TILT_RIGHT: int = 2
+
 var is_diving: bool = false
 var dive_time: float = 0.0
 var dive_origin_x: float = 0.0
@@ -81,6 +94,9 @@ func custom_start(pos: Vector2):
 	dive_time = 0.0
 	dive_mode = "zigzag"
 	rotation = 0.0
+	if is_instance_valid($Sprite2D):
+		$Sprite2D.frame = FRAME_STRAIGHT
+	_start_idle_rock()
 
 func custom_dive():
 	"""base_enemy.initiate_dive() calls this once, right when the dive
@@ -91,6 +107,28 @@ func custom_dive():
 	dive_mode = "zigzag"
 	zigzag_time = 0.0
 	last_position = position
+	_stop_idle_rock()
+
+func _start_idle_rock():
+	"""Play the idle rocking animation - a small, gentle side-to-side
+	rotation of just the Sprite2D (not the whole body/hitbox), looping
+	while the enemy calmly sits in formation. Stopped the moment a dive
+	starts so the body-rotation facing logic below has sole control of
+	Sprite2D's orientation once diving."""
+	if not is_instance_valid($AnimationPlayer):
+		return
+	if $AnimationPlayer.has_animation("idle_rock"):
+		$AnimationPlayer.play("idle_rock")
+
+func _stop_idle_rock():
+	"""Stop the idle rock and put the sprite back at its neutral rotation
+	on the plain straight frame, handing facing control over to
+	custom_process()/_update_facing() for the duration of the dive."""
+	if is_instance_valid($AnimationPlayer):
+		$AnimationPlayer.stop()
+	if is_instance_valid($Sprite2D):
+		$Sprite2D.rotation = PI
+		$Sprite2D.frame = FRAME_STRAIGHT
 
 func custom_process(delta: float):
 	"""Called every frame after base_enemy already applied the vertical
@@ -212,6 +250,8 @@ func _charge_and_fire():
 	if is_diving:
 		charge_time += dive_shot_extra_pause
 		rotation = 0
+		if is_instance_valid($Sprite2D):
+			$Sprite2D.frame = FRAME_STRAIGHT  # face forward while frozen for the shot
 		charge_freeze_pos = position  # freeze the dive in place while charging
 		current_speed = 0
 
