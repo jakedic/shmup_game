@@ -1,0 +1,26 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://bullets/bullet_pollen_puff.gd" id="1_pollen_puff"]
+[ext_resource type="Texture2D" uid="uid://sd2gvgbnqjhg" path="res://bullets/Player_bullet_particle_texture.png" id="2_pollen_puff"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pollen_puff_ball"]
+atlas = ExtResource("2_pollen_puff")
+region = Rect2(130, 198, 24, 24)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_pollen_puff"]
+radius = 8.0
+
+[node name="BulletPollenPuff" type="Area2D"]
+script = ExtResource("1_pollen_puff")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+scale = Vector2(1.1, 1.1)
+texture = SubResource("AtlasTexture_pollen_puff_ball")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_pollen_puff")
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+
+[connection signal="area_entered" from="." to="." method="_on_area_entered"]
+[connection signal="screen_exited" from="VisibleOnScreenNotifier2D" to="." method="_on_visible_on_screen_notifier_2d_screen_exited"]

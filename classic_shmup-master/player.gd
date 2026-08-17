@@ -74,6 +74,7 @@ var pollen_cooldown_remaining: float = 0.0
 @export var bullet_scene: PackedScene
 @export var bullet_yellow_scene: PackedScene
 @export var bullet_pollen_scene: PackedScene
+@export var bullet_pollen_puff_scene: PackedScene
 @export var absorb_scene: PackedScene
 @export var max_absorption_level: int = 2  # Maximum enemy types that can be absorbed
 var currently_absorbing=false
@@ -83,11 +84,16 @@ var currently_absorbing=false
 
 # ===== YELLOW FORM: CHARGE SHOT =====
 # While in yellow form, holding "shoot" charges up a single powerful,
-# piercing bullet instead of firing normally; releasing early cancels it.
+# piercing bullet instead of firing normally. Releasing early (before fully
+# charged) doesn't just cancel the shot - it fires a slow, harmless "pollen
+# puff" (bullet_pollen_puff_scene) instead, guaranteed to inflict
+# "pollinated" on whatever it touches. See player/player_charge_shot.gd -
+# _release_charge().
 # Damage/speed/pierce/max_distance are NOT duplicated here - the charged
 # bullet is configured the exact same way a normal bullet is, straight
 # from Stats.get_category("bullet") (see player/player_charge_shot.gd),
-# so the transform_yellow modifier is the one place that defines both.
+# so the transform_yellow modifier is the one place that defines both. The
+# pollen puff similarly pulls its own stats from Stats.get_category("pollen_puff").
 # charge_shot_duration/charge_flash_interval ARE synced from Stats below,
 # same as absorb_cooldown etc., so they're tunable the same way as any
 # other transformation parameter (see stats.gd + transform_yellow()).

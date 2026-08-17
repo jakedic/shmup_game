@@ -32,7 +32,7 @@ signal stats_changed(category: String)
 signal powerup_collected(powerup_id: String)
 signal currency_changed(new_amount: int)
 
-const CATEGORIES = ["player", "bullet", "bubble", "pollen"]
+const CATEGORIES = ["player", "bullet", "bubble", "pollen", "pollen_puff"]
 
 # ===== TIER 1: DEFAULT =====
 # Never mutate this dictionary at runtime. If you want to tweak a base value,
@@ -131,6 +131,24 @@ var default_stats: Dictionary = {
 		# Boosted by the yellow_pollen_blast_radius power-up.
 		"chain_explosion_radius": 40.0,
 	},
+	# Larger, slow "pollen puff" fired straight from the ship when the
+	# player releases the yellow form's charge shot BEFORE it's fully
+	# charged (see player/player_charge_shot.gd - _fire_pollen_puff()).
+	# Completely independent of "bullet" (the fully-charged shot) and
+	# "pollen" (the wiggling secondary-fire power-up balls) - a
+	# consolation prize for an early release, not a weaker version of
+	# either of those.
+	"pollen_puff": {
+		"speed": 45.0,          # slow - about half of the secondary pollen shot's speed
+		"damage": 0,            # never deals damage, purely a pollination tool
+		"max_distance": 260.0,
+		"pulse_amplitude": 0.25,  # how much it swells/shrinks, as a fraction of base size
+		"pulse_frequency": 3.0,   # how fast it pulses, in radians/sec
+		# 100% chance to inflict "pollinated" (see
+		# status_effects/pollinated_status.gd) - unlike the 20% chance on
+		# the wiggling secondary-fire pollen balls, this always lands.
+		"status_effect_chance": 1.0,
+	},
 }
 
 # ===== TIER 2: PROGRESSION =====
@@ -141,6 +159,7 @@ var progression_overrides: Dictionary = {
 	"bullet": {},
 	"bubble": {},
 	"pollen": {},
+	"pollen_puff": {},
 }
 
 # ===== TIER 3: RUN MODIFIERS (persist across every level for the rest of the run, stackable, named) =====

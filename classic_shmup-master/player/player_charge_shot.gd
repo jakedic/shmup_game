@@ -3,17 +3,22 @@ class_name PlayerChargeShot
 
 ## Yellow form's charge shot: hold "shoot" to charge up (flashing yellow,
 ## then solid yellow once fully charged), release to fire a single
-## powerful, piercing bullet. Releasing before it's fully charged cancels
-## the shot instead of firing early.
+## powerful, piercing bullet. Releasing before it's fully charged no longer
+## just cancels the shot - it fires a slow, harmless "pollen puff" instead
+## (bullets/bullet_pollen_puff.gd), guaranteed to inflict "pollinated" on
+## whatever it touches. See _release_charge()/_fire_pollen_puff() below.
 ##
 ## Called from PlayerShooting.handle_shoot_input() only while
 ## player.current_form == 'yellow'. charge_shot_duration/charge_flash_interval
 ## are synced from Stats on player.gd (same as absorb_cooldown etc, see
 ## stats.gd + transform_yellow()); damage/speed/pierce come straight from
 ## Stats.get_category("bullet") via PlayerShooting.configure_bullet(), same
-## as a normal shot. cancel_charge() is called from
+## as a normal shot. The pollen puff similarly pulls its own stats from
+## Stats.get_category("pollen_puff"). cancel_charge() is called from
 ## PlayerAbsorption.reset_to_default_form() so a charge can't get stuck
-## if the form ends mid-charge (e.g. the auto-revert timer fires).
+## if the form ends mid-charge (e.g. the auto-revert timer fires) - that
+## path stays a true no-shot cancel, not a puff, since the player didn't
+## choose to release it.
 
 static func handle_input(player: Player, delta: float) -> void:
 	if Input.is_action_just_pressed("shoot") and player.can_shoot and player.is_alive and not player.is_charging_shot:
@@ -53,7 +58,9 @@ static func _release_charge(player: Player) -> void:
 
 	if was_fully_charged:
 		_fire_charged_shot(player)
-	# else: released too early - charge is simply lost, no shot fires.
+	else:
+		# Released too early - consolation prize instead of nothing.
+		_fire_pollen_puff(player)
 
 static func cancel_charge(player: Player) -> void:
 	"""Abort any in-progress charge without firing (used when the yellow
@@ -81,6 +88,48 @@ static func _fire_charged_shot(player: Player) -> void:
 	# "charge shot" stats to keep in sync with the normal ones; bump the
 	# numbers in transform_yellow() and both automatically match.
 	PlayerShooting.configure_bullet(bullet)
+
+	if bullet.has_method("start"):
+		bullet.start(player.position + Vector2(0, -8))
+
+	player.player_shot.emit(bullet)
+	PlayerShooting.on_shoot(player)
+
+static func _fire_pollen_puff(player: Player) -> void:
+	"""Consolation prize for releasing the charge shot too early: a larger,
+	slow-moving, pulsating pollen puff (bullets/bullet_pollen_puff.gd) that
+	deals no damage but is guaranteed to inflict "pollinated". Configured
+	from Stats.get_category("pollen_puff"), same pattern as
+	PlayerPollenShot._spawn_one() uses for the "pollen" category."""
+	if not player.bullet_pollen_puff_scene:
+		return
+
+	var bullet: Node2D = player.bullet_pollen_puff_scene.instantiate()
+	if not bullet:
+		return
+
+	player.can_shoot = false
+	player.get_node("GunCooldown").start()
+
+	# Add to the tree first so _ready() runs, then apply the live
+	# Stats-driven values - same reason as _fire_charged_shot() above: the
+	# bullet's own _ready() hardcodes fallback stats that would otherwise
+	# clobber whatever we set beforehand.
+	player.get_tree().root.add_child(bullet)
+
+	var p: Dictionary = Stats.get_category("pollen_puff")
+	if bullet.has_method("set_damage"):
+		bullet.set_damage(p.get("damage", 0))
+	if bullet.has_method("set_speed"):
+		bullet.set_speed(p.get("speed", 45.0))
+	if "max_distance" in bullet:
+		bullet.max_distance = p.get("max_distance", 260.0)
+	if "pulse_amplitude" in bullet:
+		bullet.pulse_amplitude = p.get("pulse_amplitude", 0.25)
+	if "pulse_frequency" in bullet:
+		bullet.pulse_frequency = p.get("pulse_frequency", 3.0)
+	if "status_effect_chance" in bullet:
+		bullet.status_effect_chance = p.get("status_effect_chance", 1.0)
 
 	if bullet.has_method("start"):
 		bullet.start(player.position + Vector2(0, -8))
