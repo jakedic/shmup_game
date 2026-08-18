@@ -65,6 +65,13 @@ var default_stats: Dictionary = {
 		# categorical / boolean examples
 		"dash_invincible": false,
 		"dash_damages_enemies": false,
+		# How long (seconds) the player keeps dash_invincible's damage
+		# immunity to BOTH enemy bullets and enemy ships after the dash
+		# itself ends - see PlayerMovement.on_dash_end() /
+		# PlayerHealth.is_invincible(). 0 = no lingering grace period, the
+		# default (immunity ends the instant the dash does). Only meaningful
+		# alongside dash_invincible = true.
+		"post_dash_invincibility_duration": 0.0,
 		# yellow power-up: secondary "pollen shot" fire (see
 		# player/player_powerups.gd + player/player_pollen_shot.gd) - off
 		# unless granted by a power bubble this level.

@@ -4,6 +4,17 @@ class_name PlayerMovement
 ## Handles per-frame movement (acceleration/deceleration), the double-tap
 ## dash detection, and the dash itself (circular strafe motion, timers).
 ## Called from player.gd as e.g. PlayerMovement.handle_movement(self, delta).
+##
+## Dash invincibility (dash_invincible stat, see player/player_powerups.gd -
+## yellow_dash_invincibility): covers BOTH enemy bullets (physics-level, via
+## the collision layer/mask toggle below) and enemy ships (a plain flag
+## checked in PlayerHealth.is_invincible()/handle_enemy_collision(), since
+## ship contact is detected through the player's own Area2D rather than the
+## collision layer trick). Optionally lingers for a bit after the dash ends
+## too - see post_dash_invincibility_duration / on_dash_end() below.
+
+const DASH_TINT_COLOR := Color(0.5, 0.8, 1.0, 0.7)  # blue tint used both for the plain dash and the invincibility flash
+const INVINCIBILITY_FLASH_INTERVAL := 0.08  # seconds per half-blink
 
 static func handle_movement(player: Player, delta: float) -> void:
 	"""Process player movement with smooth acceleration"""
@@ -176,8 +187,15 @@ static func start_dash(player: Player, direction: Vector2) -> void:
 
 static func on_dash_start(player: Player) -> void:
 	"""Visual and audio effects for dash start"""
-	# Visual effect
-	player.modulate = Color(0.5, 0.8, 1.0, 0.7)  # Blue tint during dash
+	if player.bullet_invincible_during_dash:
+		# Blinking blue for as long as invincibility actually lasts (the
+		# dash itself, then straight on into any post-dash grace period) -
+		# a clearer "you're still safe" signal than a static tint,
+		# especially once the grace period outlives the dash's own motion.
+		_start_invincibility_flash(player)
+	else:
+		# Plain dash, no invincibility to signal - just the static tint.
+		player.modulate = DASH_TINT_COLOR
 
 	# Particle effect (if you have one)
 	if player.has_node("DashParticles"):
@@ -189,12 +207,17 @@ static func on_dash_end(player: Player) -> void:
 	player.speed = player.original_speed
 	player.is_dashing = false
 
+	# The bullet side of dash invincibility (collision layer/mask) AND the
+	# invincibility flash don't get restored/stopped here anymore -
+	# _begin_post_dash_grace() below handles both, either immediately (no
+	# grace period configured) or after post_dash_invincibility_duration
+	# elapses. The ship side (is_post_dash_invincible) is entirely handled
+	# there too.
 	if player.bullet_invincible_during_dash:
-		player.set_collision_layer_value(1, true)    # Re-enable player collision layer
-		player.set_collision_mask_value(2, true)     # Re-enable enemy bullet collision mask
-
-	# Restore normal appearance
-	player.modulate = player.player_color
+		_begin_post_dash_grace(player)
+	else:
+		# Plain dash - drop the tint immediately, nothing to keep signaling.
+		player.modulate = player.player_color
 
 	# Stop particle effects
 	if player.has_node("DashParticles"):
@@ -205,6 +228,67 @@ static func on_dash_end(player: Player) -> void:
 
 	if is_instance_valid(player.get_node("Ship")):
 		player.get_node("Ship").rotation = 0
+
+static func _begin_post_dash_grace(player: Player) -> void:
+	"""Keep dash invincibility (and its blue flash) alive for
+	post_dash_invincibility_duration seconds after the dash itself has
+	already ended - covers enemy bullets (collision layer/mask stays
+	disabled a bit longer) and enemy ships (is_post_dash_invincible, read by
+	PlayerHealth.is_invincible()). With no grace period configured (the
+	default), invincibility just ends immediately, same as before this
+	existed."""
+	if player.post_dash_invincibility_duration <= 0.0:
+		_end_invincibility(player)
+		return
+
+	player.is_post_dash_invincible = true
+	# Flash keeps blinking uninterrupted straight through from the dash.
+	var timer = player.get_tree().create_timer(player.post_dash_invincibility_duration)
+	timer.timeout.connect(func():
+		if not is_instance_valid(player):
+			return
+		# If another dash has already started by the time this fires, that
+		# dash's own start_dash()/on_dash_end() pair owns the invincibility
+		# state now - bail out so we don't yank it out from under a dash
+		# that's still in progress.
+		if player.is_dashing:
+			return
+		player.is_post_dash_invincible = false
+		_end_invincibility(player)
+	)
+
+static func _end_invincibility(player: Player) -> void:
+	"""Restore normal bullet collision and stop the invincibility flash -
+	called the moment dash invincibility (dash + any grace period) is
+	actually over."""
+	_restore_bullet_collision(player)
+	_stop_invincibility_flash(player)
+
+static func _restore_bullet_collision(player: Player) -> void:
+	"""Undo the collision layer/mask changes start_dash() made to hide the
+	player from enemy bullets."""
+	player.set_collision_layer_value(1, true)    # Re-enable player collision layer
+	player.set_collision_mask_value(2, true)     # Re-enable enemy bullet collision mask
+
+static func _start_invincibility_flash(player: Player) -> void:
+	"""Blink the ship between blue and its normal color on a loop, for as
+	long as dash invincibility is active. Safe to call while one is already
+	running (kills it first) so start_dash() -> on_dash_start() can't ever
+	stack two."""
+	_stop_invincibility_flash(player)
+	var tween := player.create_tween()
+	tween.set_loops()
+	tween.tween_property(player, "modulate", DASH_TINT_COLOR, INVINCIBILITY_FLASH_INTERVAL)
+	tween.tween_property(player, "modulate", player.player_color, INVINCIBILITY_FLASH_INTERVAL)
+	player._invincibility_flash_tween = tween
+
+static func _stop_invincibility_flash(player: Player) -> void:
+	"""Stop the blink loop (if any) and settle back on the player's normal
+	color."""
+	if is_instance_valid(player._invincibility_flash_tween):
+		player._invincibility_flash_tween.kill()
+	player._invincibility_flash_tween = null
+	player.modulate = player.player_color
 
 static func on_dash_timer_timeout(player: Player) -> void:
 	"""Called when dash duration ends"""

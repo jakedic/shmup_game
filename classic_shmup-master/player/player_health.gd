@@ -2,7 +2,8 @@ extends RefCounted
 class_name PlayerHealth
 
 ## Handles shield/damage/healing, death and revive, and the enemy-collision
-## response (dash damage vs. taking damage). Called from player.gd as e.g.
+## response (dash damage vs. taking damage vs. dash invincibility - see
+## is_invincible()). Called from player.gd as e.g.
 ## PlayerHealth.take_damage(self, 1).
 ##
 ## set_shield() is NOT here - it has to stay directly on player.gd's own
@@ -112,9 +113,27 @@ static func handle_enemy_collision(player: Player, area: Area2D) -> void:
 		# Return early - player doesn't take damage during dash
 		return
 
+	# Dash invincibility (see is_invincible()) covers ship contact too, not
+	# just enemy bullets - the ship just passes through harmlessly: no
+	# damage to the player, and (unlike the do_dash_damage_to_enemies branch
+	# above) no forced kill either, since the player isn't choosing to ram
+	# it, just surviving contact with it.
+	if is_invincible(player):
+		return
+
 	# Normal collision handling (player takes damage)
 	if area.has_method("explode"):
 		area.explode()
 
 	# Take damage
 	take_damage(player, int(player.max_shield / 2.0))
+
+static func is_invincible(player: Player) -> bool:
+	"""True while the player should take no damage from enemy ship contact -
+	either mid-dash with dash_invincible active, or during the brief grace
+	window right after the dash ends (post_dash_invincibility_duration, see
+	PlayerMovement.on_dash_end()/_begin_post_dash_grace()). Enemy bullets are
+	handled separately/physically (collision layer toggle in
+	player_movement.gd), but ship contact is detected through the player's
+	own Area2D, so it needs this explicit check instead."""
+	return (player.is_dashing and player.bullet_invincible_during_dash) or player.is_post_dash_invincible

@@ -60,6 +60,20 @@ var steering_influence: float
 var bullet_invincible_during_dash: bool
 var do_dash_damage_to_enemies: bool
 var dash_damage_amount: int
+var post_dash_invincibility_duration: float
+
+# True from the moment a dash ends until post_dash_invincibility_duration
+# elapses (only when bullet_invincible_during_dash was on for that dash) -
+# see PlayerMovement.on_dash_end() and PlayerHealth.is_invincible(). Kept
+# separate from is_dashing since it outlives the dash itself.
+var is_post_dash_invincible: bool = false
+
+# The looping blue/normal-color blink tween that plays for as long as dash
+# invincibility is active (dash + any post-dash grace period) - see
+# PlayerMovement._start_invincibility_flash()/_stop_invincibility_flash().
+# Kept here (rather than a local var in that function) so a later call can
+# find and kill the same tween instead of stacking a second one on top.
+var _invincibility_flash_tween: Tween = null
 
 # ===== YELLOW POWER-UP: POLLEN SHOT =====
 # Secondary fire granted by the "Pollen Shot" power-up (see
@@ -223,6 +237,7 @@ func _sync_player_stats():
 	bullet_invincible_during_dash = s.dash_invincible
 	do_dash_damage_to_enemies = s.dash_damages_enemies
 	dash_damage_amount = s.dash_damage_amount
+	post_dash_invincibility_duration = s.post_dash_invincibility_duration
 	charge_shot_duration = s.charge_shot_duration
 	charge_flash_interval = s.charge_flash_interval
 	has_pollen_shot = s.has_pollen_shot

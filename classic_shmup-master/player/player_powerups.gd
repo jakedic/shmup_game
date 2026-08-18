@@ -32,10 +32,30 @@ const YELLOW_POWERUPS: Array[Dictionary] = [
 	{
 		"id": "yellow_dash_invincibility",
 		"name": "Dash Invincibility",
-		"description": "The player is invincible to enemy bullets while dashing, for the rest of the level.",
+		"description": "The player is invincible to enemy bullets AND enemy ships while dashing (plus a brief moment after), and the dash loops in a tight loop-de-loop, for the rest of the level.",
 		"stats": {
 			"player": {
+				# Covers both enemy bullets (physics-level collision toggle)
+				# and enemy ships (explicit check in
+				# PlayerHealth.is_invincible()) - see
+				# player/player_movement.gd and player/player_health.gd.
 				"dash_invincible": {"op": "set", "value": true},
+				# Keep that same invincibility alive for a short moment after
+				# the dash itself ends, instead of cutting off the instant it
+				# does - see PlayerMovement._begin_post_dash_grace().
+				"post_dash_invincibility_duration": {"op": "set", "value": 2.4},
+				# Loop-de-loop dash motion - circle_radius/circle_speed drive
+				# the circular strafe added on top of the dash's straight-line
+				# direction (see PlayerMovement.handle_movement()). Both
+				# default to 0 (a plain straight dash); these values are the
+				# same ones that used to sit here commented out under
+				# transform_yellow() in transformations/player_transformations.gd
+				# before the dash-invincibility power-up existed. circle_radius
+				# was originally 600.0 - way too large for this game's tiny
+				# 240x320 viewport (project.godot) - shrunk down to a tight
+				# loop that actually fits on screen.
+				"circle_radius": {"op": "set", "value": 600.0},
+				"circle_speed": {"op": "set", "value": 20.0},
 			},
 		},
 	},
