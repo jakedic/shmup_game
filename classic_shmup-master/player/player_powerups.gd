@@ -148,6 +148,68 @@ const ENEMY_TYPE_ACCENT_COLORS: Dictionary = {
 const DEFAULT_ACCENT_COLOR := Color(0.54901961, 0.85098039, 1.0)
 
 
+## ===== GRAY POWER-UPS =====
+##
+## A second, separate pool from POWERUPS_BY_ENEMY_TYPE - plain, dependable
+## power-ups (more damage, more speed, more health) that are NEVER granted
+## by a power bubble and NEVER offered in the shop. Instead, exactly one
+## random gray power-up is added to the end-of-level choice popup whenever
+## the player earned fewer than BaseLevel.MAX_POWERUP_CHOICES power-ups that
+## level (including zero) - see BaseLevel._offer_run_powerup_choice() /
+## get_random_gray_powerup() below. Picking one works exactly like picking
+## an earned power-up there: it becomes a run modifier via
+## Stats.choose_run_powerup(), persisting for the rest of the run (not just
+## the level it was offered on).
+const GRAY_POWERUPS: Array[Dictionary] = [
+	{
+		"id": "gray_damage_up",
+		"name": "Sharpened Rounds",
+		"description": "Increases the damage of the player's main shot for the rest of the run.",
+		"stats": {
+			"bullet": {
+				"damage": {"op": "add", "value": 1},
+			},
+		},
+	},
+	{
+		"id": "gray_speed_up",
+		"name": "Engine Tune-Up",
+		"description": "Increases the player's movement speed for the rest of the run.",
+		"stats": {
+			"player": {
+				"speed": {"op": "add", "value": 40.0},
+			},
+		},
+	},
+	{
+		"id": "gray_health_up",
+		"name": "Reinforced Hull",
+		"description": "Increases the player's maximum shield for the rest of the run.",
+		"stats": {
+			"player": {
+				"max_shield": {"op": "add", "value": 3},
+			},
+		},
+	},
+]
+
+# Accent color for gray power-ups (PowerupChoicePopup border/header) - kept
+# separate from ENEMY_TYPE_ACCENT_COLORS since gray power-ups aren't keyed by
+# an enemy type. See get_accent_color_for_powerup_id().
+const GRAY_ACCENT_COLOR := Color(0.65, 0.67, 0.72)
+
+
+static func get_random_gray_powerup() -> Dictionary:
+	"""Pick one random power-up from GRAY_POWERUPS - the standard,
+	always-available fallback offered at the end of a level whenever the
+	player earned fewer than MAX_POWERUP_CHOICES power-ups that level (see
+	BaseLevel._offer_run_powerup_choice()). Returns an empty dict if
+	GRAY_POWERUPS is somehow empty."""
+	if GRAY_POWERUPS.is_empty():
+		return {}
+	return GRAY_POWERUPS[randi() % GRAY_POWERUPS.size()]
+
+
 static func get_powerups_for_enemy_type(enemy_type: String) -> Array:
 	"""Return the FULL power-up pool for the given enemy type (including
 	ones the player can't currently receive, e.g. gated by
@@ -225,13 +287,18 @@ static func apply_random_powerup(player: Player, enemy_type: String) -> Dictiona
 
 static func get_powerup_by_id(powerup_id: String) -> Dictionary:
 	"""Look up a power-up's full definition (name/description/stats) by its
-	id, searching across every enemy type's pool. Used by PowerupPopup to
-	turn the id from Stats.powerup_collected into display text. Returns an
-	empty dict if no power-up with that id exists."""
+	id, searching across every enemy type's pool AND GRAY_POWERUPS. Used by
+	PowerupPopup to turn the id from Stats.powerup_collected into display
+	text, and by BaseLevel to turn Stats.collected_powerups ids back into
+	full dicts for the end-of-level choice popup. Returns an empty dict if
+	no power-up with that id exists."""
 	for enemy_type in POWERUPS_BY_ENEMY_TYPE:
 		for powerup: Dictionary in POWERUPS_BY_ENEMY_TYPE[enemy_type]:
 			if powerup.get("id", "") == powerup_id:
 				return powerup
+	for powerup: Dictionary in GRAY_POWERUPS:
+		if powerup.get("id", "") == powerup_id:
+			return powerup
 	return {}
 
 
@@ -247,9 +314,13 @@ static func get_enemy_type_for_powerup_id(powerup_id: String) -> String:
 
 
 static func get_accent_color_for_powerup_id(powerup_id: String) -> Color:
-	"""The color PowerupPopup should border/highlight itself with for a given
-	power-up id, based on the enemy type it came from (e.g. yellow for a
-	yellow-enemy power-up). Falls back to DEFAULT_ACCENT_COLOR for an
-	unknown id or an enemy type with no color registered yet."""
+	"""The color PowerupPopup/PowerupChoicePopup should border/highlight
+	itself with for a given power-up id: GRAY_ACCENT_COLOR for one of the
+	GRAY_POWERUPS, otherwise the color for the enemy type it came from (e.g.
+	yellow for a yellow-enemy power-up). Falls back to DEFAULT_ACCENT_COLOR
+	for an unknown id or an enemy type with no color registered yet."""
+	for powerup: Dictionary in GRAY_POWERUPS:
+		if powerup.get("id", "") == powerup_id:
+			return GRAY_ACCENT_COLOR
 	var enemy_type := get_enemy_type_for_powerup_id(powerup_id)
 	return ENEMY_TYPE_ACCENT_COLORS.get(enemy_type, DEFAULT_ACCENT_COLOR)

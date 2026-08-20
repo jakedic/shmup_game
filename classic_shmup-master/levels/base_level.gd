@@ -2,9 +2,14 @@
 class_name BaseLevel
 extends Node2D
 
-# How many earned power-ups the end-of-level choice popup offers at once
-# (see _offer_run_powerup_choice()). If the player earned more than this
-# many distinct power-ups this level, this many are picked at random.
+# How many choices the end-of-level popup offers at once (see
+# _offer_run_powerup_choice()). If the player earned at least this many
+# distinct power-ups this level, this many are picked at random from what
+# they earned. Otherwise (including earning none at all) every power-up they
+# did earn is offered, plus exactly one random gray power-up (see
+# PlayerPowerUps.GRAY_POWERUPS) added on top - so a player who earned fewer
+# than MAX_POWERUP_CHOICES always still gets one guaranteed extra choice,
+# never a full top-up to MAX_POWERUP_CHOICES worth of gray power-ups.
 const MAX_POWERUP_CHOICES := 3
 
 # Common variables for all levels
@@ -171,12 +176,12 @@ func change_levels():
 	if GameProgress.is_active():
 		# Launched from the overworld - award shop currency equal to this
 		# level's final score (see stats.gd's currency section / the
-		# overworld shop in levels/shop.gd), then offer a choice of any
-		# power-ups earned this level to keep for the rest of the run (see
-		# _offer_run_powerup_choice()), which reports the win back to
-		# GameProgress once the player picks (or immediately, if nothing was
-		# earned this level) instead of following this level's own
-		# hardcoded next-level logic below.
+		# overworld shop in levels/shop.gd), then offer a choice of power-ups
+		# to keep for the rest of the run (see _offer_run_powerup_choice() -
+		# whatever was earned this level, always topped up with at least one
+		# guaranteed gray power-up choice), which reports the win back to
+		# GameProgress once the player picks instead of following this
+		# level's own hardcoded next-level logic below.
 		Stats.add_currency(score)
 		_offer_run_powerup_choice()
 		return
@@ -197,21 +202,35 @@ func change_levels():
 
 func _offer_run_powerup_choice() -> void:
 	"""Called at the end of a level that's part of an overworld run. If the
-	player earned any power-ups this level (see Stats.collected_powerups),
-	offer up to MAX_POWERUP_CHOICES of them (chosen at random if more than
-	that were earned) as a small choice popup - only the one they pick gets
-	added to Stats.run_modifiers and carried into future levels. If nothing
-	was earned this level, skip straight to GameProgress.on_level_won()."""
+	player earned at least MAX_POWERUP_CHOICES distinct power-ups this level
+	(see Stats.collected_powerups), offer that many of them (chosen at
+	random) as a small choice popup. Otherwise - including earning none at
+	all - offer every power-up they did earn PLUS exactly one random gray
+	power-up (see PlayerPowerUps.GRAY_POWERUPS / get_random_gray_powerup()),
+	so the player always has at least one guaranteed extra choice on top of
+	whatever they earned. Either way, only the one power-up the player picks
+	gets added to Stats.run_modifiers and carried into future levels."""
 	var earned_ids: Array = _unique_collected_powerup_ids()
-	if earned_ids.is_empty():
+	earned_ids.shuffle()
+
+	var offered_powerups: Array = []
+	if earned_ids.size() >= MAX_POWERUP_CHOICES:
+		var offered_ids: Array = earned_ids.slice(0, MAX_POWERUP_CHOICES)
+		for powerup_id in offered_ids:
+			offered_powerups.append(PlayerPowerUps.get_powerup_by_id(powerup_id))
+	else:
+		for powerup_id in earned_ids:
+			offered_powerups.append(PlayerPowerUps.get_powerup_by_id(powerup_id))
+		var gray_powerup: Dictionary = PlayerPowerUps.get_random_gray_powerup()
+		if not gray_powerup.is_empty():
+			offered_powerups.append(gray_powerup)
+
+	if offered_powerups.is_empty():
+		# Only possible if the player earned nothing AND GRAY_POWERUPS is
+		# somehow empty - nothing to offer, so skip straight to reporting
+		# the win like the old no-power-ups-earned behavior did.
 		GameProgress.on_level_won()
 		return
-
-	earned_ids.shuffle()
-	var offered_ids: Array = earned_ids.slice(0, min(MAX_POWERUP_CHOICES, earned_ids.size()))
-	var offered_powerups: Array = []
-	for powerup_id in offered_ids:
-		offered_powerups.append(PlayerPowerUps.get_powerup_by_id(powerup_id))
 
 	is_powerup_choice_active = true
 	get_tree().paused = true

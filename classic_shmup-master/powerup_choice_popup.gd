@@ -2,8 +2,11 @@ extends Control
 
 ## Shown once per level - after the last wave is cleared, when the run is
 ## being driven by the overworld (see GameProgress) - offering the player a
-## choice of up to 3 power-ups they earned THIS level to keep for the rest
-## of the run (see Stats.choose_run_powerup() / Stats.run_modifiers).
+## choice of up to 3 power-ups to keep for the rest of the run (see
+## Stats.choose_run_powerup() / Stats.run_modifiers). The offer is whatever
+## the player earned THIS level, topped up with one guaranteed random "gray"
+## power-up (see player/player_powerups.gd - GRAY_POWERUPS) whenever they
+## earned fewer than 3 - so even earning zero still offers one choice.
 ##
 ## Selectable with Left/Right (cycle the highlighted card) + the "start"
 ## action (Enter - confirm), same input scheme as the overworld map, or by
