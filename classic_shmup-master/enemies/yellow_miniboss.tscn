@@ -1,0 +1,27 @@
+[gd_scene format=3 uid="uid://c8m2wln4gk6qs"]
+
+[ext_resource type="Script" uid="uid://dqx3vw1nf6h5t" path="res://enemies/yellow_miniboss.gd" id="1_bxq2m"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_h4jf3"]
+radius = 24.0
+
+[node name="YellowMiniboss" type="Area2D" groups=["enemies"]]
+collision_layer = 3
+collision_mask = 3
+script = ExtResource("1_bxq2m")
+
+[node name="VisualRoot" type="Node2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_h4jf3")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+
+[node name="MoveTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="."]
+one_shot = true
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

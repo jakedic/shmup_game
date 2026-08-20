@@ -50,6 +50,13 @@ var follow_anchor = false
 var current_health: int
 var is_alive: bool = true
 
+# True when an external controller (e.g. enemies/yellow_squad.gd) owns this
+# enemy's position and lifecycle for a scripted sequence. While true,
+# _process() below skips the normal follow-anchor/fall/off-screen-reset
+# logic entirely so it can't fight with whatever the controller is doing to
+# `position` each frame.
+var squad_controlled: bool = false
+
 # ===== STATUS EFFECTS =====
 # status_name (String, see status_effects/status_effect_registry.gd) ->
 # whatever data Dictionary was passed to apply_status_effect() for it.
@@ -129,16 +136,25 @@ func custom_spawn_complete():
 func _process(delta):
 	if not is_alive:
 		return
-	
+
+	if squad_controlled:
+		# An external controller owns `position` this frame - don't let the
+		# anchor-follow/fall/boundary-reset logic below fight it. Still let
+		# child classes run their own per-frame logic (e.g. YellowEnemy's
+		# custom_process is a no-op while it isn't diving, which is always
+		# true for a squad-controlled enemy).
+		custom_process(delta)
+		return
+
 	# Update position
 	if follow_anchor and anchor:
 		position = start_pos + anchor.position
-	
+
 	position.y += current_speed * delta
-	
+
 	# Handle screen boundaries
 	handle_boundaries()
-	
+
 	# Custom per-frame logic
 	custom_process(delta)
 
@@ -156,11 +172,52 @@ func custom_process(delta: float):
 	"""Override this for custom per-frame logic"""
 	pass
 
+# ===== INVINCIBILITY =====
+# Generic, reusable on/off invincibility - currently driven by
+# enemies/yellow_squad.gd during its synchronized loop-de-loop attack, but
+# not tied to that squad system in any way. While active, take_damage() is a
+# no-op and the enemy flashes between its normal color and
+# invincible_flash_color to visually signal it can't be hurt right now.
+@export var invincible_flash_color: Color = Color(0.4, 0.95, 1.0, 1.0)
+@export var invincible_flash_interval: float = 0.08
+
+var is_invincible: bool = false
+var _invincibility_tween: Tween = null
+
+func set_invincible(enabled: bool) -> void:
+	if enabled == is_invincible:
+		return
+	is_invincible = enabled
+	if enabled:
+		_start_invincibility_flash()
+	else:
+		_stop_invincibility_flash()
+
+func _start_invincibility_flash() -> void:
+	if is_instance_valid(_invincibility_tween):
+		_invincibility_tween.kill()
+	var home_color = modulate
+	var half = invincible_flash_interval * 0.5
+	_invincibility_tween = create_tween()
+	_invincibility_tween.set_loops()
+	_invincibility_tween.tween_property(self, "modulate", invincible_flash_color, half)
+	_invincibility_tween.tween_property(self, "modulate", home_color, half)
+
+func _stop_invincibility_flash() -> void:
+	if is_instance_valid(_invincibility_tween):
+		_invincibility_tween.kill()
+	_invincibility_tween = null
+	if is_alive:
+		modulate = enemy_color
+
 # ===== HEALTH & DAMAGE SYSTEM =====
 func take_damage(damage_amount: int = 1, context: Dictionary = {}) -> bool:
 	if not is_alive:
 		return true
-	
+
+	if is_invincible:
+		return false
+
 	current_health -= damage_amount
 	health_changed.emit(current_health, max_health)
 	

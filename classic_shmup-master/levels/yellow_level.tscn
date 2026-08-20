@@ -1,0 +1,431 @@
+[gd_scene format=3 uid="uid://dyq7f4wk2m5xh"]
+
+[ext_resource type="Texture2D" uid="uid://cwuy4b17rh7ql" path="res://Mini Pixel Pack 3/Space_BG (2 frames) (64 x 64).png" id="1_hjad5"]
+[ext_resource type="Script" path="res://levels/yellow_level.gd" id="1_vtt5l"]
+[ext_resource type="PackedScene" uid="uid://b32476hejmrnj" path="res://player.tscn" id="2_tiq3a"]
+[ext_resource type="Texture2D" uid="uid://cr7usmfo6apt8" path="res://Mini Pixel Pack 3/UI objects/GAME_OVER (72 x 8).png" id="3_5ueml"]
+[ext_resource type="Texture2D" uid="uid://o6gwbftsnc8c" path="res://Mini Pixel Pack 3/UI objects/START (48 x 8).png" id="4_37xqa"]
+[ext_resource type="PackedScene" uid="uid://b54c7ad6cogrm" path="res://ui.tscn" id="4_hy8xi"]
+[ext_resource type="Script" uid="uid://crpidppxf8f7t" path="res://Camera2D.gd" id="7_qw2vk"]
+[ext_resource type="Script" path="res://powerup_popup.gd" id="8_pwrup"]
+[ext_resource type="Script" path="res://powerup_choice_popup.gd" id="9_pwrchoice"]
+
+[sub_resource type="Animation" id="Animation_frim2"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Background:region_rect")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Rect2(2.08165e-12, 2.08165e-12, 240, 320)]
+}
+
+[sub_resource type="Animation" id="Animation_lmpjc"]
+resource_name = "new_animation"
+length = 2.0
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Background:region_rect")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Rect2(2.08165e-12, 2.08165e-12, 240, 320), Rect2(2.08165e-12, -64, 240, 320)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_d33qh"]
+_data = {
+&"RESET": SubResource("Animation_frim2"),
+&"new_animation": SubResource("Animation_lmpjc")
+}
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_uf0tv"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_popup_box"]
+bg_color = Color(0.06666667, 0.07058824, 0.14901961, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.54901961, 0.85098039, 1, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+anti_aliasing = false
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 3
+shadow_offset = Vector2(2, 2)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_popup_titlebar"]
+bg_color = Color(0.54901961, 0.85098039, 1, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+anti_aliasing = false
+content_margin_left = 4
+content_margin_right = 4
+content_margin_top = 3
+content_margin_bottom = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_choice_card_panel"]
+bg_color = Color(0.06666667, 0.07058824, 0.14901961, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.54901961, 0.85098039, 1, 1)
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_right = 0
+corner_radius_bottom_left = 0
+anti_aliasing = false
+
+[node name="Main" type="Node2D" unique_id=201015459]
+script = ExtResource("1_vtt5l")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=136135408]
+
+[node name="UI" parent="CanvasLayer" unique_id=335239457 instance=ExtResource("4_hy8xi")]
+
+[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer" unique_id=1267026620]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="GameOver" type="TextureRect" parent="CanvasLayer/CenterContainer" unique_id=761768952]
+layout_mode = 2
+texture = ExtResource("3_5ueml")
+
+[node name="Start" type="TextureButton" parent="CanvasLayer/CenterContainer" unique_id=22097307]
+layout_mode = 2
+size_flags_horizontal = 4
+texture_normal = ExtResource("4_37xqa")
+
+[node name="PauseMenu" type="Control" parent="CanvasLayer"]
+process_mode = 3
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dim" type="ColorRect" parent="CanvasLayer/PauseMenu"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+
+[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer/PauseMenu"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/PauseMenu/CenterContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="PausedLabel" type="Label" parent="CanvasLayer/PauseMenu/CenterContainer/VBoxContainer"]
+layout_mode = 2
+horizontal_alignment = 1
+text = "Paused"
+
+[node name="ContinueButton" type="Button" parent="CanvasLayer/PauseMenu/CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "Continue"
+
+[node name="QuitButton" type="Button" parent="CanvasLayer/PauseMenu/CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "Quit"
+
+[node name="PowerupPopup" type="Control" parent="CanvasLayer"]
+process_mode = 3
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("8_pwrup")
+
+[node name="Dim" type="ColorRect" parent="CanvasLayer/PowerupPopup"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.7)
+
+[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer/PowerupPopup"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="PanelContainer" parent="CanvasLayer/PowerupPopup/CenterContainer"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_popup_box")
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/PowerupPopup/CenterContainer/Box"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 9
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin"]
+layout_mode = 2
+custom_minimum_size = Vector2(176, 0)
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="TitleBar" type="PanelContainer" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_popup_titlebar")
+
+[node name="TitleLabel" type="Label" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin/VBoxContainer/TitleBar"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.08235294, 0.08235294, 0.10980392, 1)
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+text = "★ POWER-UP! ★"
+
+[node name="NameLabel" type="Label" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54901961, 0.85098039, 1, 1)
+theme_override_font_sizes/font_size = 15
+horizontal_alignment = 1
+text = "Power-Up Name"
+
+[node name="DescriptionLabel" type="Label" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.84705882, 0.85882353, 0.90196078, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+autowrap_mode = 2
+custom_minimum_size = Vector2(176, 0)
+text = "Description text"
+
+[node name="ContinueHint" type="Label" parent="CanvasLayer/PowerupPopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68235294, 0.69803922, 0.74901961, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+text = "▸ PRESS ANY BUTTON ◂"
+
+[node name="MinDisplayTimer" type="Timer" parent="CanvasLayer/PowerupPopup"]
+wait_time = 1.0
+one_shot = true
+
+[node name="PowerupChoicePopup" type="Control" parent="CanvasLayer"]
+process_mode = 3
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("9_pwrchoice")
+
+[node name="Dim" type="ColorRect" parent="CanvasLayer/PowerupChoicePopup"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.7)
+
+[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer/PowerupChoicePopup"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="PanelContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_popup_box")
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 5
+alignment = 1
+
+[node name="HeaderBar" type="PanelContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_popup_titlebar")
+
+[node name="HeaderLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/HeaderBar"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.08235294, 0.08235294, 0.10980392, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+text = "★ CHOOSE A POWER-UP ★"
+
+[node name="CardsRow" type="HBoxContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Card0" type="PanelContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(70, 0)
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_choice_card_panel")
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card0"]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card0/Margin"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_constants/separation = 3
+
+[node name="NameLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card0/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54901961, 0.85098039, 1, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Power-Up"
+
+[node name="DescriptionLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card0/Margin/VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_colors/font_color = Color(0.84705882, 0.85882353, 0.90196078, 1)
+theme_override_font_sizes/font_size = 7
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Description"
+
+[node name="Card1" type="PanelContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(70, 0)
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_choice_card_panel")
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card1"]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card1/Margin"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_constants/separation = 3
+
+[node name="NameLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card1/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54901961, 0.85098039, 1, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Power-Up"
+
+[node name="DescriptionLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card1/Margin/VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_colors/font_color = Color(0.84705882, 0.85882353, 0.90196078, 1)
+theme_override_font_sizes/font_size = 7
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Description"
+
+[node name="Card2" type="PanelContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(70, 0)
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_choice_card_panel")
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card2"]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card2/Margin"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_constants/separation = 3
+
+[node name="NameLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card2/Margin/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54901961, 0.85098039, 1, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Power-Up"
+
+[node name="DescriptionLabel" type="Label" parent="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card2/Margin/VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(58, 0)
+theme_override_colors/font_color = Color(0.84705882, 0.85882353, 0.90196078, 1)
+theme_override_font_sizes/font_size = 7
+horizontal_alignment = 1
+autowrap_mode = 3
+text = "Description"
+
+[node name="Background" type="Sprite2D" parent="." unique_id=1968625999]
+texture_repeat = 2
+position = Vector2(120, 160)
+scale = Vector2(1.1, 1.1)
+texture = ExtResource("1_hjad5")
+region_enabled = true
+region_rect = Rect2(2.08165e-12, 2.08165e-12, 240, 320)
+
+[node name="Player" parent="." unique_id=987184306 instance=ExtResource("2_tiq3a")]
+position = Vector2(120, 240)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=491913609]
+libraries/ = SubResource("AnimationLibrary_d33qh")
+autoplay = &"new_animation"
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=161284007]
+position = Vector2(120, 160)
+script = ExtResource("7_qw2vk")
+noise = SubResource("FastNoiseLite_uf0tv")
+
+[node name="EnemyAnchor" type="Node2D" parent="." unique_id=2120168100]
+
+[connection signal="pressed" from="CanvasLayer/CenterContainer/Start" to="." method="_on_start_pressed"]
+[connection signal="pressed" from="CanvasLayer/PauseMenu/CenterContainer/VBoxContainer/ContinueButton" to="." method="_on_continue_pressed"]
+[connection signal="pressed" from="CanvasLayer/PauseMenu/CenterContainer/VBoxContainer/QuitButton" to="." method="_on_quit_pressed"]
+[connection signal="died" from="Player" to="." method="_on_player_died"]
+[connection signal="shield_changed" from="Player" to="CanvasLayer/UI" method="update_shield"]
+[connection signal="gui_input" from="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card0" to="CanvasLayer/PowerupChoicePopup" method="_on_card_0_gui_input"]
+[connection signal="gui_input" from="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card1" to="CanvasLayer/PowerupChoicePopup" method="_on_card_1_gui_input"]
+[connection signal="gui_input" from="CanvasLayer/PowerupChoicePopup/CenterContainer/Box/Margin/VBoxContainer/CardsRow/Card2" to="CanvasLayer/PowerupChoicePopup" method="_on_card_2_gui_input"]

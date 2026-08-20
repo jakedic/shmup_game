@@ -44,6 +44,12 @@ const LEVEL_SCENES := [
 const SHOP_LAYER_INDEX := 3
 const SHOP_SCENE := "res://levels/shop.tscn"
 
+# The very first node of every run always plays Yellow Level instead of
+# whatever LEVEL_SCENES' alternating pattern would otherwise assign it (see
+# _build_graph() below) - it's the showcase level for the new squad-based
+# yellow enemy behavior (see enemies/yellow_squad.gd).
+const YELLOW_LEVEL_SCENE := "res://levels/yellow_level.tscn"
+
 # node id -> array of node ids it can lead to.
 var _children: Dictionary = {}
 
@@ -85,6 +91,10 @@ func _build_graph() -> void:
 	for layer in LAYERS:
 		for node_id in layer:
 			_level_scenes[node_id] = LEVEL_SCENES[node_id % LEVEL_SCENES.size()]
+
+	# Override just the start node so the first level of every run is Yellow
+	# Level - everything else keeps the normal alternating assignment above.
+	_level_scenes[START_ID] = YELLOW_LEVEL_SCENE
 
 
 # ---------- Run lifecycle ----------
