@@ -1,120 +1,183 @@
 # yellow_level.gd
 # "Yellow Level" - the new first level of a run (see game_progress.gd's
-# START_ID override), built to show off the new squad-based yellow enemy
-# behavior in enemies/yellow_squad.gd instead of the old grid-drop spawn.
+# START_ID override), built to show off the squad-based yellow enemy
+# behavior (see enemies/yellow_squad.gd) instead of the old grid-drop spawn.
 #
-# Four waves. Waves 1-3 each spawn one or more independent YellowSquad
-# instances (see _spawn_squad()) - NOT enemy_anchor.position.x, which is
-# just the (0,0) sway-offset origin the normal grid enemies add to their own
-# start_pos, not a meaningful screen position:
-#   Wave 1 - a single squad straight down the middle.
-#   Wave 2 - two squads, one about a quarter of the way in from the left
-#            edge, one about a quarter of the way in from the right edge.
-#   Wave 3 - three squads (quarter / half / three-quarter across the
-#            screen), each drifting diagonally during their attack dives
-#            (see YellowSquad.diagonal_vx) instead of falling straight down.
-# Every wave's squads are staggered in start time (SQUAD_STAGGER_DELAY, see
-# YellowSquad.start_delay) so they descend one after another rather than all
-# at once.
+# HOW THIS LEVEL WORKS: each wave sends down one or more "squads" - groups
+# of 4 enemies that fly in and attack together as a team (dive down, loop,
+# then either circle overhead or fly off, depending on the wave). The very
+# last wave is different: instead of a squad, it spawns the end-of-level
+# miniboss (see enemies/yellow_miniboss.gd).
 #
-# Wave 4 is the end-of-level miniboss (see enemies/yellow_miniboss.gd) - a
-# single 30-health "giant mound of yellow enemies" that periodically retreats
-# offscreen and has the level spawn two regular-pattern YellowSquad "adds"
-# (see _on_miniboss_retreat_started()/_on_miniboss_add_died()) before coming
-# back down for another round, repeating until it's out of health. Because
-# base_level.gd's wave-clear check just watches the "enemies" group empty out
-# (see its _process()), and the miniboss itself stays in that group (alive,
-# just invisible/uncollidable) for the whole retreat/adds cycle, none of that
-# back-and-forth is mistaken for the wave being cleared - the wave only ends
-# once the boss actually dies.
-#
-# After the fourth wave is cleared, play continues into the original
-# level_1.
+# ============================================================================
+# WANT TO CHANGE WHAT SPAWNS IN EACH WAVE? Scroll down to the WAVES table
+# below - that's the only part of this file you should need to touch. Add,
+# remove, or edit wave entries there and the level picks it up automatically
+# (it even figures out how many waves there are on its own). Everything
+# under "LEVEL MACHINERY" runs the fights but doesn't need editing just to
+# change what enemies show up or where.
+# ============================================================================
 extends BaseLevel
 
-const SQUAD_STAGGER_DELAY := 1.5   # seconds between one squad starting its dive and the next
-const DIAGONAL_SPEED := 35.0       # px/s of sideways drift during wave 3's attack dives
+# ---------------------------------------------------------------------------
+# ENEMIES - the enemy scenes available to use in WAVES below. To add a new
+# enemy type to this level, preload its scene here with a friendly name,
+# then use that name in a squad entry in WAVES.
+# ---------------------------------------------------------------------------
+const ENEMY_YELLOW := preload("res://enemies/enemy_yellow.tscn")
 
-var enemy_yellow_scene = preload("res://enemies/enemy_yellow.tscn")
+# ---------------------------------------------------------------------------
+# LANES - where on screen a squad flies down, as a fraction of the screen's
+# width. LANE_LEFT/CENTER/RIGHT cover the common spots; you can also use any
+# number from 0.0 (far left edge) to 1.0 (far right edge) for a custom spot.
+# ---------------------------------------------------------------------------
+const LANE_LEFT := 0.25
+const LANE_CENTER := 0.5
+const LANE_RIGHT := 0.75
+
+# ---------------------------------------------------------------------------
+# DRIFT - whether a squad drifts sideways while it dives in, instead of
+# flying straight down.
+# ---------------------------------------------------------------------------
+const NO_DRIFT := 0.0
+const DRIFT_LEFT := -35.0
+const DRIFT_RIGHT := 35.0
+
+# ---------------------------------------------------------------------------
+# WAVES - the level's actual layout. One entry per wave, played top to
+# bottom, in order. Every entry is a { } block - either a squads list or a
+# boss marker, as shown below.
+#
+# A normal wave looks like this:
+#
+#     {"squads": [
+#         {"enemy": ENEMY_YELLOW, "lane": LANE_CENTER, "delay": 0.0, "drift": NO_DRIFT},
+#     ]}
+#
+# "squads" is a list of squads - each squad is a set of 4 enemies that fly
+# down together:
+#
+#   enemy  - which enemy flies in this squad (see ENEMIES above)
+#   lane   - where it flies down (see LANES above)
+#   delay  - seconds to wait before THIS squad starts. Use this so squads in
+#            the same wave don't all start at once - try steps like 0.0,
+#            1.5, 3.0 so they enter one after another.
+#   drift  - sideways drift while diving in (see DRIFT above)
+#
+# A wave with more than one squad listed sends them all down in the same
+# wave (staggered by their own "delay"), so the player faces multiple
+# squads at once.
+#
+# The FINAL wave in this list is always the boss fight - write
+# {"boss": true} instead of a squads list for it, exactly like wave 4 below.
+# Don't put {"boss": true} anywhere except the very last wave.
+# ---------------------------------------------------------------------------
+const WAVES: Array = [
+	# Wave 1 - a single squad, straight down the middle.
+	{"squads": [
+		{"enemy": ENEMY_YELLOW, "lane": LANE_CENTER, "delay": 0.0, "drift": NO_DRIFT},
+	]},
+	# Wave 2 - two squads, one from the left, one from the right.
+	{"squads": [
+		{"enemy": ENEMY_YELLOW, "lane": LANE_LEFT, "delay": 0.0, "drift": NO_DRIFT},
+		{"enemy": ENEMY_YELLOW, "lane": LANE_RIGHT, "delay": 1.5, "drift": NO_DRIFT},
+	]},
+	# Wave 3 - three squads, each drifting diagonally as they dive.
+	{"squads": [
+		{"enemy": ENEMY_YELLOW, "lane": LANE_LEFT, "delay": 0.0, "drift": DRIFT_RIGHT},
+		{"enemy": ENEMY_YELLOW, "lane": LANE_CENTER, "delay": 1.5, "drift": DRIFT_LEFT},
+		{"enemy": ENEMY_YELLOW, "lane": LANE_RIGHT, "delay": 3.0, "drift": DRIFT_RIGHT},
+	]},
+	# Wave 4 - the end-of-level miniboss (see enemies/yellow_miniboss.gd).
+	{"boss": true},
+]
+
+
+# ============================================================================
+# LEVEL MACHINERY - reads the WAVES table above and runs the fights. You
+# shouldn't need to touch anything below this line just to change what
+# spawns in a wave.
+# ============================================================================
+
+# Seconds between the boss's two "add" squads starting their dive when it
+# retreats offscreen mid-fight (see _on_miniboss_retreat_started() below) -
+# kept separate from WAVES since these squads belong to the boss fight, not
+# a numbered wave.
+const BOSS_ADD_STAGGER_DELAY := 1.5
+
 var yellow_miniboss_scene = preload("res://enemies/yellow_miniboss.tscn")
 
-# Tracks the live miniboss instance (wave 4) and how many of its current pair
-# of add-squad enemies are still alive - see _on_miniboss_retreat_started()
-# and _on_miniboss_add_died().
-var _current_miniboss: YellowMiniboss = null
-var _miniboss_adds_remaining: int = 0
 
 func _ready():
-	# Set up level-specific data
-	enemy_scenes = [enemy_yellow_scene]
+	enemy_scenes = [ENEMY_YELLOW]
 	level_paths = {
 		"next_level": "res://levels/level_1.tscn"
 	}
-	max_waves = 4
+	max_waves = WAVES.size()  # stays correct automatically if you add/remove waves above
 
 	# Call parent _ready after setting up level-specific data
 	super._ready()
 
-# Override the default grid-drop spawn pattern - see the class comment above
-# for what each wave spawns. base_level.gd calls this once per wave (via
-# new_game() for wave 1, then handle_wave_completion() for each wave after),
-# with current_wave already set to this wave's index (0-based) by the time
-# it's called.
-func spawn_enemies():
-	var screen_w: float = get_viewport_rect().size.x
-	match current_wave:
-		0:
-			_spawn_squad(screen_w / 2.0, 0.0)
-		1:
-			_spawn_squad(screen_w * 0.25, 0.0)
-			_spawn_squad(screen_w * 0.75, SQUAD_STAGGER_DELAY)
-		2:
-			_spawn_squad(screen_w * 0.25, 0.0, DIAGONAL_SPEED)
-			_spawn_squad(screen_w * 0.5, SQUAD_STAGGER_DELAY, -DIAGONAL_SPEED)
-			_spawn_squad(screen_w * 0.75, SQUAD_STAGGER_DELAY * 2.0, DIAGONAL_SPEED)
-		3:
-			_spawn_miniboss()
-		_:
-			# Shouldn't happen with max_waves = 4, but fall back to a single
-			# center squad rather than spawning nothing.
-			_spawn_squad(screen_w / 2.0, 0.0)
 
-func _spawn_squad(lane_x: float, start_delay: float, diagonal_vx: float = 0.0) -> YellowSquad:
-	var squad := YellowSquad.new()
-	squad.enemy_scene = enemy_yellow_scene
-	squad.lane_x = lane_x
-	squad.circle_center = Vector2(lane_x, 70.0)
-	squad.start_delay = start_delay
-	squad.diagonal_vx = diagonal_vx
-	squad.enemy_died.connect(_on_enemy_died)
-	add_child(squad)
-	return squad
+# Override the default grid-drop spawn pattern - called once per wave by
+# base_level.gd (via new_game() for wave 1, then handle_wave_completion() for
+# each wave after), with current_wave already set to this wave's index
+# (0-based) by the time it's called. Just reads that wave straight out of
+# WAVES above.
+func spawn_enemies() -> void:
+	if current_wave >= WAVES.size():
+		# Shouldn't happen - max_waves is set from WAVES.size() above - but
+		# fall back to a single center squad rather than spawning nothing.
+		push_error("Yellow Level: wave %d has no entry in WAVES!" % current_wave)
+		_spawn_wave_squad({"enemy": ENEMY_YELLOW, "lane": LANE_CENTER, "delay": 0.0, "drift": NO_DRIFT})
+		return
+
+	var wave_data: Dictionary = WAVES[current_wave]
+
+	if wave_data.get("boss", false):
+		_spawn_miniboss()
+		return
+
+	for squad_data in wave_data.get("squads", []):
+		_spawn_wave_squad(squad_data)
+
+
+func _spawn_wave_squad(squad_data: Dictionary) -> YellowSquad:
+	"""Turn one squad entry from WAVES into an actual squad in the level, via
+	BaseLevel.spawn_squad() (shared with any other level that wants
+	squad-based enemies)."""
+	var screen_w: float = get_viewport_rect().size.x
+	var lane_fraction: float = squad_data.get("lane", LANE_CENTER)
+	var lane_x: float = screen_w * lane_fraction
+	return spawn_squad(
+		squad_data.get("enemy", ENEMY_YELLOW),
+		lane_x,
+		squad_data.get("delay", 0.0),
+		squad_data.get("drift", NO_DRIFT),
+	)
+
 
 func _spawn_miniboss() -> void:
-	var boss: YellowMiniboss = yellow_miniboss_scene.instantiate()
-	add_child(boss)
-	boss.died.connect(_on_enemy_died)
-	boss.retreat_started.connect(_on_miniboss_retreat_started)
-	_current_miniboss = boss
+	# spawn_boss() (BaseLevel) hands back a plain Node since it works for any
+	# boss scene - cast to the concrete type here so retreat_started below is
+	# a normal, statically-typed signal connection rather than a dynamic one.
 	var screen_w: float = get_viewport_rect().size.x
-	boss.start(Vector2(screen_w / 2.0, 90.0))
+	var boss := spawn_boss(yellow_miniboss_scene, Vector2(screen_w / 2.0, 90.0)) as YellowMiniboss
+	if boss:
+		boss.retreat_started.connect(_on_miniboss_retreat_started)
+
 
 # Fires each time the miniboss crosses a retreat health threshold (see
 # yellow_miniboss.gd's custom_take_damage()/retreat_started) and goes
-# invincible/offscreen. Spawns the same two quarter/three-quarter lanes as
-# wave 2, but with diagonal_vx left at its 0.0 default - "their regular
-# pattern", not wave 3's diagonal dive - and counts their deaths separately
-# from the normal score-only _on_enemy_died() hookup so resume_after_adds()
-# can be called the instant both squads are gone.
+# invincible/offscreen. Spawns two squads as "adds" - the SAME squad
+# behavior the normal waves above use, just not listed in WAVES since
+# they're tied to the boss fight rather than a numbered wave. Once every add
+# is dead, BaseLevel.resolve_boss_add_death() (wired up below) automatically
+# calls resume_after_adds() on the boss so it comes back down.
 func _on_miniboss_retreat_started() -> void:
 	var screen_w: float = get_viewport_rect().size.x
-	_miniboss_adds_remaining = YellowSquad.SQUAD_SIZE * 2
-	var left_squad := _spawn_squad(screen_w * 0.25, 0.0)
-	var right_squad := _spawn_squad(screen_w * 0.75, SQUAD_STAGGER_DELAY)
-	left_squad.enemy_died.connect(_on_miniboss_add_died)
-	right_squad.enemy_died.connect(_on_miniboss_add_died)
-
-func _on_miniboss_add_died(_value: int) -> void:
-	_miniboss_adds_remaining -= 1
-	if _miniboss_adds_remaining <= 0 and is_instance_valid(_current_miniboss):
-		_current_miniboss.resume_after_adds()
+	var left_squad := spawn_squad(ENEMY_YELLOW, screen_w * LANE_LEFT, 0.0, DRIFT_RIGHT)
+	var right_squad := spawn_squad(ENEMY_YELLOW, screen_w * LANE_RIGHT, BOSS_ADD_STAGGER_DELAY,DRIFT_LEFT)
+	start_boss_add_wave(YellowSquad.SQUAD_SIZE * 2)
+	left_squad.enemy_died.connect(resolve_boss_add_death)
+	right_squad.enemy_died.connect(resolve_boss_add_death)

@@ -255,6 +255,21 @@ static func get_random_shop_offers(count: int) -> Array:
 	return pool.slice(0, min(count, pool.size()))
 
 
+static func get_every_powerup() -> Array:
+	"""EVERY power-up that exists, full stop: every enemy type's pool (see
+	POWERUPS_BY_ENEMY_TYPE) UNFILTERED by eligibility gates like
+	requires_pollination_source, plus every entry in GRAY_POWERUPS. Unlike
+	get_all_available_powerups()/get_random_shop_offers(), this ignores
+	whether the player could normally get each one yet. Used by the debug
+	test menu (levels/test_menu.gd) so a developer can pick literally any
+	power-up to test with."""
+	var all: Array = []
+	for enemy_type in POWERUPS_BY_ENEMY_TYPE:
+		all.append_array(POWERUPS_BY_ENEMY_TYPE[enemy_type])
+	all.append_array(GRAY_POWERUPS)
+	return all
+
+
 static func _player_has_pollination_source() -> bool:
 	"""True if the player has already collected a power-up that can, by
 	itself, apply the "pollinated" status effect (see

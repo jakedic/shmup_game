@@ -141,6 +141,79 @@ func _on_enemy_died(value):
 	if player and player.has_method("update_multiplier"):
 		player.update_multiplier(score_multiplier)
 
+# ===== SQUAD HELPER =====
+# Shared by any level that wants squad-based enemies (groups that fly down
+# and attack together as one choreographed unit - see enemies/yellow_squad.gd
+# for the actual behavior). Originally lived only in levels/yellow_level.gd;
+# moved here so a second level can spawn its own squads without copy-pasting
+# this wiring - see levels/yellow_level.gd's WAVES table / _spawn_wave_squad()
+# for an example of building a whole level's enemy layout on top of this.
+func spawn_squad(enemy_scene: PackedScene, lane_x: float, start_delay: float = 0.0, diagonal_vx: float = 0.0, circle_center: Vector2 = Vector2.ZERO) -> YellowSquad:
+	"""Spawn one YellowSquad and wire it into this level: `enemy_scene` fills
+	its ranks, `lane_x` is the on-screen x its attack dive travels down,
+	`start_delay` parks it for that many seconds before its first dive so
+	multiple squads in one wave can stagger their entrances, and
+	`diagonal_vx` adds sideways drift to the dive (0 = straight down).
+	`circle_center` is where the squad idles between dives - leave it at the
+	default and YellowSquad picks a sensible spot below `lane_x` on its own
+	(see YellowSquad._ready()). The squad's kills are wired straight into
+	this level's own scoring (_on_enemy_died()), same as any other enemy."""
+	var squad := YellowSquad.new()
+	squad.enemy_scene = enemy_scene
+	squad.lane_x = lane_x
+	squad.start_delay = start_delay
+	squad.diagonal_vx = diagonal_vx
+	if circle_center != Vector2.ZERO:
+		squad.circle_center = circle_center
+	squad.enemy_died.connect(_on_enemy_died)
+	add_child(squad)
+	return squad
+
+
+# ===== BOSS HELPER =====
+# Shared bookkeeping for a boss fight shaped like enemies/yellow_miniboss.gd's:
+# the boss periodically retreats offscreen and invincible, the level spawns a
+# wave of "add" enemies to fight in the meantime, and once every add is dead
+# the boss comes back and picks up where it left off. The boss scene itself,
+# and exactly which adds to spawn on each retreat, are still up to the level
+# (see levels/yellow_level.gd's _spawn_miniboss()/_on_miniboss_retreat_started())
+# - this just tracks "how many adds are still alive" so every level with this
+# kind of fight doesn't have to reimplement that counting from scratch.
+var _active_boss: Node = null
+var _boss_adds_remaining: int = 0
+
+func spawn_boss(boss_scene: PackedScene, spawn_pos: Vector2) -> Node:
+	"""Instantiate a boss scene, add it to the level, hook its `died` signal
+	up to scoring same as any other enemy, and remember it as the active boss
+	so resolve_boss_add_death() can call back into it later. Returns the boss
+	instance so the caller can connect its own scene-specific signals (e.g.
+	YellowMiniboss's `retreat_started`) - those aren't generic enough to wire
+	up here."""
+	var boss = boss_scene.instantiate()
+	add_child(boss)
+	if boss.has_signal("died"):
+		boss.died.connect(_on_enemy_died)
+	_active_boss = boss
+	if boss.has_method("start"):
+		boss.start(spawn_pos)
+	return boss
+
+func start_boss_add_wave(add_count: int) -> void:
+	"""Call once the level has spawned this retreat's add enemies/squads -
+	add_count is how many individual enemies need to die before the boss
+	should come back (e.g. YellowSquad.SQUAD_SIZE times however many squads
+	were spawned). resolve_boss_add_death() below counts them down."""
+	_boss_adds_remaining = add_count
+
+func resolve_boss_add_death(_value: int = 0) -> void:
+	"""Connect this to each add's `died`/`enemy_died` signal. Once every add
+	from the current retreat wave is gone, tells the boss to come back (if it
+	has a resume_after_adds() method - same contract as
+	enemies/yellow_miniboss.gd)."""
+	_boss_adds_remaining -= 1
+	if _boss_adds_remaining <= 0 and is_instance_valid(_active_boss) and _active_boss.has_method("resume_after_adds"):
+		_active_boss.resume_after_adds()
+
 func _process(_delta):
 	if get_tree().get_nodes_in_group("enemies").size() == 0 and playing:
 		handle_wave_completion()

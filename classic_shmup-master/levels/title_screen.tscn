@@ -36,5 +36,14 @@ offset_right = 160.0
 offset_bottom = 213.0
 text = "Tutorial"
 
+[node name="TestButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 83.0
+offset_top = 223.0
+offset_right = 160.0
+offset_bottom = 271.0
+text = "Test"
+
 [connection signal="pressed" from="StartButton" to="." method="_on_start_button_pressed"]
 [connection signal="pressed" from="TutorialButton" to="." method="_on_tutorial_button_pressed"]
+[connection signal="pressed" from="TestButton" to="." method="_on_test_button_pressed"]
