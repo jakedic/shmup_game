@@ -126,7 +126,7 @@ static func handle_enemy_collision(player: Player, area: Area2D) -> void:
 		area.explode()
 
 	# Take damage
-	take_damage(player, int(player.max_shield / 2.0))
+	take_damage(player, 4.0)
 
 static func is_invincible(player: Player) -> bool:
 	"""True while the player should take no damage from enemy ship contact -

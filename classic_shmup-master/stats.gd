@@ -42,7 +42,7 @@ var default_stats: Dictionary = {
 		"speed": 150.0,
 		"acceleration": 10.0,
 		"deceleration": 10.0,
-		"max_shield": 10,
+		"max_shield": 20,
 		"shield_regen_rate": 0.0,
 		"shield_regen_delay": 3.0,
 		"shoot_cooldown": 0.25,
@@ -118,6 +118,10 @@ var default_stats: Dictionary = {
 		# "pollinated" status on all of them instead. See bullets/bubble.gd
 		# create_pop_damage() and the yellow_bubble_pollen_pop power-up.
 		"pop_applies_pollination": false,
+		# If true, the bubble shot launches from behind the player instead of
+		# in front of them - see the gray_bubble_behind power-up and
+		# player_absorption.gd's launch_bubble().
+		"launch_behind": false,
 	},
 	# Weak, slow, wiggling secondary-fire bullets fired in pairs from the
 	# left/right of the ship while "has_pollen_shot" is active (see

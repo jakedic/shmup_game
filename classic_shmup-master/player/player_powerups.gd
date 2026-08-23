@@ -191,6 +191,26 @@ const GRAY_POWERUPS: Array[Dictionary] = [
 			},
 		},
 	},
+	{
+		"id": "gray_fire_rate_up",
+		"name": "Rapid Cycler",
+		"description": "Reduces the player's shot cooldown, letting them fire faster, for the rest of the run.",
+		"stats": {
+			"player": {
+				"shoot_cooldown": {"op": "mult", "value": 0.75},
+			},
+		},
+	},
+	{
+		"id": "gray_bubble_behind",
+		"name": "Reverse Thrusters",
+		"description": "The player's bubble shot launches from behind them instead of in front, for the rest of the run.",
+		"stats": {
+			"bubble": {
+				"launch_behind": {"op": "set", "value": true},
+			},
+		},
+	},
 ]
 
 # Accent color for gray power-ups (PowerupChoicePopup border/header) - kept

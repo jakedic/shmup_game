@@ -168,15 +168,19 @@ static func launch_bubble(player: Player, bubble: Node2D) -> void:
 	"""Launch bubble projectile"""
 	player.get_tree().root.add_child(bubble)
 
-	# Launch in the direction the player is facing or default up
-	var shoot_direction = Vector2.UP
-
-	# Optional: Shoot in direction of movement or mouse
-	if player.current_velocity.length() > 0:
-		shoot_direction = player.current_velocity.normalized()
+	# Normally the bubble launches upward/in front of the player. If the
+	# player has picked up the gray_bubble_behind power-up, flip both the
+	# spawn offset and travel direction so it launches downward/behind them
+	# instead. See stats.gd's "bubble" category and player_powerups.gd's
+	# GRAY_POWERUPS.
+	var spawn_offset := Vector2(0, -8)
+	var launch_direction := Vector2(0, -1)
+	if Stats.get_stat("bubble", "launch_behind"):
+		spawn_offset = Vector2(0, 8)
+		launch_direction = Vector2(0, 1)
 
 	if bubble.has_method("start"):
-		bubble.start(player.position + Vector2(0, -8), Vector2(0, -1))
+		bubble.start(player.position + spawn_offset, launch_direction)
 
 static func on_bubble_shot(player: Player) -> void:
 	"""Handle visual effects for bubble shooting"""
