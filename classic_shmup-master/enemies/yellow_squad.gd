@@ -1,10 +1,13 @@
 # yellow_squad.gd
-# Drives a squad of exactly SQUAD_SIZE YellowEnemy instances as one
-# choreographed unit instead of each enemy acting independently. It's a
+# Drives a squad of exactly squad_size YellowEnemy instances (see the
+# `squad_size` export below - the level sets it per-squad, see
+# BaseLevel.spawn_squad()) as one choreographed unit instead of each enemy
+# acting independently. It's a
 # repeating cycle:
 #
-#   1. ENTER   - the 4 enemies fall in a straight line down a shared lane,
-#                one after another (staggered by stagger_time).
+#   1. ENTER   - the squad's `squad_size` enemies fall in a straight line
+#                down a shared lane, one after another (staggered by
+#                stagger_time).
 #   2. LOOPING - once the lead (furthest-along) alive member reaches the
 #                vertical midpoint of the screen, EVERY still-alive member
 #                loops-the-loop at once (from wherever it currently is),
@@ -39,11 +42,11 @@
 #                re-enters Phase.ENTER and the whole cycle repeats.
 #
 # Idle spacing: circle_angular_speed is derived from stagger_time (see
-# _ready()) so that the circle turns exactly one SQUAD_SIZE-th of a full
+# _ready()) so that the circle turns exactly one squad_size-th of a full
 # revolution in the time between two members starting their fall. Combined
 # with every member entering at the same rightmost point and keeping
 # whatever offset it entered with, that makes each successive joiner land
-# exactly TAU/SQUAD_SIZE behind the previous one automatically - equidistant
+# exactly TAU/squad_size behind the previous one automatically - equidistant
 # spacing falls straight out of the timing, the same way departures fall
 # straight out of the (now-equidistant) spacing. If a member dies, the
 # survivors' offsets are never touched or recalculated, so they simply keep
@@ -75,9 +78,8 @@ class_name YellowSquad
 # BaseLevel._on_enemy_died().
 signal enemy_died(value: int)
 
-const SQUAD_SIZE := 4
-
 @export var enemy_scene: PackedScene
+@export var squad_size: int = 4                # how many enemies fly in this squad
 @export var lane_x: float = 120.0              # shared x the squad's attack dive travels down
 @export var path_speed: float = 80.0           # px/s while travelling any straight path
 @export var stagger_time: float = 0.45         # seconds between each member starting to fall
@@ -132,15 +134,16 @@ func _ready() -> void:
 	# Derived, not hand-tuned: with every member entering the circle at the
 	# same rightmost point and keeping whatever offset it entered with (see
 	# _join_circle()), this is the rotation speed that makes the circle turn
-	# exactly one quarter-turn (for SQUAD_SIZE=4) in the stagger_time gap
-	# between two members starting their fall - so each successive joiner's
-	# offset naturally lands one slot behind the last, equidistant, with no
-	# separate easing/smoothing step needed.
-	circle_angular_speed = (TAU / SQUAD_SIZE) / stagger_time
+	# exactly one squad_size-th of a full turn (a quarter-turn for the default
+	# squad_size of 4) in the stagger_time gap between two members starting
+	# their fall - so each successive joiner's offset naturally lands one slot
+	# behind the last, equidistant, with no separate easing/smoothing step
+	# needed.
+	circle_angular_speed = (TAU / squad_size) / stagger_time
 
 
 func _spawn_members() -> void:
-	for i in range(SQUAD_SIZE):
+	for i in range(squad_size):
 		var e = enemy_scene.instantiate()
 		add_child(e)
 		e.squad_controlled = true    # opt out of base_enemy's own movement/boundary logic
@@ -425,7 +428,7 @@ func _join_circle(i: int) -> void:
 	right here, permanently - no easing or later reassignment, same abrupt-
 	but-continuous character as departure. With circle_angular_speed derived
 	from stagger_time (see _ready()), this naturally lands one
-	TAU/SQUAD_SIZE behind whichever member joined just before it."""
+	TAU/squad_size behind whichever member joined just before it."""
 	var e = _members[i]
 	var current_angle: float = (e.position - circle_center).angle()
 	_circle_offset[i] = current_angle - _circle_theta

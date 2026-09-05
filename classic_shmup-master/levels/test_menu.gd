@@ -2,10 +2,10 @@ extends Control
 
 ## Developer/test-only menu (see levels/title_screen.gd's Test button). Lets
 ## you jump straight into any real level - anything under res://levels/ whose
-## script "extends BaseLevel" (see _discover_level_paths()) - with any set of
-## power-ups pre-applied, instead of playing through the whole overworld to
-## get there. New levels and new power-ups show up here automatically;
-## nothing to register by hand.
+## script extends BaseLevel, directly or indirectly (see
+## _discover_level_paths()) - with any set of power-ups pre-applied, instead
+## of playing through the whole overworld to get there. New levels and new
+## power-ups show up here automatically; nothing to register by hand.
 ##
 ## Drawn entirely in code (same approach as levels/shop.gd and
 ## levels/overworld.gd) rather than with Container/Button nodes, to sidestep
@@ -70,14 +70,19 @@ func _build_rows() -> void:
 
 func _discover_level_paths() -> Array:
 	"""Every .tscn directly under res://levels/ whose matching .gd script
-	says "extends BaseLevel" - i.e. an actual playable level, as opposed to a
-	menu/overworld/shop screen (title_screen.gd, overworld.gd, shop.gd, and
-	tutorial_screen.gd all extend Control instead). New levels show up here
-	automatically - nothing to register by hand."""
+	extends BaseLevel, directly OR indirectly (e.g. levels/squad_wave_level.gd
+	extends BaseLevel, and levels/yellow_level.gd extends THAT) - i.e. an
+	actual playable level, as opposed to a menu/overworld/shop screen
+	(title_screen.gd, overworld.gd, shop.gd, and tutorial_screen.gd all
+	extend Control instead). New levels show up here automatically - nothing
+	to register by hand, no matter how many levels deep their own base class
+	sits above BaseLevel."""
 	var found: Array = []
 	var dir := DirAccess.open("res://levels")
 	if dir == null:
 		return found
+
+	var level_class_names := _classes_descended_from("BaseLevel")
 
 	dir.list_dir_begin()
 	var file_name := dir.get_next()
@@ -86,13 +91,44 @@ func _discover_level_paths() -> Array:
 			var script_path := "res://levels/%s.gd" % file_name.trim_suffix(".tscn")
 			if FileAccess.file_exists(script_path):
 				var source := FileAccess.get_file_as_string(script_path)
-				if source.find("extends BaseLevel") != -1:
+				if _extends_any_class(source, level_class_names):
 					found.append("res://levels/" + file_name)
 		file_name = dir.get_next()
 	dir.list_dir_end()
 
 	found.sort()
 	return found
+
+
+func _classes_descended_from(root_class_name: String) -> Array:
+	"""Every class_name registered in the project that IS `root_class_name`
+	or ultimately extends it, however many steps removed - e.g. passing
+	"BaseLevel" also returns "SquadWaveLevel" (which extends BaseLevel) plus
+	anything that in turn extends SquadWaveLevel. Used by
+	_extends_any_class() so new level base classes don't need their own
+	special-casing here."""
+	var base_class_of := {}  # registered class_name -> the class_name it extends
+	for entry in ProjectSettings.get_global_class_list():
+		base_class_of[entry["class"]] = entry["base"]
+
+	var descendants := [root_class_name]
+	var found_more := true
+	while found_more:
+		found_more = false
+		for a_class_name in base_class_of.keys():
+			if descendants.has(a_class_name):
+				continue
+			if descendants.has(base_class_of[a_class_name]):
+				descendants.append(a_class_name)
+				found_more = true
+	return descendants
+
+
+func _extends_any_class(source: String, class_names: Array) -> bool:
+	for a_class_name in class_names:
+		if source.find("extends %s" % a_class_name) != -1:
+			return true
+	return false
 
 
 func _input(event: InputEvent) -> void:

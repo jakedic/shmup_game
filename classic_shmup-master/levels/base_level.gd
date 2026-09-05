@@ -144,25 +144,26 @@ func _on_enemy_died(value):
 # ===== SQUAD HELPER =====
 # Shared by any level that wants squad-based enemies (groups that fly down
 # and attack together as one choreographed unit - see enemies/yellow_squad.gd
-# for the actual behavior). Originally lived only in levels/yellow_level.gd;
-# moved here so a second level can spawn its own squads without copy-pasting
-# this wiring - see levels/yellow_level.gd's WAVES table / _spawn_wave_squad()
-# for an example of building a whole level's enemy layout on top of this.
-func spawn_squad(enemy_scene: PackedScene, lane_x: float, start_delay: float = 0.0, diagonal_vx: float = 0.0, circle_center: Vector2 = Vector2.ZERO) -> YellowSquad:
+# for the actual behavior). Used by levels/squad_wave_level.gd, the shared
+# base for any level built as a numbered list of waves (see that file for an
+# example of building a whole level's enemy layout on top of this).
+func spawn_squad(enemy_scene: PackedScene, lane_x: float, start_delay: float = 0.0, diagonal_vx: float = 0.0, circle_center: Vector2 = Vector2.ZERO, squad_size: int = 4) -> YellowSquad:
 	"""Spawn one YellowSquad and wire it into this level: `enemy_scene` fills
 	its ranks, `lane_x` is the on-screen x its attack dive travels down,
 	`start_delay` parks it for that many seconds before its first dive so
-	multiple squads in one wave can stagger their entrances, and
-	`diagonal_vx` adds sideways drift to the dive (0 = straight down).
-	`circle_center` is where the squad idles between dives - leave it at the
-	default and YellowSquad picks a sensible spot below `lane_x` on its own
-	(see YellowSquad._ready()). The squad's kills are wired straight into
-	this level's own scoring (_on_enemy_died()), same as any other enemy."""
+	multiple squads in one wave can stagger their entrances, `diagonal_vx`
+	adds sideways drift to the dive (0 = straight down), and `squad_size` is
+	how many enemies fly in it. `circle_center` is where the squad idles
+	between dives - leave it at the default and YellowSquad picks a sensible
+	spot below `lane_x` on its own (see YellowSquad._ready()). The squad's
+	kills are wired straight into this level's own scoring (_on_enemy_died()),
+	same as any other enemy."""
 	var squad := YellowSquad.new()
 	squad.enemy_scene = enemy_scene
 	squad.lane_x = lane_x
 	squad.start_delay = start_delay
 	squad.diagonal_vx = diagonal_vx
+	squad.squad_size = squad_size
 	if circle_center != Vector2.ZERO:
 		squad.circle_center = circle_center
 	squad.enemy_died.connect(_on_enemy_died)
@@ -176,7 +177,7 @@ func spawn_squad(enemy_scene: PackedScene, lane_x: float, start_delay: float = 0
 # wave of "add" enemies to fight in the meantime, and once every add is dead
 # the boss comes back and picks up where it left off. The boss scene itself,
 # and exactly which adds to spawn on each retreat, are still up to the level
-# (see levels/yellow_level.gd's _spawn_miniboss()/_on_miniboss_retreat_started())
+# (see levels/squad_wave_level.gd's _spawn_boss_wave()/_on_boss_retreat_started())
 # - this just tracks "how many adds are still alive" so every level with this
 # kind of fight doesn't have to reimplement that counting from scratch.
 var _active_boss: Node = null
@@ -201,8 +202,8 @@ func spawn_boss(boss_scene: PackedScene, spawn_pos: Vector2) -> Node:
 func start_boss_add_wave(add_count: int) -> void:
 	"""Call once the level has spawned this retreat's add enemies/squads -
 	add_count is how many individual enemies need to die before the boss
-	should come back (e.g. YellowSquad.SQUAD_SIZE times however many squads
-	were spawned). resolve_boss_add_death() below counts them down."""
+	should come back (e.g. the sum of each spawned squad's own squad_size).
+	resolve_boss_add_death() below counts them down."""
 	_boss_adds_remaining = add_count
 
 func resolve_boss_add_death(_value: int = 0) -> void:

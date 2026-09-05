@@ -11,12 +11,14 @@
 # Fight structure: the boss idles at a fixed spot, vulnerable. Every time it
 # loses RETREAT_HEALTH_STEP (10) health, it goes invincible, flies up off
 # the top of the screen, and the level spawns two YellowSquad "adds" (see
-# levels/yellow_level.gd's _on_miniboss_retreat_started()) - the SAME squad
-# behavior other waves use, not a special variant. Once every add is
-# destroyed, the level calls resume_after_adds() and the boss flies back
-# down and becomes vulnerable again. This repeats for as many 10-health
-# steps as fit under max_health, minus the last one - the final step just
-# lets it die normally (explode, wave clear) instead of retreating again.
+# levels/squad_wave_level.gd's _on_boss_retreat_started(), shared by any
+# level built on that file, e.g. levels/yellow_level.gd/levels/dylan_level.gd)
+# - the SAME squad behavior other waves use, not a special variant. Once
+# every add is destroyed, the level calls resume_after_adds() and the boss
+# flies back down and becomes vulnerable again. This repeats for as many
+# 10-health steps as fit under max_health, minus the last one - the final
+# step just lets it die normally (explode, wave clear) instead of retreating
+# again.
 extends BaseEnemy
 class_name YellowMiniboss
 
@@ -176,7 +178,7 @@ func _begin_retreat() -> void:
 	set_deferred("monitorable", false)
 	set_deferred("monitoring", false)
 	_next_retreat_threshold -= RETREAT_HEALTH_STEP
-	retreat_started.emit()  # levels/yellow_level.gd spawns the two add squads on this
+	retreat_started.emit()  # levels/squad_wave_level.gd spawns the two add squads on this
 
 	var tw = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.tween_property(self, "position:y", OFFSCREEN_Y, retreat_duration)
@@ -186,8 +188,8 @@ func _begin_retreat() -> void:
 
 
 func resume_after_adds() -> void:
-	"""Called by levels/yellow_level.gd once both add squads spawned by the
-	last retreat are fully cleared."""
+	"""Called by levels/squad_wave_level.gd once both add squads spawned by
+	the last retreat are fully cleared."""
 	if _state != State.WAITING_FOR_ADDS or not is_alive:
 		return
 	_state = State.RETURNING

@@ -1,9 +1,8 @@
-# yellow_level.gd
-# "Yellow Level" - the new first level of a run (see game_progress.gd's
-# START_ID override), built to show off the squad-based yellow enemy
-# behavior (see enemies/yellow_squad.gd). All the actual wave-running,
-# boss-fight, and squad-spawning machinery lives in levels/squad_wave_level.gd
-# - this file only defines WHAT spawns in each wave.
+# dylan_level.gd
+# "Dylan Level" - an exact copy of Yellow Level (see levels/yellow_level.gd).
+# All the actual wave-running, boss-fight, and squad-spawning machinery lives
+# in levels/squad_wave_level.gd - this file only defines WHAT spawns in each
+# wave.
 #
 # WANT TO CHANGE WHAT SPAWNS IN EACH WAVE? Edit the WAVES table below - add,
 # remove, or edit wave entries and the level picks it up automatically (it
@@ -18,7 +17,7 @@ const YELLOW_MINIBOSS := preload("res://enemies/yellow_miniboss.tscn")
 const WAVES: Array = [
 	# Wave 1 - a single squad, straight down the middle.
 	{"squads": [
-		{"enemy": ENEMY_YELLOW, "lane": LANE_CENTER, "start_delay": 0.0, "drift": NO_DRIFT},
+		{"enemy": ENEMY_YELLOW, "lane": LANE_CENTER, "start_delay": 0.0, "drift": NO_DRIFT, "squad_size": 2},
 	]},
 	# Wave 2 - two squads, one from the left, one from the right.
 	{"squads": [
