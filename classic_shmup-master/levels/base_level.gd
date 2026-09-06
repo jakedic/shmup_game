@@ -147,28 +147,55 @@ func _on_enemy_died(value):
 # for the actual behavior). Used by levels/squad_wave_level.gd, the shared
 # base for any level built as a numbered list of waves (see that file for an
 # example of building a whole level's enemy layout on top of this).
-func spawn_squad(enemy_scene: PackedScene, lane_x: float, start_delay: float = 0.0, diagonal_vx: float = 0.0, circle_center: Vector2 = Vector2.ZERO, squad_size: int = 4) -> YellowSquad:
+func spawn_squad(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, start_delay: float = 0.0, circle_progress: float = 0.5, diagonal_vx: float = 0.0, squad_size: int = 4) -> YellowSquad:
 	"""Spawn one YellowSquad and wire it into this level: `enemy_scene` fills
-	its ranks, `lane_x` is the on-screen x its attack dive travels down,
-	`start_delay` parks it for that many seconds before its first dive so
-	multiple squads in one wave can stagger their entrances, `diagonal_vx`
-	adds sideways drift to the dive (0 = straight down), and `squad_size` is
-	how many enemies fly in it. `circle_center` is where the squad idles
-	between dives - leave it at the default and YellowSquad picks a sensible
-	spot below `lane_x` on its own (see YellowSquad._ready()). The squad's
-	kills are wired straight into this level's own scoring (_on_enemy_died()),
-	same as any other enemy."""
+	its ranks, and it travels in a straight line from `start_pos` to
+	`end_pos` (typically just off one edge of the screen to just off
+	another - see levels/squad_wave_level.gd's side+percent helper),
+	pausing to circle `circle_progress` of the way along that line (0.0-1.0;
+	0.5 is halfway). `start_delay` parks it for that many seconds before it
+	starts moving, so multiple squads in one wave can stagger their
+	entrances, `diagonal_vx` adds sideways (perpendicular to the line of
+	travel) drift to a member's solo departure after its own loop (0 = none),
+	and `squad_size` is how many enemies fly in it. The squad's kills are
+	wired straight into this level's own scoring (_on_enemy_died()), same as
+	any other enemy."""
 	var squad := YellowSquad.new()
 	squad.enemy_scene = enemy_scene
-	squad.lane_x = lane_x
+	squad.start_pos = start_pos
+	squad.end_pos = end_pos
 	squad.start_delay = start_delay
+	squad.circle_progress = circle_progress
 	squad.diagonal_vx = diagonal_vx
 	squad.squad_size = squad_size
-	if circle_center != Vector2.ZERO:
-		squad.circle_center = circle_center
 	squad.enemy_died.connect(_on_enemy_died)
 	add_child(squad)
 	return squad
+
+
+# ===== SOLO HELPER =====
+# Shared by any level that wants a single yellow-style enemy flying across
+# the screen on its own instead of as part of a squad (see
+# enemies/yellow_solo.gd). Used by levels/squad_wave_level.gd, alongside
+# spawn_squad() above - see that file's WAVES FORMAT comment for the
+# "solos" list.
+func spawn_solo(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, start_delay: float = 0.0) -> YellowSolo:
+	"""Spawn one YellowSolo and wire it into this level: `enemy_scene` fills
+	it, and it flies in a straight line from `start_pos` to `end_pos`
+	(typically just off one edge of the screen to just off the opposite
+	edge), weaving in a sine curve and looping halfway there exactly like a
+	squad member does - see enemies/yellow_solo.gd. `start_delay` parks it
+	for that many seconds before it starts, same purpose as spawn_squad()'s.
+	Its kill is wired straight into this level's own scoring
+	(_on_enemy_died()), same as any other enemy."""
+	var solo := YellowSolo.new()
+	solo.enemy_scene = enemy_scene
+	solo.start_pos = start_pos
+	solo.end_pos = end_pos
+	solo.start_delay = start_delay
+	solo.enemy_died.connect(_on_enemy_died)
+	add_child(solo)
+	return solo
 
 
 # ===== BOSS HELPER =====
