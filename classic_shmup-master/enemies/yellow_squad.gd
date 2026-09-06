@@ -1,5 +1,5 @@
 # yellow_squad.gd
-# Drives a squad of exactly squad_size YellowEnemy instances (see the
+# Drives a squad of exactly squad_size BeeEnemy instances (see the
 # `squad_size` export below - the level sets it per-squad, see
 # BaseLevel.spawn_squad()) as one choreographed unit instead of each enemy
 # acting independently. The squad travels in a straight line from start_pos
@@ -117,7 +117,7 @@
 # renumbered, so the formation/circle simply shows a gap where it would have
 # been instead of closing ranks.
 #
-# A level can spawn several independent YellowSquad instances at once (see
+# A level can spawn several independent BeeSquad instances at once (see
 # levels/yellow_level.gd) - each one runs entirely on its own, with its own
 # start_pos/end_pos/circle_progress. A few knobs make multi-squad waves easy
 # to stage:
@@ -151,7 +151,7 @@
 #     _advance_squad_transform() below for how it's used to keep both
 #     hand-offs jump-free.
 extends Node2D
-class_name YellowSquad
+class_name BeeSquad
 
 # Relayed from each member's own `died` signal so the level can still score
 # kills the same way it does for grid-spawned enemies - BaseLevel.spawn_squad()
@@ -194,7 +194,7 @@ signal member_gone
 
 enum Phase { ENTERING, TRANSITIONING_IN, CIRCLING, TRANSITIONING_OUT, EXITING }
 
-var _members: Array = []          # YellowEnemy instances, fixed slots (index never reused)
+var _members: Array = []          # BeeEnemy instances, fixed slots (index never reused)
 var _circle_offset: Array = []    # per-member: fixed angular offset (radians), assigned once in _spawn_members() as i * TAU/squad_size - the polygon's shape while falling, and each member's fixed slot while circling
 var _departed: Array = []         # per-member: true once the WHOLE squad has finished traveling away from the circle (set all-at-once, see _advance_squad_transform()) - gates the group loop trigger below
 var _looping: Array = []          # per-member: true while mid-loop
@@ -320,7 +320,7 @@ func _alive_indices() -> Array:
 
 func _update_member_facing(index: int, delta: float) -> void:
 	"""Point member `index` the way it actually just moved this frame, using
-	YellowEnemy's own _update_facing() (same rotation math the old per-enemy
+	BeeEnemy's own _update_facing() (same rotation math the old per-enemy
 	dive used) so it stays consistent whether the enemy is translating,
 	mid-loop, or circling."""
 	var e = _members[index]

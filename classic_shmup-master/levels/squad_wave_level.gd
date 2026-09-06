@@ -199,7 +199,7 @@ func spawn_enemies() -> void:
 		_spawn_solo_for_wave_entry(solo_entry)
 
 
-func _spawn_squad_for_wave_entry(squad_entry: Dictionary) -> YellowSquad:
+func _spawn_squad_for_wave_entry(squad_entry: Dictionary) -> BeeSquad:
 	"""Turn one squad entry from `waves` into an actual squad in the level,
 	via BaseLevel.spawn_squad() (shared with any other level that wants
 	squad-based enemies). circle_hold_interval is a per-squad setting (see
@@ -223,10 +223,10 @@ func _spawn_squad_for_wave_entry(squad_entry: Dictionary) -> YellowSquad:
 	return squad
 
 
-func _spawn_solo_for_wave_entry(solo_entry: Dictionary) -> YellowSolo:
+func _spawn_solo_for_wave_entry(solo_entry: Dictionary) -> BeeSolo:
 	"""Turn one solo entry from `waves` into an actual lone enemy in the
 	level, via BaseLevel.spawn_solo() (shared with any other level that
-	wants solo yellow-style enemies)."""
+	wants solo bee-style enemies)."""
 	var start_pos: Vector2 = _side_point(solo_entry.get("start_side", Side.LEFT), solo_entry.get("start_percent", LANE_CENTER))
 	var end_pos: Vector2 = _side_point(solo_entry.get("end_side", Side.RIGHT), solo_entry.get("end_percent", LANE_CENTER))
 	return spawn_solo(

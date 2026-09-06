@@ -50,7 +50,7 @@ var follow_anchor = false
 var current_health: int
 var is_alive: bool = true
 
-# True when an external controller (e.g. enemies/yellow_squad.gd) owns this
+# True when an external controller (e.g. enemies/yellow_squad.gd's BeeSquad) owns this
 # enemy's position and lifecycle for a scripted sequence. While true,
 # _process() below skips the normal follow-anchor/fall/off-screen-reset
 # logic entirely so it can't fight with whatever the controller is doing to
@@ -140,7 +140,7 @@ func _process(delta):
 	if squad_controlled:
 		# An external controller owns `position` this frame - don't let the
 		# anchor-follow/fall/boundary-reset logic below fight it. Still let
-		# child classes run their own per-frame logic (e.g. YellowEnemy's
+		# child classes run their own per-frame logic (e.g. BeeEnemy's
 		# custom_process is a no-op while it isn't diving, which is always
 		# true for a squad-controlled enemy).
 		custom_process(delta)
@@ -174,7 +174,7 @@ func custom_process(delta: float):
 
 # ===== INVINCIBILITY =====
 # Generic, reusable on/off invincibility - currently driven by
-# enemies/yellow_squad.gd during its synchronized loop-de-loop attack, but
+# enemies/yellow_squad.gd's BeeSquad during its synchronized loop-de-loop attack, but
 # not tied to that squad system in any way. While active, take_damage() is a
 # no-op and the enemy flashes between its normal color and
 # invincible_flash_color to visually signal it can't be hurt right now.

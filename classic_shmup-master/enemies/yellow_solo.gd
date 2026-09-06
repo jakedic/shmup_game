@@ -1,5 +1,5 @@
 # yellow_solo.gd
-# Drives a single YellowEnemy (see the `enemy_scene` export below) flying in
+# Drives a single BeeEnemy (see the `enemy_scene` export below) flying in
 # a straight line from start_pos to end_pos - the solo counterpart to
 # enemies/yellow_squad.gd's group choreography, for levels that want a lone
 # enemy crossing the screen instead of a whole squad. Two steps:
@@ -33,13 +33,13 @@
 # start_delay holds the enemy motionless at start_pos (still spawned, just
 # parked) for that many seconds before it starts crossing - lets a level
 # stagger several solo enemies (or a solo alongside a squad) instead of
-# everything starting at once, same purpose as YellowSquad's start_delay.
+# everything starting at once, same purpose as BeeSquad's start_delay.
 #
 # A level spawns one of these per lone enemy via BaseLevel.spawn_solo() (see
 # levels/squad_wave_level.gd's "solos" wave-entry list) - each instance is
 # entirely independent, with its own start_pos/end_pos.
 extends Node2D
-class_name YellowSolo
+class_name BeeSolo
 
 # Relayed from the enemy's own `died` signal so the level can still score
 # this kill the same way it does for grid-spawned enemies and squads -
@@ -85,7 +85,7 @@ func _ready() -> void:
 
 	_spawn_enemy()
 
-	# Same reasoning as YellowSquad's _loop_duration - a loop of radius
+	# Same reasoning as BeeSquad's _loop_duration - a loop of radius
 	# loop_radius sized so its circumference divided by path_speed keeps
 	# tangential speed roughly matching the straight-line crossing, then
 	# loop_speed_multiplier nudges it a bit faster than that on top.
@@ -117,7 +117,7 @@ func _on_enemy_died(value: int) -> void:
 
 func _update_enemy_facing(delta: float) -> void:
 	"""Point the enemy the way it actually just moved this frame, using
-	YellowEnemy's own _update_facing() (same rotation math YellowSquad uses)
+	BeeEnemy's own _update_facing() (same rotation math BeeSquad uses)
 	so it stays consistent whether it's crossing normally or mid-loop."""
 	if is_instance_valid(_enemy) and _enemy.has_method("_update_facing"):
 		_enemy._update_facing(delta)
@@ -178,7 +178,7 @@ func _advance_loop(delta: float) -> void:
 	# always cut off a few degrees short of the full 360.
 	var clamped_t: float = min(t, 1.0)
 
-	# Same loop shape as YellowSquad's _advance_member_loop() - a circle
+	# Same loop shape as BeeSquad's _advance_member_loop() - a circle
 	# whose tangent at angle 0 (and TAU, where it closes back up) points
 	# straight down in its own local frame - but rotated here to match THIS
 	# enemy's actual direction of travel, since a solo enemy isn't always
@@ -204,7 +204,7 @@ func _advance_loop(delta: float) -> void:
 
 func _start_facing_recovery() -> void:
 	"""Ease back to facing along the line of travel instead of snapping to
-	it. Same reasoning as YellowSquad's _start_facing_recovery(): the loop's
+	it. Same reasoning as BeeSquad's _start_facing_recovery(): the loop's
 	exit velocity points sideways-ish for an instant (it's tangent to the
 	loop, not aligned with the resumed straight crossing), which would
 	otherwise cause a one-frame facing pop the moment normal velocity-based

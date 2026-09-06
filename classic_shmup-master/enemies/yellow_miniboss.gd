@@ -1,7 +1,7 @@
 # yellow_miniboss.gd
 # End-of-level miniboss for Yellow Level (see levels/yellow_level.gd, wave
-# 4): a single 30-health BaseEnemy dressed up as a "giant mound" of yellow
-# enemies - a cluster of cloned yellow-enemy sprites, randomly placed and
+# 4): a single 30-health BaseEnemy dressed up as a "giant mound" of bee
+# enemies - a cluster of cloned bee-enemy sprites, randomly placed and
 # rotated within a circle (see _build_visual_mound()), all belonging to ONE
 # hurtbox/health pool rather than being separately-alive enemies. Each piece
 # also gets a small in-place wobble/rotation/frame-flicker (see
@@ -10,7 +10,7 @@
 #
 # Fight structure: the boss idles at a fixed spot, vulnerable. Every time it
 # loses RETREAT_HEALTH_STEP (10) health, it goes invincible, flies up off
-# the top of the screen, and the level spawns two YellowSquad "adds" (see
+# the top of the screen, and the level spawns two BeeSquad "adds" (see
 # levels/squad_wave_level.gd's _on_boss_retreat_started(), shared by any
 # level built on that file, e.g. levels/yellow_level.gd/levels/dylan_level.gd)
 # - the SAME squad behavior other waves use, not a special variant. Once
@@ -20,7 +20,7 @@
 # step just lets it die normally (explode, wave clear) instead of retreating
 # again.
 extends BaseEnemy
-class_name YellowMiniboss
+class_name BeeMiniboss
 
 signal retreat_started
 
@@ -89,7 +89,7 @@ func _ready():
 
 
 func _build_visual_mound() -> void:
-	"""Fake the "giant mound of yellow enemies" look by cloning the yellow
+	"""Fake the "giant mound of bee enemies" look by cloning the bee
 	enemy's own sprite sheet a bunch of times at random positions/rotations/
 	scales inside a circle - purely visual, none of these pieces are
 	separately alive or hittable. The whole mound shares ONE hurtbox/health

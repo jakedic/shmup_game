@@ -147,8 +147,8 @@ func _on_enemy_died(value):
 # for the actual behavior). Used by levels/squad_wave_level.gd, the shared
 # base for any level built as a numbered list of waves (see that file for an
 # example of building a whole level's enemy layout on top of this).
-func spawn_squad(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, start_delay: float = 0.0, circle_progress: float = 0.5, diagonal_vx: float = 0.0, squad_size: int = 4) -> YellowSquad:
-	"""Spawn one YellowSquad and wire it into this level: `enemy_scene` fills
+func spawn_squad(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, start_delay: float = 0.0, circle_progress: float = 0.5, diagonal_vx: float = 0.0, squad_size: int = 4) -> BeeSquad:
+	"""Spawn one BeeSquad and wire it into this level: `enemy_scene` fills
 	its ranks, and it travels in a straight line from `start_pos` to
 	`end_pos` (typically just off one edge of the screen to just off
 	another - see levels/squad_wave_level.gd's side+percent helper),
@@ -160,7 +160,7 @@ func spawn_squad(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2,
 	and `squad_size` is how many enemies fly in it. The squad's kills are
 	wired straight into this level's own scoring (_on_enemy_died()), same as
 	any other enemy."""
-	var squad := YellowSquad.new()
+	var squad := BeeSquad.new()
 	squad.enemy_scene = enemy_scene
 	squad.start_pos = start_pos
 	squad.end_pos = end_pos
@@ -174,13 +174,13 @@ func spawn_squad(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2,
 
 
 # ===== SOLO HELPER =====
-# Shared by any level that wants a single yellow-style enemy flying across
+# Shared by any level that wants a single bee-style enemy flying across
 # the screen on its own instead of as part of a squad (see
 # enemies/yellow_solo.gd). Used by levels/squad_wave_level.gd, alongside
 # spawn_squad() above - see that file's WAVES FORMAT comment for the
 # "solos" list.
-func spawn_solo(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, start_delay: float = 0.0) -> YellowSolo:
-	"""Spawn one YellowSolo and wire it into this level: `enemy_scene` fills
+func spawn_solo(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, start_delay: float = 0.0) -> BeeSolo:
+	"""Spawn one BeeSolo and wire it into this level: `enemy_scene` fills
 	it, and it flies in a straight line from `start_pos` to `end_pos`
 	(typically just off one edge of the screen to just off the opposite
 	edge), weaving in a sine curve and looping halfway there exactly like a
@@ -188,7 +188,7 @@ func spawn_solo(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, 
 	for that many seconds before it starts, same purpose as spawn_squad()'s.
 	Its kill is wired straight into this level's own scoring
 	(_on_enemy_died()), same as any other enemy."""
-	var solo := YellowSolo.new()
+	var solo := BeeSolo.new()
 	solo.enemy_scene = enemy_scene
 	solo.start_pos = start_pos
 	solo.end_pos = end_pos
@@ -215,7 +215,7 @@ func spawn_boss(boss_scene: PackedScene, spawn_pos: Vector2) -> Node:
 	up to scoring same as any other enemy, and remember it as the active boss
 	so resolve_boss_add_death() can call back into it later. Returns the boss
 	instance so the caller can connect its own scene-specific signals (e.g.
-	YellowMiniboss's `retreat_started`) - those aren't generic enough to wire
+	BeeMiniboss's `retreat_started`) - those aren't generic enough to wire
 	up here."""
 	var boss = boss_scene.instantiate()
 	add_child(boss)
