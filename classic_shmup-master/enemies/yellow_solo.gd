@@ -49,7 +49,7 @@ signal enemy_died(value: int)
 @export var enemy_scene: PackedScene
 @export var start_pos: Vector2 = Vector2.ZERO   # where the enemy spawns and begins its crossing - typically just off one edge of the screen
 @export var end_pos: Vector2 = Vector2.ZERO     # where the enemy is removed once it arrives - typically just off the opposite edge
-@export var path_speed: float = 160.0           # px/s along the start_pos -> end_pos line
+@export var path_speed: float = 140.0           # px/s along the start_pos -> end_pos line
 @export var wave_amplitude: float = 24.0        # how far side to side (perpendicular to the line) the enemy wobbles while crossing, px - 0 flies in a plain straight line
 @export var wave_frequency: float = 3.0         # how fast that side-to-side wobble oscillates
 @export var loop_radius: float = 26.0           # size of the halfway loop, px

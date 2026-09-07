@@ -62,7 +62,7 @@ var _charge_froze_dive: bool = false
 
 func _ready():
 	# Set bee enemy specific properties
-	max_health = 3  # Bee enemies have 3 health
+	max_health = 1  # Bee enemies have 1 health
 	current_health = max_health
 	bullet_scene = preload("res://enemy_bullets/enemy_bullet.tscn")
 	multi_shot = false
