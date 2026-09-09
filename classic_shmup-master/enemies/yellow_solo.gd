@@ -14,21 +14,28 @@
 #                 Halfway along that line (at the midpoint between start_pos
 #                 and end_pos, not tied to any fixed screen coordinate, so
 #                 this always fires exactly once no matter where
-#                 start_pos/end_pos are placed) it loops-the-loop, going
-#                 invincible and flashing to signal that - the same loop
-#                 shape enemies/yellow_squad.gd uses, rotated here to match
+#                 start_pos/end_pos are placed) it loops-the-loop, optionally
+#                 going invincible for the duration (see loop_invincible
+#                 below - off by default) - the same loop shape
+#                 enemies/yellow_squad.gd uses, rotated here to match
 #                 THIS enemy's actual direction of travel instead of always
 #                 assuming a straight-down fall (see _advance_loop()).
 #   2. RECOVER+CONTINUE - after the loop, it fires its fast bullet a short
 #                 beat later (see fire_delay_after_loop), eases its facing
 #                 back to pointing along the line over loop_recovery_time,
-#                 and keeps crossing exactly as in step 1 (same wobble, same
-#                 line) until it reaches end_pos, at which point it's
-#                 removed. Typically end_pos is placed just off the opposite
-#                 edge of the screen from start_pos, so this reads as "flies
-#                 in one side, loops halfway, flies out the other side" -
-#                 but nothing here requires that; any two points work, and
-#                 it disappears exactly when it reaches end_pos.
+#                 and keeps crossing with the same wobble as step 1 until it
+#                 reaches end_pos, at which point it's removed. This leg is
+#                 measured from wherever the loop actually closed (see
+#                 _fall_origin), NOT re-derived from the idealized
+#                 start_pos->end_pos line - the loop closes at whatever point
+#                 on step 1's wobble curve it started from, so snapping back
+#                 onto that idealized line here would visibly jump by however
+#                 far off the line the enemy happened to be. Typically
+#                 end_pos is placed just off the opposite edge of the screen
+#                 from start_pos, so this reads as "flies in one side, loops
+#                 halfway, flies out the other side" - but nothing here
+#                 requires that; any two points work, and it disappears once
+#                 it's traveled the full start_pos->end_pos distance.
 #
 # start_delay holds the enemy motionless at start_pos (still spawned, just
 # parked) for that many seconds before it starts crossing - lets a level
@@ -56,6 +63,7 @@ signal enemy_died(value: int)
 @export var loop_speed_multiplier: float = 1.4  # how much faster than plain path_speed the loop itself turns
 @export var fire_delay_after_loop: float = 0.15 # seconds after the loop ends before it actually fires
 @export var loop_recovery_time: float = 0.3     # seconds to ease facing back to normal after the loop
+@export var loop_invincible: bool = false       # whether the enemy is invincible for the duration of the loop - off by default
 @export var start_delay: float = 0.0            # seconds this enemy stays parked at start_pos before crossing
 
 var _enemy: Node = null
@@ -71,6 +79,8 @@ var _loop_time: float = 0.0
 var _loop_duration: float = 1.0
 var _loop_start_pos: Vector2 = Vector2.ZERO
 var _loop_ended_at: float = 0.0
+var _fall_origin: Vector2 = Vector2.ZERO   # position where the loop actually closed - the post-loop crossing is measured from HERE, not from the idealized start_pos->end_pos line, see _process()
+var _fall_traveled: float = 0.0            # px traveled along _direction since the loop ended
 
 var _solo_time: float = 0.0
 var _wait_time: float = 0.0  # real time since _ready(), independent of _solo_time - see start_delay
@@ -140,9 +150,25 @@ func _process(delta: float) -> void:
 
 	_traveled += path_speed * delta
 	var t: float = 1.0 if _travel_length <= 0.0 else clamp(_traveled / _travel_length, 0.0, 1.0)
-	var anchor: Vector2 = start_pos.lerp(end_pos, t)
 	_wave_time += delta
-	_enemy.position = anchor + _perp * (sin(_wave_time * wave_frequency) * wave_amplitude)
+	var wobble: float = sin(_wave_time * wave_frequency) * wave_amplitude
+
+	if _looped:
+		# Post-loop: keep going from wherever the loop actually closed
+		# (_fall_origin, captured in _advance_loop() when it ended) instead of
+		# snapping back onto the idealized start_pos->end_pos line via
+		# start_pos.lerp(end_pos, t) - the loop closes at whatever point on
+		# the WOBBLE curve it started from, which is usually off that
+		# idealized line by some fraction of wave_amplitude, so re-deriving
+		# position from the line instead of from where the enemy actually is
+		# produced a visible snap the instant the loop ended. See
+		# enemies/yellow_squad.gd's _process_solo_fall() - same fix, same
+		# reasoning, applied there already.
+		_fall_traveled += path_speed * delta
+		_enemy.position = _fall_origin + _direction * _fall_traveled + _perp * wobble
+	else:
+		var anchor: Vector2 = start_pos.lerp(end_pos, t)
+		_enemy.position = anchor + _perp * wobble
 
 	if _looped and _solo_time < _loop_ended_at + loop_recovery_time:
 		# The facing-recovery tween (see _start_facing_recovery()) owns
@@ -166,7 +192,7 @@ func _start_loop() -> void:
 	_looping = true
 	_loop_time = 0.0
 	_loop_start_pos = _enemy.position
-	if _enemy.has_method("set_invincible"):
+	if loop_invincible and _enemy.has_method("set_invincible"):
 		_enemy.set_invincible(true)
 
 
@@ -197,32 +223,47 @@ func _advance_loop(delta: float) -> void:
 		_looping = false
 		_looped = true
 		_loop_ended_at = _solo_time
-		_wave_time = 0.0  # fresh wobble phase for the resumed crossing, starting at zero offset
+		_wave_time = 0.0        # fresh wobble phase for the resumed crossing, starting at zero offset
+		_fall_origin = _enemy.position  # centered on wherever the loop actually ended, no jump - see _process()
+		_fall_traveled = 0.0
 		_start_facing_recovery()
 		_fire_after_loop()
 
 
 func _start_facing_recovery() -> void:
-	"""Ease back to facing along the line of travel instead of snapping to
-	it. Same reasoning as BeeSquad's _start_facing_recovery(): the loop's
-	exit velocity points sideways-ish for an instant (it's tangent to the
-	loop, not aligned with the resumed straight crossing), which would
-	otherwise cause a one-frame facing pop the moment normal velocity-based
-	facing (_update_enemy_facing) took back over."""
+	"""Ease back to facing along the line of travel - the same direction the
+	enemy was headed in before the loop started - instead of snapping to it.
+	Same reasoning as BeeSquad's _start_facing_recovery(): the loop's exit
+	velocity points sideways-ish for an instant (it's tangent to the loop,
+	not aligned with the resumed straight crossing), which would otherwise
+	cause a one-frame facing pop the moment normal velocity-based facing
+	(_update_enemy_facing) took back over.
+
+	IMPORTANT: _enemy.rotation right now is whatever raw principal-value
+	angle (-PI, PI] velocity-based facing last landed on, which can be on
+	either "side" of the wrap almost at random. Tweening straight to the
+	fixed target_rotation would sometimes take the LONG way around (up to
+	nearly a full 360-degree spin in loop_recovery_time) if the two happen to
+	sit on opposite sides of that wrap - which reads as a fast, glitchy snap,
+	easy to mistake for the enemy's position itself jumping. wrapf() finds
+	the equivalent target angle closest to the CURRENT rotation instead, so
+	the tween always turns the short way."""
 	var target_rotation: float = _direction.angle() - Vector2.DOWN.angle()
+	var target: float = _enemy.rotation + wrapf(target_rotation - _enemy.rotation, -PI, PI)
 	var tw = _enemy.create_tween()
-	tw.tween_property(_enemy, "rotation", target_rotation, loop_recovery_time)
+	tw.tween_property(_enemy, "rotation", target, loop_recovery_time)
 
 
 func _fire_after_loop() -> void:
 	"""Wait a short beat after the loop's own animation completes before
 	actually firing, so the shot clearly reads as happening AFTER the loop
 	rather than the instant the loop's math resets back to its start
-	position. Invincibility drops at the same moment the shot fires."""
+	position. Invincibility (when loop_invincible is on) drops at the same
+	moment the shot fires."""
 	await get_tree().create_timer(fire_delay_after_loop).timeout
 	if not is_instance_valid(_enemy) or not _enemy.is_alive:
 		return
 	if _enemy.has_method("shoot_single"):
 		_enemy.shoot_single()
-	if _enemy.has_method("set_invincible"):
+	if loop_invincible and _enemy.has_method("set_invincible"):
 		_enemy.set_invincible(false)

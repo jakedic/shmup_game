@@ -65,8 +65,9 @@
 #   4. LOOP+EXIT - since the whole squad travels away together now, they all
 #                  cross the halfway point of the start_pos->end_pos line at
 #                  essentially the same moment, which is when EVERY member
-#                  loops-the-loop at once (see _group_loop_triggered), going
-#                  invincible and flashing to signal that. After its loop,
+#                  loops-the-loop at once (see _group_loop_triggered),
+#                  optionally going invincible for the duration (see
+#                  loop_invincible below - off by default). After its loop,
 #                  each member fires its fast bullet a short beat later (see
 #                  fire_delay_after_loop), eases its facing back to pointing
 #                  along the line over loop_recovery_time, and - now flying
@@ -187,6 +188,7 @@ signal member_gone
 @export var loop_speed_multiplier: float = 1.4  # how much faster than plain path_speed the loop itself turns
 @export var fire_delay_after_loop: float = 0.15  # seconds after a member's loop ends before it actually fires
 @export var loop_recovery_time: float = 0.3    # seconds to ease facing back to normal after a loop
+@export var loop_invincible: bool = false      # whether a member is invincible for the duration of its departure loop - off by default
 @export var circle_radius: float = 28.0        # radius of the circle formation, px - also the radius of the polygon members fall in during steps 1 and 3
 @export var circle_hold_interval: float = 6.0  # fixed seconds THIS squad holds formation before departing - a per-squad setting; see levels/squad_wave_level.gd's WAVES FORMAT comment for the optional per-squad-entry `circle_hold_interval` field that overrides this
 @export var start_delay: float = 0.0           # seconds this squad stays parked before traveling toward its formation
@@ -382,16 +384,21 @@ func _process_formation(delta: float) -> void:
 			_process_solo_fall(i, e, delta)
 			continue
 
-		if _departed[i] and _group_loop_triggered:
-			_start_member_loop(i, e)
-			continue
-
 		# Still part of the shared rigid formation - entering, circling, or
 		# departing, whichever _advance_squad_transform() just updated
-		# _anchor/_rotation_progress for.
+		# _anchor/_rotation_progress for. Sync position to it FIRST, before
+		# possibly starting the loop below - _advance_squad_transform()
+		# already advanced _anchor for THIS frame, so if _start_member_loop()
+		# ran first (reading e.position before it was updated for this
+		# frame), it would capture last frame's slightly-stale position
+		# instead, producing a small simultaneous position pop for the whole
+		# squad right as every member enters its loop.
 		var angle: float = _circle_offset[i] + _rotation_progress + _direction_rotation_offset
 		e.position = _anchor + Vector2(cos(angle), sin(angle)) * circle_radius
 		_update_member_facing(i, delta)
+
+		if _departed[i] and _group_loop_triggered:
+			_start_member_loop(i, e)
 
 
 func _advance_squad_transform(delta: float) -> void:
@@ -533,7 +540,7 @@ func _start_member_loop(i: int, e) -> void:
 	_looping[i] = true
 	_loop_time[i] = 0.0
 	_loop_start_pos[i] = e.position
-	if e.has_method("set_invincible"):
+	if loop_invincible and e.has_method("set_invincible"):
 		e.set_invincible(true)
 
 
@@ -572,26 +579,39 @@ func _advance_member_loop(i: int, e, delta: float) -> void:
 
 
 func _start_facing_recovery(e) -> void:
-	"""Ease back to facing along the line of travel instead of snapping to
+	"""Ease back to facing along the line of travel - the same direction the
+	member was headed in before the loop started - instead of snapping to
 	it. The loop's exit velocity points sideways-ish for an instant (it's
 	tangent to the loop, not aligned with the resumed straight travel), which
 	would otherwise cause a one-frame facing pop the moment normal
-	velocity-based facing (_update_member_facing) took back over."""
+	velocity-based facing (_update_member_facing) took back over.
+
+	IMPORTANT: e.rotation right now is whatever raw principal-value angle
+	(-PI, PI] velocity-based facing last landed on, which can be on either
+	"side" of the wrap almost at random. Tweening straight to the fixed
+	target _direction_rotation_offset would sometimes take the LONG way
+	around (up to nearly a full 360-degree spin in loop_recovery_time) if the
+	two happen to sit on opposite sides of that wrap - which reads as a fast,
+	glitchy snap, easy to mistake for the enemy's position itself jumping.
+	wrapf() finds the equivalent target angle closest to the CURRENT
+	rotation instead, so the tween always turns the short way."""
+	var target: float = e.rotation + wrapf(_direction_rotation_offset - e.rotation, -PI, PI)
 	var tw = e.create_tween()
-	tw.tween_property(e, "rotation", _direction_rotation_offset, loop_recovery_time)
+	tw.tween_property(e, "rotation", target, loop_recovery_time)
 
 
 func _fire_after_loop(e) -> void:
 	"""Wait a short beat after the loop's own animation completes before
 	actually firing, so the shot clearly reads as happening AFTER the loop
 	rather than the instant the loop's math resets back to its start
-	position. Invincibility drops at the same moment the shot fires."""
+	position. Invincibility (when loop_invincible is on) drops at the same
+	moment the shot fires."""
 	await get_tree().create_timer(fire_delay_after_loop).timeout
 	if not is_instance_valid(e) or not e.is_alive:
 		return
 	if e.has_method("shoot_single"):
 		e.shoot_single()
-	if e.has_method("set_invincible"):
+	if loop_invincible and e.has_method("set_invincible"):
 		e.set_invincible(false)
 
 

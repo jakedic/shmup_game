@@ -198,6 +198,29 @@ func spawn_solo(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, 
 	return solo
 
 
+# ===== HIVE SOLO HELPER =====
+# Shared by any level that wants a hive-style enemy playing its own
+# "stop and dance" pattern (see enemies/hive_solo.gd's header comment)
+# instead of BeeSolo's straight start_pos->end_pos crossing. Used by
+# levels/hive_level.gd.
+func spawn_hive_solo(enemy_scene: PackedScene, start_x_percent: float = 0.5, pause_y: float = 60.0, start_delay: float = 0.0) -> HiveSolo:
+	"""Spawn one HiveSolo and wire it into this level: `enemy_scene` fills
+	it, spawns off-screen above the top edge, and flies down onto
+	(`start_x_percent` * screen width, `pause_y`) before starting its
+	stop-shake-travel dance (see enemies/hive_solo.gd). `start_delay` parks
+	it off-screen for that many seconds before that entry begins, same
+	purpose as spawn_solo()'s. Its kill is wired straight into this level's
+	own scoring (_on_enemy_died()), same as any other enemy."""
+	var solo := HiveSolo.new()
+	solo.enemy_scene = enemy_scene
+	solo.start_x_percent = start_x_percent
+	solo.pause_y = pause_y
+	solo.start_delay = start_delay
+	solo.enemy_died.connect(_on_enemy_died)
+	add_child(solo)
+	return solo
+
+
 # ===== BOSS HELPER =====
 # Shared bookkeeping for a boss fight shaped like enemies/yellow_miniboss.gd's:
 # the boss periodically retreats offscreen and invincible, the level spawns a
