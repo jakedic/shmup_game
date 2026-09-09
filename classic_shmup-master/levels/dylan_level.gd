@@ -58,6 +58,19 @@ const WAVES: Array = [
 	"squads": [
 		{"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": LANE_CENTER, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": 1},
 	]},
+	# Wave 6 - multiple squad wave, just ramping up the challenge slightly
+		{"solos": [
+		{"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": 0.5, "start_delay": 1.0},
+		{"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": 0.6, "start_delay": 1.0},
+		{"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": 0.2},
+		{"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.8, "end_side": Side.BOTTOM, "end_percent": 0.8},
+		],
+	"squads": [
+		{"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": 1},
+		{"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": 1.5},
+		{"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .5, "start_delay": 2.5},
+		{"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.8, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .5, "start_delay": 3},
+	]},
 	#not sure what wave this would be but this is an interesting pattern that would towards the end of the level
 		{"squads": [
 		{"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": LANE_CENTER, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": .6},
