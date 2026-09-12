@@ -28,8 +28,9 @@ GameProgress="*res://game_progress.gd"
 
 window/size/viewport_width=240
 window/size/viewport_height=320
-window/size/window_width_override=720
-window/size/window_height_override=960
+window/size/window_width_override=960
+window/size/window_height_override=1280
+window/size/mode=2
 window/stretch/mode="canvas_items"
 
 [input]

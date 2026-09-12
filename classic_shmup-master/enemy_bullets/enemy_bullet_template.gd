@@ -110,7 +110,14 @@ func handle_player_bullet_collision(area: Area2D):
 	"""A player bullet hit us. Enemy bullets don't pierce, so we're always
 	destroyed - whether the player bullet also gets destroyed or pierces
 	through is decided independently by its own
-	handle_enemy_bullet_collision."""
+	handle_enemy_bullet_collision.
+
+	Gated by Bullet.bullet_vs_bullet_collision_enabled (see bullets/bullet.gd)
+	so both sides of the interaction flip together with a single switch.
+	While it's false, bullets just pass through each other."""
+	if not Bullet.bullet_vs_bullet_collision_enabled:
+		return
+
 	if is_queued_for_deletion():
 		return
 	queue_free()

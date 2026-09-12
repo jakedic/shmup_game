@@ -1,6 +1,16 @@
 # bullet_base.gd
 class_name Bullet extends Area2D
 
+# Global switch for whether player bullets and enemy bullets collide with
+# each other and cancel out on overlap. false (current default) = bullets
+# just pass through each other, no matter which side hit which. Flip to
+# true to restore the original "1-for-1 trade" behavior.
+# Read from both sides of the interaction: handle_enemy_bullet_collision()
+# below, and EnemyBullet.handle_player_bullet_collision() in
+# enemy_bullets/enemy_bullet_template.gd (via Bullet.bullet_vs_bullet_collision_enabled),
+# so there's exactly one place to flip.
+static var bullet_vs_bullet_collision_enabled: bool = false
+
 # Core bullet properties - all @export for easy customization
 @export var speed: float = -250
 @export var damage: int = 1
@@ -292,7 +302,13 @@ func handle_enemy_bullet_collision(area: Area2D):
 	handle_player_bullet_collision), so this only decides our own fate: with
 	no piercing left we're destroyed too, same as a normal 1-for-1 trade.
 	With piercing, this consumes a charge from the same pierce budget used
-	against enemies and we keep going."""
+	against enemies and we keep going.
+
+	Gated by bullet_vs_bullet_collision_enabled - while it's false, bullets
+	just pass through each other and none of the below runs."""
+	if not bullet_vs_bullet_collision_enabled:
+		return
+
 	if is_queued_for_deletion():
 		return
 
