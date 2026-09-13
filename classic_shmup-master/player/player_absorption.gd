@@ -91,8 +91,55 @@ static func absorb_complete(player: Player, hit_enemy_type: String) -> void:
 		if player.has_method(transform_func_name):
 			player.call(transform_func_name)
 
+		emphasize_ability_acquired(player)
+
 static func absorb_fail(player: Player) -> void:
 	player.currently_absorbing = false
+
+# ===== Ability-acquired emphasis (brief pause + screen darken) =====
+
+const ABILITY_ACQUIRED_PAUSE_DURATION := 0.15  # seconds the game freezes for
+const ABILITY_ACQUIRED_DARKEN_ALPHA := 0.45  # how dark the screen-wide overlay gets (0 = invisible, 1 = fully black)
+
+static func emphasize_ability_acquired(player: Player) -> void:
+	"""Brief hitstop + screen darken right after a transformation lands, so
+	the moment reads as "you got something" instead of blending into normal
+	play. Pure script, no scene changes needed: builds a full-screen
+	CanvasLayer + ColorRect on the fly, pauses the tree, waits out the pause
+	on a timer explicitly told to keep running while paused, then unpauses
+	and cleans the overlay up. Everything else (enemies, other timers,
+	player input) freezes along with the pause - that's the point."""
+	if not is_instance_valid(player) or not player.is_inside_tree():
+		return
+
+	var overlay_layer := CanvasLayer.new()
+	overlay_layer.layer = 100  # draw above the level's own CanvasLayer (UI, popups, etc.)
+
+	var overlay := ColorRect.new()
+	overlay.color = Color(0, 0, 0, ABILITY_ACQUIRED_DARKEN_ALPHA)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Anchor to fill the whole screen regardless of viewport size, rather than
+	# relying on a hardcoded size.
+	overlay.anchor_left = 0
+	overlay.anchor_top = 0
+	overlay.anchor_right = 1
+	overlay.anchor_bottom = 1
+	overlay.offset_left = 0
+	overlay.offset_top = 0
+	overlay.offset_right = 0
+	overlay.offset_bottom = 0
+	overlay_layer.add_child(overlay)
+
+	player.get_tree().root.add_child(overlay_layer)
+
+	player.get_tree().paused = true
+	# process_always = true so this timer still ticks down while the tree is
+	# paused - otherwise it would never fire and the pause would be permanent.
+	await player.get_tree().create_timer(ABILITY_ACQUIRED_PAUSE_DURATION, true).timeout
+	player.get_tree().paused = false
+
+	if is_instance_valid(overlay_layer):
+		overlay_layer.queue_free()
 
 # ===== Bubble shot (fired instead of absorbing while already transformed) =====
 
