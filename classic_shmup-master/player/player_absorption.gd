@@ -135,7 +135,6 @@ static func apply_bubble_stats(bubble: Node2D) -> void:
 		return
 	bubble.damage = bub.damage
 	bubble.speed = bub.speed
-	bubble.travel_distance = bub.travel_distance
 	bubble.bubble_lifetime = bub.lifetime
 	if "hit_points" in bubble:
 		bubble.hit_points = bub.hit_points
@@ -170,17 +169,36 @@ static func launch_bubble(player: Player, bubble: Node2D) -> void:
 
 	# Normally the bubble launches upward/in front of the player. If the
 	# player has picked up the gray_bubble_behind power-up, flip both the
-	# spawn offset and travel direction so it launches downward/behind them
+	# spawn offset and base direction so it launches downward/behind them
 	# instead. See stats.gd's "bubble" category and player_powerups.gd's
 	# GRAY_POWERUPS.
 	var spawn_offset := Vector2(0, -8)
-	var launch_direction := Vector2(0, -1)
+	var base_direction := Vector2(0, -1)
 	if Stats.get_stat("bubble", "launch_behind"):
 		spawn_offset = Vector2(0, 8)
-		launch_direction = Vector2(0, 1)
+		base_direction = Vector2(0, 1)
+
+	var launch_direction := get_bubble_launch_direction(player, base_direction)
 
 	if bubble.has_method("start"):
 		bubble.start(player.position + spawn_offset, launch_direction)
+
+# How strongly the ship's current velocity steers the bubble's launch angle
+# away from straight up/down (0 = ship velocity ignored entirely, 1 = as
+# strong an influence on the final direction as the base up/down direction
+# itself). Kept modest so a fast dash sends the bubble off at a noticeable
+# angle without making a near-stationary shot's direction hard to predict.
+const BUBBLE_LAUNCH_VELOCITY_INFLUENCE := 0.6
+
+static func get_bubble_launch_direction(player: Player, base_direction: Vector2) -> Vector2:
+	"""Blend the base launch direction (straight up, or down with the
+	gray_bubble_behind power-up) with the ship's current velocity, so
+	drifting or dashing sideways while firing sends the bubble off at an
+	angle instead of always straight up/down."""
+	if player.current_velocity.length() <= 0.01:
+		return base_direction
+	var velocity_direction := player.current_velocity.normalized()
+	return (base_direction + velocity_direction * BUBBLE_LAUNCH_VELOCITY_INFLUENCE).normalized()
 
 static func on_bubble_shot(player: Player) -> void:
 	"""Handle visual effects for bubble shooting"""

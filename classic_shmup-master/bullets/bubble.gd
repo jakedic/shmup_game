@@ -2,13 +2,12 @@ extends Bullet
 class_name Bubble
 
 @export var bubble_scene: PackedScene  # The bubble projectile scene
-@export var bubble_lifetime: float = 30.0  # How long bubble stays on screen
-@export var bubble_travel_distance: float = 20.0  # Distance bubble travels before stopping
-# Bubble-specific properties
-@export var travel_distance: float = 50.0
-@export var hover_amplitude: float = 10.0  # How much it bobs up/down
-@export var hover_frequency: float = 1.0   # How fast it bobs
-@export var rotation_speed: float = 45.0   # Degrees per second rotation
+# Safety net only - the bubble now moves and bounces continuously (see
+# _process() below) rather than traveling then stopping, so this is just how
+# long it's allowed to keep bouncing before it's forced to pop on its own.
+@export var bubble_lifetime: float = 30.0
+
+@onready var screensize: Vector2 = get_viewport_rect().size
 
 var absorbed_enemy_type: String = "" 
 
@@ -35,11 +34,27 @@ const DEFAULT_POWER_BUBBLE_COLOR := Color(0.75, 0.3, 1.0, 1.0)
 var hit_points: int = 3  # Editor-time fallback; player._apply_bubble_stats() sets this from Stats.get_category("bubble") when spawned
 var current_hits: int = 0
 
-#var distance_traveled: float = 0.0
-var has_stopped: bool = false
-var start_position: Vector2
+# Counts up every frame; compared against bubble_lifetime as a safety-net
+# pop (see _process()).
 var time_elapsed: float = 0.0
-var original_speed: float
+
+# ---- Player paddle-bounce tuning (see _bounce_off_player()) ----
+const PLAYER_BOUNCE_MAX_ANGLE_DEG := 65.0
+const PLAYER_BOUNCE_VELOCITY_INFLUENCE := 0.6
+const PLAYER_BOUNCE_SPEED_MULTIPLIER_CAP := 1.75
+# Collision with the player is disabled at spawn and only re-enabled once the
+# bubble is at least this far from its spawn point - see custom_start() and
+# _process(). Fixes an instant bounce the moment the bubble is launched,
+# since it spawns almost right on top of the player's own collision shape.
+const PLAYER_COLLISION_ARM_DISTANCE := 32.0
+
+var base_speed: float = 0.0  # speed at spawn; caps how fast a paddle-bounce can make the bubble go
+var _player_collision_armed: bool = false
+
+# ---- Bubble-bubble "gravity" tuning (see _apply_bubble_attraction()) ----
+const BUBBLE_ATTRACTION_RADIUS := 70.0  # smaller than the original 120 - only kicks in once bubbles are already fairly close
+const BUBBLE_ATTRACTION_TURN_RATE := 10.0  # how fast direction snaps toward the nearest bubble in range - strong on purpose, see _apply_bubble_attraction()
+const BUBBLE_ATTRACTION_PULL_SPEED := 160.0  # direct extra pull toward the nearest bubble, on top of steering, so the last bit of gap always closes
 
 func _ready():
 	# Connect to area entered signal
@@ -65,59 +80,163 @@ func _apply_solo_tint() -> void:
 
 func custom_start():
 	"""Initialize bubble behavior"""
-	start_position = position
-	original_speed = speed
-	has_stopped = false
-	
-	# Disable collision with player initially to prevent instant collision
+	time_elapsed = 0.0
+	base_speed = speed
+	_player_collision_armed = false
+
+	# Disable collision with the player until the bubble is
+	# PLAYER_COLLISION_ARM_DISTANCE away from its spawn point (see
+	# _process()). Replaces the old fixed 0.1s timer, which could still
+	# leave collision enabled while the bubble was overlapping the player
+	# (e.g. player standing still), causing an instant bounce right at spawn.
 	set_collision_mask_value(1, false)  # Disable player collision mask
-	
-	# Optional: Add a timer to enable collision after a short delay
-	await get_tree().create_timer(0.1).timeout
-	set_collision_mask_value(1, true)  # Re-enable player collision
 
-func custom_process(delta: float):
-	"""Handle bubble movement - travel then stop"""
-	if not has_stopped:
-		# Still traveling forward
-		var movement = direction * speed * delta
-		position += movement
-		distance_traveled += movement.length()
-		
-		# Check if reached travel distance
-		if distance_traveled >= travel_distance:
-			has_stopped = true
-			speed = 0  # Stop moving
-			
-			# Optional: Add a visual effect when bubble stops
-			stop_effect()
-	else:
-		# Bubble has stopped - hover in place
-		time_elapsed += delta
-		
-		# Add hovering motion (gentle bobbing)
-		var hover_offset = sin(time_elapsed * hover_frequency * PI * 2) * hover_amplitude
-		position.y = start_position.y + (travel_distance * direction.y) + hover_offset
-		
-		# Add rotation effect
-		rotation_degrees += rotation_speed * delta
-		
-		# Check if bubble lifetime is exceeded
-		if time_elapsed >= bubble_lifetime:
-			pop_bubble()  # Bubble pops/disappears
-			queue_free()
+func _process(delta: float):
+	"""Continuously move and bounce off the stage's walls, brick-breaker
+	style, instead of Bullet's normal travel-then-stop model. This fully
+	replaces Bullet._process() (Bubble never calls super/custom_process for
+	movement) - homing, bounce_count, and max_distance from the base Bullet
+	class don't apply to bubbles at all.
 
-func stop_effect():
-	"""Visual effect when bubble stops moving"""
-	# Add a ripple or sparkle effect - but don't stomp a solo bubble's
-	# enemy-type tint (or a power bubble's glow) with the plain "just
-	# stopped" color.
-	if absorbed_enemy_type == "" and not is_power_bubble:
-		modulate = Color(0.8, 0.9, 1.0, 1.0)  # Slight color change
+	Bounces off the left, right, and top edges of the screen forever. The
+	bottom edge is different: falling out the bottom counts as a miss (the
+	bubble never hit the player) and it just disappears, no pop effect -
+	same spirit as a normal bullet leaving the screen. bubble_lifetime is
+	still a safety-net pop in case a bubble somehow keeps bouncing forever
+	without ever resolving either way."""
+	time_elapsed += delta
+	if time_elapsed >= bubble_lifetime:
+		pop_bubble()
+		queue_free()
+		return
 
-	# Optional: Create a small particle effect
-	if has_node("StopEffect"):
-		$StopEffect.emitting = true
+	if not is_power_bubble:
+		_apply_bubble_attraction(delta)
+
+	position += direction * speed * delta
+	_bounce_off_walls()
+
+	if not _player_collision_armed and global_position.distance_to(spawn_position) >= PLAYER_COLLISION_ARM_DISTANCE:
+		_player_collision_armed = true
+		set_collision_mask_value(1, true)  # Re-enable player collision
+
+	if position.y > screensize.y + 16:
+		# Missed - fell off the bottom without ever touching the player.
+		queue_free()
+
+func _bounce_off_walls() -> void:
+	"""Reflect direction off the left/right/top screen edges. Never called
+	for the bottom edge - see _process()."""
+	if position.x <= 0:
+		position.x = 0
+		direction.x = abs(direction.x)
+	elif position.x >= screensize.x:
+		position.x = screensize.x
+		direction.x = -abs(direction.x)
+
+	if position.y <= 0:
+		position.y = 0
+		direction.y = abs(direction.y)
+
+func _apply_bubble_attraction(delta: float) -> void:
+	"""Once two plain bubbles get close enough (BUBBLE_ATTRACTION_RADIUS),
+	pull this one toward the single nearest other bubble in range, so they
+	actually collide and fuse instead of swinging past each other.
+
+	First version of this steered direction toward the SUMMED pull of every
+	bubble in range with a fairly gentle turn rate. That's a classic mutual-
+	pursuit setup: two bubbles continuously re-aiming at each other's current
+	position, at a turn rate that's weak relative to how fast they're
+	closing, tends to spiral/orbit around a shared point rather than actually
+	converge - which is exactly the "revolve around and miss" behavior that
+	got reported. Fix: target only the single closest bubble (no more
+	competing pulls from multiple directions to wobble around), turn toward
+	it much more aggressively the closer it gets, and add a direct positional
+	pull on top so the very last bit of gap always closes.
+
+	Only between two plain bubbles - power bubbles never fuse with anything
+	(_try_merge_with_bubble bails if either side already is one), so pulling
+	one toward/away from something would have no payoff. Callers should only
+	invoke this for a non-power bubble to begin with; it also skips any power
+	bubble it finds while scanning for a target."""
+	var closest: Bubble = null
+	var closest_dist := BUBBLE_ATTRACTION_RADIUS
+	for other in get_tree().get_nodes_in_group("bubble"):
+		if other == self or not is_instance_valid(other) or other.is_queued_for_deletion():
+			continue
+		if other.is_power_bubble:
+			continue
+		var dist := global_position.distance_to(other.global_position)
+		if dist < closest_dist:
+			closest = other
+			closest_dist = dist
+
+	if closest == null:
+		return
+
+	# Closer bubbles pull harder - 0 at the radius edge, 1.0 on top of each other.
+	var closeness := 1.0 - (closest_dist / BUBBLE_ATTRACTION_RADIUS)
+	var pull_direction: Vector2 = (closest.global_position - global_position).normalized()
+
+	# Snap the heading toward the other bubble - strong, and gets stronger
+	# the closer they are, so it overrides the bubble's own momentum instead
+	# of just gently curving it (the weak curve is what let them swing past
+	# each other before). clamp() returns Variant even with float arguments
+	# (same note as offset_x in _bounce_off_player) - explicit type here
+	# rather than :=.
+	var turn_factor: float = clamp(BUBBLE_ATTRACTION_TURN_RATE * (0.5 + closeness) * delta, 0.0, 1.0)
+	direction = direction.lerp(pull_direction, turn_factor).normalized()
+
+	# Extra direct pull on top of normal movement, so the last stretch of gap
+	# always closes even if steering alone hasn't fully lined them up yet.
+	position += pull_direction * BUBBLE_ATTRACTION_PULL_SPEED * closeness * delta
+
+func _get_player_half_extents(player: Node2D) -> Vector2:
+	"""Best-effort half-width/half-height of the player's collision shape, so
+	_bounce_off_player() can tell where along the ship the bubble hit. Falls
+	back to a small nonzero size if the shape can't be read, so the offset
+	math below never divides by zero."""
+	var collision_shape := player.get_node_or_null("CollisionShape2D")
+	if collision_shape and collision_shape.shape is RectangleShape2D:
+		return collision_shape.shape.size / 2.0
+	return Vector2(16, 16)
+
+func _bounce_off_player(player: Node2D) -> void:
+	"""Deflect the bubble off the player like a brick-breaker paddle, instead
+	of transforming/consuming it. Where along the player's width the bubble
+	hit steers the bounce angle (capped at PLAYER_BOUNCE_MAX_ANGLE_DEG off
+	straight up); the player's own velocity blends in a bit more steering
+	(same idea as get_bubble_launch_direction() in player_absorption.gd); and
+	the resulting speed can pick up slightly but never exceeds
+	PLAYER_BOUNCE_SPEED_MULTIPLIER_CAP times the bubble's original speed."""
+	var half_extents := _get_player_half_extents(player)
+	# clamp() returns Variant in GDScript even with all-float arguments, so
+	# offset_x needs an explicit type here rather than := - otherwise it
+	# infers as Variant and trips "type inferred from Variant" as an error.
+	var offset_x: float = clamp((global_position.x - player.global_position.x) / half_extents.x, -1.0, 1.0)
+	var max_angle := deg_to_rad(PLAYER_BOUNCE_MAX_ANGLE_DEG)
+
+	var bounce_direction := Vector2.UP.rotated(max_angle * offset_x)
+
+	if "current_velocity" in player and player.current_velocity.length() > 0.01:
+		bounce_direction = (bounce_direction + player.current_velocity.normalized() * PLAYER_BOUNCE_VELOCITY_INFLUENCE).normalized()
+		# Re-clamp: velocity steering alone could otherwise push the angle
+		# past the same cap the hit-offset is limited to.
+		var angle_from_up := Vector2.UP.angle_to(bounce_direction)
+		bounce_direction = Vector2.UP.rotated(clamp(angle_from_up, -max_angle, max_angle))
+
+	direction = bounce_direction
+
+	var speed_boost := 1.0
+	if "current_velocity" in player:
+		speed_boost += clamp(player.current_velocity.length() / 400.0, 0.0, 1.0) * 0.3
+	speed = min(speed * speed_boost, base_speed * PLAYER_BOUNCE_SPEED_MULTIPLIER_CAP)
+
+	# Nudge the bubble just past the player's edge along the new direction so
+	# it doesn't immediately re-trigger the same touch next frame.
+	global_position += bounce_direction * 4.0
+
+	flash_white()
 
 func pop_bubble():
 	"""Create a pop effect when bubble expires"""
@@ -242,13 +361,13 @@ func _on_area_entered(area: Area2D):
 	if area.is_in_group("player") or area.name == "Player":
 		if is_power_bubble:
 			apply_powerup_to_player(area)
+			# Power bubbles are still consumed on touch, same as before.
+			queue_free()
 		else:
-			# Apply transformation to player if we have an enemy type
-			if absorbed_enemy_type != "":
-				apply_transformation_to_player(area)
-		
-		# Bubble gets absorbed/disappears
-		queue_free()
+			# Plain bubbles bounce off the player like a brick-breaker paddle
+			# instead of transforming/consuming it. Power bubbles above are
+			# untouched by this change.
+			_bounce_off_player(area)
 		return
 	
 	# Enemies and enemy bullets are deliberately ignored - the bubble has no
@@ -322,19 +441,6 @@ func apply_powerup_to_player(player: Area2D) -> void:
 	if player.has_method("apply_random_powerup"):
 		player.apply_random_powerup(first_enemy_type)
 
-	create_absorption_effect()
-
-func apply_transformation_to_player(player: Area2D):
-	# Call the player's absorb_complete function to trigger transformation
-	if player.has_method("absorb_complete"):
-		# This will trigger the player's transformation
-		player.absorb_complete(absorbed_enemy_type)
-	elif player.has_method("transform_" + absorbed_enemy_type.to_lower()):
-		# Directly call the transformation function
-		var transform_func = "transform_" + absorbed_enemy_type.to_lower()
-		player.call(transform_func)
-
-	# Optional: Add visual effect
 	create_absorption_effect()
 
 func create_absorption_effect():
