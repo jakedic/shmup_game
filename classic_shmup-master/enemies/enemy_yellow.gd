@@ -205,7 +205,13 @@ func _update_facing(delta: float):
 	last_position = position
 
 func get_enemy_type():
-	return 'bee'
+	# Must match the key used everywhere else for this transformation
+	# (PlayerTransformations.transform_yellow, PlayerPowerUps'
+	# POWERUPS_BY_ENEMY_TYPE, Bubble's POWER_BUBBLE_COLORS, etc.) - 'bee' was
+	# the class's informal name and doesn't match any of those, which is why
+	# absorbing one used to set current_form to 'bee' and silently fail to
+	# find a transform_bee() function.
+	return 'yellow'
 
 func shoot():
 	"""Override base_enemy.shoot(): telegraph with a flash before firing,

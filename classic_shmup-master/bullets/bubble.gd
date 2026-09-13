@@ -49,6 +49,19 @@ func _ready():
 func set_enemy_type(enemy_type: String):
 	absorbed_enemy_type = enemy_type
 	enemy_types = [enemy_type] if enemy_type != "" else []
+	_apply_solo_tint()
+
+func _apply_solo_tint() -> void:
+	"""Tint a solo (non-fused) bubble to match the transformation it's
+	carrying (e.g. yellow after ejecting a yellow transformation), so it's
+	visually distinct from a plain bubble and from a fused power bubble.
+	Reuses the same per-type palette as a power bubble's glow
+	(POWER_BUBBLE_COLORS) so the color language stays consistent."""
+	if is_power_bubble:
+		return  # power bubbles get their own glow treatment - see apply_power_bubble_visuals()
+	if absorbed_enemy_type == "":
+		return
+	modulate = POWER_BUBBLE_COLORS.get(absorbed_enemy_type, DEFAULT_POWER_BUBBLE_COLOR)
 
 func custom_start():
 	"""Initialize bubble behavior"""
@@ -96,9 +109,12 @@ func custom_process(delta: float):
 
 func stop_effect():
 	"""Visual effect when bubble stops moving"""
-	# Add a ripple or sparkle effect
-	modulate = Color(0.8, 0.9, 1.0, 1.0)  # Slight color change
-	
+	# Add a ripple or sparkle effect - but don't stomp a solo bubble's
+	# enemy-type tint (or a power bubble's glow) with the plain "just
+	# stopped" color.
+	if absorbed_enemy_type == "" and not is_power_bubble:
+		modulate = Color(0.8, 0.9, 1.0, 1.0)  # Slight color change
+
 	# Optional: Create a small particle effect
 	if has_node("StopEffect"):
 		$StopEffect.emitting = true
@@ -235,28 +251,15 @@ func _on_area_entered(area: Area2D):
 		queue_free()
 		return
 	
-	# Check if what hit us is an enemy bullet
-	if area.is_in_group("enemy_bullet"):
-		current_hits += 1
-		
-		# Visual feedback (optional)
-		flash_white()
-		
-		# Remove the enemy bullet that hit us
-		area.queue_free()
-		
-		# Check if bubble should disappear
-		if current_hits >= hit_points:
-			queue_free()
+	# Enemies and enemy bullets are deliberately ignored - the bubble has no
+	# interaction with either of them at all. They pass through it and it
+	# passes through them: no damage, no popping, no flash, nothing removed
+	# on either side. (Enemy bullets and enemies used to chip away at
+	# current_hits/hit_points here and eventually pop the bubble - removed
+	# per request so the bubble is fully immune to them.)
+	if area.is_in_group("enemy_bullet") or area.is_in_group("enemies") or area.is_in_group("enemy"):
 		return
-	
-	# Check if hit by enemy (optional - makes bubble pop on enemy contact)
-	if area.is_in_group("enemies") or area.is_in_group("enemy"):
-		current_hits += 3
-		flash_white()
-		
-		if current_hits >= hit_points:
-			queue_free()
+
 	# NEW: Check if hit by player's bullet
 	if area.is_in_group("player_bullet") or area.is_in_group("player_projectile"):
 		
