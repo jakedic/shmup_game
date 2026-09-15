@@ -183,11 +183,18 @@ func smoothstep(edge0, edge1, x):
 
 func _on_area_entered(area):
 	if area.is_in_group("enemies") and not has_hit_enemy:
+		if not area.has_method("get_enemy_type"):
+			# This enemy has no absorbable type (e.g. enemies/yellow_miniboss.gd's
+			# BeeMiniboss, which extends BaseEnemy directly and never defines
+			# get_enemy_type()). Previously this fell through to
+			# `hit_enemy_type = 1`, an int - but absorb_complete() (both here and
+			# player.gd's wrapper) types hit_enemy_type as a String, so handing it
+			# an int threw a runtime type-mismatch error as soon as the boomerang
+			# tried to report the result back. Just let the boomerang pass
+			# through untouched instead: the boss isn't hurt or absorbed, and no
+			# power is granted.
+			return
 		area.explode()  # Or whatever enemy destruction method you have
 		has_hit_enemy = true
 		returning = true
-		
-		if area.has_method("get_enemy_type"):  # Check if enemy has this method
-			hit_enemy_type = area.get_enemy_type()
-		else:
-			hit_enemy_type = 1
+		hit_enemy_type = area.get_enemy_type()
