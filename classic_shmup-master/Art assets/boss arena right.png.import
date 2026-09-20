@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c3u2y5i6gueeu"
-path="res://.godot/imported/medium astroid 1.png-254d8f2d6a88ed04467e14b50bc09096.ctex"
+uid="uid://43o1dr5kjmoa"
+path="res://.godot/imported/boss arena right.png-6b4114aff96666801ca7224567ef3c69.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://enemies/medium astroid 1.png"
-dest_files=["res://.godot/imported/medium astroid 1.png-254d8f2d6a88ed04467e14b50bc09096.ctex"]
+source_file="res://Art assets/boss arena right.png"
+dest_files=["res://.godot/imported/boss arena right.png-6b4114aff96666801ca7224567ef3c69.ctex"]
 
 [params]
 

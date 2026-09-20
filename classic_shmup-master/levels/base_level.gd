@@ -265,6 +265,49 @@ func resolve_boss_add_death(_value: int = 0) -> void:
 	if _boss_adds_remaining <= 0 and is_instance_valid(_active_boss) and _active_boss.has_method("resume_after_adds"):
 		_active_boss.resume_after_adds()
 
+
+# ===== ASTROID / DRIFT HELPER =====
+# Shared by any level that wants a straight-line-drifting enemy (see
+# enemies/astroid_enemy.gd - drift with a slow spin, no shooting or diving).
+# Used directly by levels/astroid_level.gd, and via squad_wave_level.gd's
+# "drift" wave pattern (see that file's header comment) by any level built on
+# SquadWaveLevel. Lives here (not on astroid_enemy.gd itself) so it follows
+# the same pattern as spawn_squad()/spawn_solo()/spawn_boss() above: every
+# level gets it for free just by extending BaseLevel, with nothing to
+# redefine locally.
+func spawn_astroid(config: Dictionary) -> void:
+	"""Spawns one astroid (or any enemy scene with a launch(start, end,
+	speed) method) from a labeled config - keeps every call self-explanatory
+	instead of relying on argument order.
+	"scene" - which astroid_*.tscn to use (e.g. preload("res://enemies/astroid_medium.tscn"))
+	"start" - Vector2 position where it appears
+	"end" - Vector2 that sets its direction (it keeps traveling straight
+	past this point - it doesn't stop there)
+	"speed" - how fast it travels, in pixels/second
+	Pushes a clear error (and skips the spawn) instead of letting Godot throw
+	a raw "Invalid call" if "scene" is missing or the instantiated scene
+	doesn't actually have a launch() method - this exact call has silently
+	failed to reach the device before (see astroid_enemies_and_level notes on
+	the launch() history), so it's worth guarding here."""
+	var scene: PackedScene = config.get("scene")
+	if scene == null:
+		push_error("%s: spawn_astroid() called with no \"scene\" in its config" % scene_file_path)
+		return
+	var start_pos: Vector2 = config.get("start", Vector2.ZERO)
+	var end_pos: Vector2 = config.get("end", Vector2.ZERO)
+	var speed: float = config.get("speed", 20.0)
+
+	var a = scene.instantiate()
+	add_child(a)
+	if not a.has_method("launch"):
+		push_error("%s: %s has no launch(start, end, speed) method - spawn_astroid() only works with an enemy script like enemies/astroid_enemy.gd" % [scene_file_path, scene.resource_path])
+		a.queue_free()
+		return
+	a.launch(start_pos, end_pos, speed)
+	if a.has_signal("died"):
+		a.died.connect(_on_enemy_died)
+
+
 func _process(_delta):
 	if get_tree().get_nodes_in_group("enemies").size() == 0 and playing:
 		handle_wave_completion()

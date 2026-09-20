@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://seo7bgbacltv"
-path="res://.godot/imported/medium astroid 2.png-206b23f47fe87646332c7cba010f26bf.ctex"
+uid="uid://c3u2y5i6gueeu"
+path="res://.godot/imported/medium astroid 1.png-aa2c75b15aa94014da1cc7fcfc367795.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://enemies/medium astroid 2.png"
-dest_files=["res://.godot/imported/medium astroid 2.png-206b23f47fe87646332c7cba010f26bf.ctex"]
+source_file="res://Art assets/medium astroid 1.png"
+dest_files=["res://.godot/imported/medium astroid 1.png-aa2c75b15aa94014da1cc7fcfc367795.ctex"]
 
 [params]
 

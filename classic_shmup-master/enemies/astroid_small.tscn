@@ -1,0 +1,32 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://enemies/astroid_enemy.gd" id="1_ast_s"]
+[ext_resource type="Texture2D" path="res://Art assets/small astroid.png" id="2_ast_s"]
+
+[node name="AstroidSmall" type="Area2D" groups=["enemies"]]
+collision_layer = 3
+collision_mask = 3
+script = ExtResource("1_ast_s")
+max_health = 2
+score_value = 5
+default_travel_speed = 26.0
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+scale = Vector2(0.0883, 0.0883)
+texture = ExtResource("2_ast_s")
+region_enabled = true
+region_rect = Rect2(929, 794, 151, 131)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="."]
+polygon = PackedVector2Array(5.342, -2.34, 3.576, -3.841, 2.252, -4.547, 1.015, -4.724, 0.486, -5.254, -3.841, -3.929, -4.547, -3.311, -6.048, -0.662, -6.048, 2.252, -5.607, 3.488, -3.399, 4.901, -1.898, 5.165, 0.839, 5.165, 3.929, 3.576, 4.812, 3.664, 5.607, 2.605, 6.048, 2.516, 5.607, 1.81, 6.048, 1.015, 6.048, -0.751)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+
+[node name="MoveTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="."]
+one_shot = true
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]

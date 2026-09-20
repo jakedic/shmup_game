@@ -1,101 +1,138 @@
 # squad_wave_level.gd
-# Shared machinery for any level built as a numbered list of waves, each wave
-# sending down one or more squads and/or solo enemies (see
-# enemies/yellow_squad.gd and enemies/yellow_solo.gd), with a boss fight as
-# the final wave. levels/yellow_level.gd and levels/dylan_level.gd are both
-# built on this - their own files only need to say WHAT spawns in each wave,
-# not HOW waves get run.
+# Shared machinery for any level built as a numbered list of waves, with a
+# boss fight as the final wave. levels/yellow_level.gd and
+# levels/dylan_level.gd are both built on this - their own files only need to
+# say WHAT spawns in each wave, not HOW waves get run.
 #
-# HOW TO BUILD A LEVEL ON TOP OF THIS: in the subclass's own _ready(), set
-# `waves`, `boss_scene`, and `fallback_enemy` (see the var declarations
-# below), then call super._ready(). Everything else - spawning each wave,
-# running the boss fight, spawning "add" squads while the boss is retreated -
-# is handled here, once, instead of being copy-pasted into every level.
+# HOW TO BUILD A LEVEL ON TOP OF THIS: a wave is just a function - write one
+# function per wave (any name; this file's convention is _wave_1, _wave_2,
+# ...), each calling spawn_squad_wave()/spawn_solo_wave()/spawn_drift_wave()/
+# spawn_hive_wave() (see below) for whatever should appear in that wave, then
+# set `waves` to an array of those functions (bare, no parentheses - GDScript
+# turns a bare method reference into a Callable) in the subclass's own
+# _ready(), along with `boss_scene` and `fallback_enemy`, then call
+# super._ready(). Everything else - running each wave in order, waiting for
+# it to clear before starting the next, running the boss fight, spawning
+# "add" squads while the boss is retreated - is handled here, once, instead
+# of being copy-pasted into every level. Example:
 #
-# THE WAVES FORMAT: `waves` is an Array, one entry per wave, played top to
-# bottom. Each entry is a Dictionary - a list of squads and/or solo enemies,
-# or the boss marker:
+#     func _wave_1() -> void:
+#         spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.LEFT, "start_percent": 0.3, "end_side": Side.RIGHT, "end_percent": 0.3})
 #
-#     {"squads": [
-#         {"enemy": SOME_ENEMY_SCENE, "start_side": Side.TOP, "start_percent": LANE_CENTER, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER},
-#     ],
-#      "solos": [
-#         {"enemy": SOME_ENEMY_SCENE, "start_side": Side.LEFT, "start_percent": 0.3, "end_side": Side.RIGHT, "end_percent": 0.3},
-#     ]}
+#     func _wave_boss() -> void:
+#         _spawn_boss_wave()
 #
-#     {"is_boss_wave": true}   # only ever the LAST entry in `waves`
+#     func _ready() -> void:
+#         waves = [_wave_1, _wave_boss]
+#         boss_scene = SOME_BOSS_SCENE
+#         fallback_enemy = SOME_ENEMY_SCENE
+#         super._ready()
 #
-# Either "squads" or "solos" (or both) can be left out of a wave entry that
-# doesn't need them - a solo-only wave is just {"solos": [...]}.
+# A wave function can call more than one spawn_*_wave() to send multiple
+# things down at once (stagger them with each call's own "start_delay" if you
+# want them entering one after another instead of all together), and since
+# it's a real function you can put whatever other logic you want in there too
+# - a comment, a loop, a random choice between a few layouts, anything.
 #
-# SIDE + PERCENT: rather than picking exact screen coordinates, both squads
-# and solos describe where they start and end as a screen edge (Side.LEFT/
-# RIGHT/TOP/BOTTOM) plus how far along that edge (0.0-1.0). For LEFT/RIGHT,
-# 0.0 is the top of that edge and 1.0 is the bottom; for TOP/BOTTOM, 0.0 is
-# the left end and 1.0 is the right end. LANE_LEFT/LANE_CENTER/LANE_RIGHT
-# (below) are handy percent values for the common lanes, whichever side
-# they're used on. _side_point() turns a side+percent into the actual
-# off-screen world position (a little past the edge, via OFFSCREEN_MARGIN,
-# so nothing pops in/out right at the boundary).
+# EACH spawn_*_wave() function below takes ONE labeled config Dictionary -
+# every field is named right at the call site, so a wave function reads
+# clearly without needing to check a function signature for what argument 3
+# means. Fields shared by every pattern:
+#   enemy         - which enemy/scene fills this spawn (an .tscn preload,
+#                    e.g. ENEMY_BEE or ASTROID_MEDIUM)
+#   start_delay   - OPTIONAL - seconds to wait before THIS spawn starts, so
+#                    multiple spawn_*_wave() calls in the same wave function
+#                    can stagger their entrances (try 0.0, 1.5, 3.0, ...)
+#                    instead of all starting at once. Leave it out for 0.0
+#                    (starts right away). Every pattern below supports this
+#                    the same way.
 #
-# Each entry in a "squads" list is one squad (see enemies/yellow_squad.gd for
-# the actual behavior - travels in, circles, travels away, loops), described
-# by:
-#   enemy           - which enemy scene fills this squad's ranks
-#   start_side/
-#   start_percent   - which edge the squad starts just off of, and how far
-#                      along it - see SIDE + PERCENT above. Defaults to the
-#                      top edge, centered.
-#   end_side/
-#   end_percent     - which edge a departed member is eventually removed
-#                      just past, and how far along it. Defaults to the
-#                      bottom edge, at the same percent as the start (so a
-#                      squad that only sets start_percent falls straight down
-#                      that lane, same as before this field existed).
-#   circle_progress - OPTIONAL - how far along the start->end line (0.0-1.0)
-#                      the squad stops to circle. Leave it out to get
-#                      DEFAULT_CIRCLE_PROGRESS.
-#   circle_hold_interval - OPTIONAL - how many seconds THIS squad holds its
-#                      circle formation before departing. A per-squad
-#                      setting (see enemies/yellow_squad.gd's own
-#                      circle_hold_interval export) - leave it out to get
-#                      that export's default (6.0).
-#   start_delay     - seconds to wait before THIS squad starts moving, so
-#                      squads in the same wave stagger their entrances (try
-#                      0.0, 1.5, 3.0, ...) instead of all starting at once
-#   drift           - sideways (perpendicular to the start->end line) drift a
-#                      member picks up once it's traveling solo after its own
-#                      departure loop (see NO_DRIFT/DRIFT_LEFT/DRIFT_RIGHT
-#                      below, or any px/s value; 0 keeps it on a straight
-#                      line)
-#   squad_size      - OPTIONAL - how many enemies fly in this squad. Leave it
-#                      out to get DEFAULT_SQUAD_SIZE.
+# SIDE + PERCENT: rather than picking exact screen coordinates,
+# spawn_squad_wave()/spawn_solo_wave()/spawn_drift_wave() describe where
+# their enemy starts and ends as a screen edge (Side.LEFT/RIGHT/TOP/BOTTOM)
+# plus how far along that edge (0.0-1.0). For LEFT/RIGHT, 0.0 is the top of
+# that edge and 1.0 is the bottom; for TOP/BOTTOM, 0.0 is the left end and
+# 1.0 is the right end. LANE_LEFT/LANE_CENTER/LANE_RIGHT (below) are handy
+# percent values for the common lanes, whichever side they're used on.
+# _side_point() turns a side+percent into the actual off-screen world
+# position (a little past the edge, via OFFSCREEN_MARGIN, so nothing pops
+# in/out right at the boundary).
 #
-# Each entry in a "solos" list is one lone enemy flying in a straight line
-# from one point to another (see enemies/yellow_solo.gd - same sine-wave
-# wobble and halfway loop-the-loop as a squad member, just on its own,
-# typically crossing from one side of the screen to the other rather than
-# traveling top to bottom), described by:
-#   enemy         - which enemy scene this solo enemy is
-#   start_side/
-#   start_percent - which edge it starts just off of, and how far along it -
-#                   see SIDE + PERCENT above. Defaults to the left edge,
-#                   centered.
-#   end_side/
-#   end_percent   - which edge it's removed just past once it arrives, and
-#                   how far along it. Defaults to the right edge, centered.
-#   start_delay   - OPTIONAL - seconds to wait before this enemy starts moving,
-#                   same purpose as a squad's start_delay above
+# ----- spawn_squad_wave(config) - see enemies/yellow_squad.gd -----
+# A group that flies in, circles, then departs and loops one at a time.
+#   start_side/start_percent - defaults to the top edge, centered
+#   end_side/end_percent     - where a departed member is eventually removed;
+#                              defaults to the bottom edge, at the same
+#                              percent as the start (so a squad that only
+#                              sets start_percent falls straight down that
+#                              lane)
+#   circle_progress          - OPTIONAL - how far along the start->end line
+#                              (0.0-1.0) the squad stops to circle. Leave it
+#                              out for DEFAULT_CIRCLE_PROGRESS.
+#   circle_hold_interval     - OPTIONAL - how many seconds THIS squad holds
+#                              its circle formation before departing (see
+#                              enemies/yellow_squad.gd's own export of the
+#                              same name for the default)
+#   drift                    - OPTIONAL - sideways drift a member picks up
+#                              once it's traveling solo after its own
+#                              departure loop (see NO_DRIFT/DRIFT_LEFT/
+#                              DRIFT_RIGHT below, or any px/s value)
+#   squad_size               - OPTIONAL - how many enemies fly in this squad.
+#                              Leave it out for DEFAULT_SQUAD_SIZE.
 #
-# A wave with more than one squad and/or solo sends them all down in the same
-# wave (staggered by each one's own start_delay), so the player faces
-# multiple squads/solos at once.
+# ----- spawn_solo_wave(config) - see enemies/yellow_solo.gd -----
+# One enemy flying a straight line, same wobble/loop as a squad member, on
+# its own.
+#   start_side/start_percent - defaults to the left edge, centered
+#   end_side/end_percent     - defaults to the right edge, centered
+#
+# ----- spawn_drift_wave(config) - see enemies/astroid_enemy.gd -----
+# One enemy that just drifts in a straight line and spins - no shooting, no
+# diving, no formation. Originally built for the astroid enemies, but works
+# for any enemy scene with a launch(start, end, speed) method.
+#   start_side/start_percent - defaults to the top edge, centered
+#   end_side/end_percent     - sets its direction (it keeps traveling
+#                              straight past this point - it doesn't stop or
+#                              get removed there). Defaults to the bottom
+#                              edge, at the same percent as the start.
+#   speed                    - OPTIONAL - how fast it travels, px/s. Leave it
+#                              out for DEFAULT_DRIFT_SPEED.
+#
+# ----- spawn_hive_wave(config) - see enemies/hive_solo.gd -----
+# One enemy playing its own stop-jitter-fire dance. Always enters from the
+# top edge - there's no start_side/end_side for this one, just how far
+# across the top it is and how far down it pauses.
+#   x_percent   - OPTIONAL - 0.0-1.0 fraction of the way across the top edge.
+#                 Leave it out for LANE_CENTER.
+#   pause_y     - OPTIONAL - how far down the screen (px) it pauses to dance.
+#                 Leave it out for 60.0.
+#
+# ---------------------------------------------------------------------------
+# HOW TO ADD A NEW PATTERN (a new enemy with its own movement/abilities):
+#   Write a `spawn_<name>_wave(config: Dictionary) -> void` function below,
+#   next to the others - pull whatever fields your pattern needs out of
+#   `config` with `.get("field", default)`, same as the existing ones do, and
+#   use `_side_point()` if it needs edge-based placement. Then call it
+#   directly from whichever wave function wants it - `spawn_<name>_wave({...})`
+#   - same as any of the existing ones. There's no dispatch table or wave
+#   format to update: a wave function just calls the spawn functions it
+#   wants, so a brand new pattern is usable the instant its function exists.
+#   If the new pattern's actual movement is complex enough to need its own
+#   state machine (like a squad's circle-then-loop, or the hive's
+#   stop-and-dance), give it its own controller script (see
+#   enemies/yellow_squad.gd/yellow_solo.gd/hive_solo.gd for the pattern: a
+#   Node2D that owns the enemy instance(s), sets `squad_controlled = true` on
+#   each one so base_enemy.gd's own movement stays out of the way, and relays
+#   an `enemy_died` signal so BaseLevel's scoring still works) - simple
+#   straight-line movement like "drift" doesn't need one, it can just drive
+#   the enemy's own position directly (see enemies/astroid_enemy.gd).
+# ---------------------------------------------------------------------------
 class_name SquadWaveLevel
 extends BaseLevel
 
 # ---------------------------------------------------------------------------
-# SIDE - which edge of the screen a squad/solo starts or ends just off of -
-# see SIDE + PERCENT above and _side_point() below.
+# SIDE - which edge of the screen a spawn starts or ends just off of - see
+# SIDE + PERCENT above and _side_point() below.
 # ---------------------------------------------------------------------------
 enum Side { LEFT, RIGHT, TOP, BOTTOM }
 
@@ -131,13 +168,17 @@ const NO_DRIFT := 0.0
 const DRIFT_LEFT := -35.0
 const DRIFT_RIGHT := 35.0
 
-# How many enemies fly in a squad when its wave entry doesn't say otherwise
-# (see the `squad_size` field in the WAVES FORMAT comment above).
+# How many enemies fly in a squad when its config doesn't say otherwise (see
+# the `squad_size` field in spawn_squad_wave()'s comment above).
 const DEFAULT_SQUAD_SIZE := 4
 
-# How far along its start->end line a squad circles when its wave entry
-# doesn't say otherwise (see the `circle_progress` field above).
+# How far along its start->end line a squad circles when its config doesn't
+# say otherwise (see the `circle_progress` field above).
 const DEFAULT_CIRCLE_PROGRESS := 0.35
+
+# How fast a spawn_drift_wave() entry travels, in px/s, when its config
+# doesn't say otherwise (see the `speed` field above).
+const DEFAULT_DRIFT_SPEED := 20.0
 
 # Seconds between the boss's two "add" squads starting to move when it
 # retreats offscreen mid-fight (see _on_boss_retreat_started()) - kept
@@ -146,8 +187,8 @@ const DEFAULT_CIRCLE_PROGRESS := 0.35
 const BOSS_ADD_STAGGER_DELAY := 1.5
 
 # ---- Subclass configuration - set these in _ready(), before calling super._ready() ----
-var waves: Array = []             # this level's wave list - see the WAVES FORMAT comment above
-var boss_scene: PackedScene       # spawned for the {"is_boss_wave": true} entry
+var waves: Array[Callable] = []   # this level's wave functions, in order - see the header comment above
+var boss_scene: PackedScene       # spawned by whichever wave function calls _spawn_boss_wave()
 var fallback_enemy: PackedScene   # used if a wave is missing, and for the boss's "add" squads
 
 
@@ -179,68 +220,105 @@ func _side_point(side: int, percent: float) -> Vector2:
 
 # Called once per wave by base_level.gd (via new_game() for wave 1, then
 # handle_wave_completion() for each wave after), with current_wave already
-# set to this wave's index (0-based) by the time it's called.
+# set to this wave's index (0-based) by the time it's called. Just calls
+# whichever function `waves[current_wave]` is - see the header comment above
+# for how a subclass builds that array.
 func spawn_enemies() -> void:
 	if current_wave >= waves.size():
 		# Shouldn't happen - max_waves is set from waves.size() above - but
 		# fall back to a single center squad rather than spawning nothing.
-		push_error("%s: wave %d has no entry in `waves`!" % [scene_file_path, current_wave])
-		_spawn_squad_for_wave_entry({"enemy": fallback_enemy, "start_percent": LANE_CENTER})
+		push_error("%s: wave %d has no function in `waves`!" % [scene_file_path, current_wave])
+		spawn_squad_wave({"enemy": fallback_enemy, "start_percent": LANE_CENTER})
 		return
 
-	var wave_entry: Dictionary = waves[current_wave]
-	if wave_entry.get("is_boss_wave", false):
-		_spawn_boss_wave()
-		return
-
-	for squad_entry in wave_entry.get("squads", []):
-		_spawn_squad_for_wave_entry(squad_entry)
-	for solo_entry in wave_entry.get("solos", []):
-		_spawn_solo_for_wave_entry(solo_entry)
+	waves[current_wave].call()
 
 
-func _spawn_squad_for_wave_entry(squad_entry: Dictionary) -> BeeSquad:
-	"""Turn one squad entry from `waves` into an actual squad in the level,
-	via BaseLevel.spawn_squad() (shared with any other level that wants
-	squad-based enemies). circle_hold_interval is a per-squad setting (see
-	the WAVES FORMAT comment above) - only overridden here if the wave entry
+func spawn_squad_wave(config: Dictionary) -> BeeSquad:
+	"""Spawn a "squad" (see enemies/yellow_squad.gd) via BaseLevel.spawn_squad()
+	(shared with any other level that wants squad-based enemies), from a
+	labeled config - see spawn_squad_wave(config)'s field list in the header
+	comment above. circle_hold_interval is only overridden here if `config`
 	actually specifies one, otherwise the squad just keeps
 	enemies/yellow_squad.gd's own export default."""
-	var start_percent: float = squad_entry.get("start_percent", LANE_CENTER)
-	var start_pos: Vector2 = _side_point(squad_entry.get("start_side", Side.TOP), start_percent)
-	var end_pos: Vector2 = _side_point(squad_entry.get("end_side", Side.BOTTOM), squad_entry.get("end_percent", start_percent))
+	var start_percent: float = config.get("start_percent", LANE_CENTER)
+	var start_pos: Vector2 = _side_point(config.get("start_side", Side.TOP), start_percent)
+	var end_pos: Vector2 = _side_point(config.get("end_side", Side.BOTTOM), config.get("end_percent", start_percent))
 	var squad := spawn_squad(
-		squad_entry.get("enemy", fallback_enemy),
+		config.get("enemy", fallback_enemy),
 		start_pos,
 		end_pos,
-		squad_entry.get("start_delay", 0.0),
-		squad_entry.get("circle_progress", DEFAULT_CIRCLE_PROGRESS),
-		squad_entry.get("drift", NO_DRIFT),
-		squad_entry.get("squad_size", DEFAULT_SQUAD_SIZE),
+		config.get("start_delay", 0.0),
+		config.get("circle_progress", DEFAULT_CIRCLE_PROGRESS),
+		config.get("drift", NO_DRIFT),
+		config.get("squad_size", DEFAULT_SQUAD_SIZE),
 	)
-	if squad_entry.has("circle_hold_interval"):
-		squad.circle_hold_interval = squad_entry["circle_hold_interval"]
+	if config.has("circle_hold_interval"):
+		squad.circle_hold_interval = config["circle_hold_interval"]
 	return squad
 
 
-func _spawn_solo_for_wave_entry(solo_entry: Dictionary) -> BeeSolo:
-	"""Turn one solo entry from `waves` into an actual lone enemy in the
-	level, via BaseLevel.spawn_solo() (shared with any other level that
-	wants solo bee-style enemies)."""
-	var start_pos: Vector2 = _side_point(solo_entry.get("start_side", Side.LEFT), solo_entry.get("start_percent", LANE_CENTER))
-	var end_pos: Vector2 = _side_point(solo_entry.get("end_side", Side.RIGHT), solo_entry.get("end_percent", LANE_CENTER))
+func spawn_solo_wave(config: Dictionary) -> BeeSolo:
+	"""Spawn a "solo" (see enemies/yellow_solo.gd) via BaseLevel.spawn_solo()
+	(shared with any other level that wants solo bee-style enemies), from a
+	labeled config - see spawn_solo_wave(config)'s field list in the header
+	comment above."""
+	var start_pos: Vector2 = _side_point(config.get("start_side", Side.LEFT), config.get("start_percent", LANE_CENTER))
+	var end_pos: Vector2 = _side_point(config.get("end_side", Side.RIGHT), config.get("end_percent", LANE_CENTER))
 	return spawn_solo(
-		solo_entry.get("enemy", fallback_enemy),
+		config.get("enemy", fallback_enemy),
 		start_pos,
 		end_pos,
-		solo_entry.get("start_delay", 0.0),
+		config.get("start_delay", 0.0),
+	)
+
+
+func spawn_drift_wave(config: Dictionary) -> void:
+	"""Spawn a "drift" enemy (see enemies/astroid_enemy.gd) via
+	BaseLevel.spawn_astroid() (originally built for the astroid enemies, but
+	works for any enemy scene with a launch(start, end, speed) method), from
+	a labeled config - see spawn_drift_wave(config)'s field list in the
+	header comment above. start_delay works differently here than for a
+	squad/solo (which park onscreen-ready and delay their own movement) - a
+	drift entry has no "parked" state, so a delayed one simply isn't spawned
+	at all until its delay elapses."""
+	var start_percent: float = config.get("start_percent", LANE_CENTER)
+	var start_pos: Vector2 = _side_point(config.get("start_side", Side.TOP), start_percent)
+	var end_pos: Vector2 = _side_point(config.get("end_side", Side.BOTTOM), config.get("end_percent", start_percent))
+	var astroid_config := {
+		"scene": config.get("enemy"),
+		"start": start_pos,
+		"end": end_pos,
+		"speed": config.get("speed", DEFAULT_DRIFT_SPEED),
+	}
+	var start_delay: float = config.get("start_delay", 0.0)
+	if start_delay <= 0.0:
+		spawn_astroid(astroid_config)
+	else:
+		get_tree().create_timer(start_delay).timeout.connect(func(): spawn_astroid(astroid_config))
+
+
+func spawn_hive_wave(config: Dictionary) -> void:
+	"""Spawn a "hive" enemy (see enemies/hive_solo.gd's stop-jitter-fire
+	dance) via BaseLevel.spawn_hive_solo(), from a labeled config - see
+	spawn_hive_wave(config)'s field list in the header comment above. Always
+	enters from the top edge - there's no start_side/end_side for this
+	pattern, just how far across the top it is (x_percent) and how far down
+	the screen it pauses (pause_y)."""
+	spawn_hive_solo(
+		config.get("enemy", fallback_enemy),
+		config.get("x_percent", LANE_CENTER),
+		config.get("pause_y", 60.0),
+		config.get("start_delay", 0.0),
 	)
 
 
 func _spawn_boss_wave() -> void:
-	# spawn_boss() (BaseLevel) hands back a plain Node since it works for any
-	# boss scene - only connect retreat_started if this particular boss
-	# actually has it, so this stays usable for a boss scene that doesn't.
+	"""Call this from whichever wave function is the level's boss wave (see
+	the header comment's example). spawn_boss() (BaseLevel) hands back a
+	plain Node since it works for any boss scene - only connect
+	retreat_started if this particular boss actually has it, so this stays
+	usable for a boss scene that doesn't."""
 	var screen_width: float = get_viewport_rect().size.x
 	var boss := spawn_boss(boss_scene, Vector2(screen_width / 2.0, 90.0))
 	if boss and boss.has_signal("retreat_started"):
