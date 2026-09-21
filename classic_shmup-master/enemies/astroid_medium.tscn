@@ -15,13 +15,13 @@ split_scene = ExtResource("3_ast_m")
 split_count = 3
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-scale = Vector2(0.05472, 0.05472)
+scale = Vector2(0.10944, 0.10944)
 texture = ExtResource("2_ast_m")
 region_enabled = true
 region_rect = Rect2(669, 554, 731, 534)
 
 [node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="."]
-polygon = PackedVector2Array(17.976, -6.457, 15.841, -8.591, 8.4, -11.163, 4.241, -14.172, -7.36, -11.765, -11.737, -9.357, -18.413, -3.174, -19.453, 5.8, -16.443, 9.412, -8.728, 13.133, -4.897, 14.118, -1.067, 13.735, 13.598, 8.153, 17.045, 4.159, 18.96, 3.612, 19.453, 1.149, 17.647, -1.204)
+polygon = PackedVector2Array(35.952, -12.914, 31.682, -17.182, 16.8, -22.326, 8.482, -28.344, -14.72, -23.53, -23.474, -18.714, -36.826, -6.348, -38.906, 11.6, -32.886, 18.824, -17.456, 26.266, -9.794, 28.236, -2.134, 27.47, 27.196, 16.306, 34.09, 8.318, 37.92, 7.224, 38.906, 2.298, 35.294, -2.408)
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
 
