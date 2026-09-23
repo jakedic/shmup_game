@@ -202,16 +202,17 @@ func spawn_solo(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, 
 # Shared by any level that wants a hive-style enemy playing its own
 # "slow march" pattern (see enemies/hive_solo.gd's header comment). Used by
 # levels/hive_level.gd and SquadWaveLevel.spawn_hive_wave().
-func spawn_hive_solo(enemy_scene: PackedScene, start_x_percent: float = 0.5, start_delay: float = 0.0) -> HiveSolo:
+func spawn_hive_solo(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, start_delay: float = 0.0) -> HiveSolo:
 	"""Spawn one HiveSolo and wire it into this level: `enemy_scene` fills
-	it, spawns off-screen above the top edge at `start_x_percent` * screen
-	width, and creeps straight down, stopping every third of the screen to
-	shake and fire a wall volley (see enemies/hive_solo.gd). `start_delay`
-	parks it off-screen for that many seconds first. Its kill is wired into
-	this level's own scoring (_on_enemy_died())."""
+	it, spawns at `start_pos` (normally just off-screen), and creeps in a
+	straight line toward `end_pos`, stopping every third of the way across
+	the screen to shake and fire a wall volley (see enemies/hive_solo.gd).
+	`start_delay` parks it at start_pos for that many seconds first. Its kill
+	is wired into this level's own scoring (_on_enemy_died())."""
 	var solo := HiveSolo.new()
 	solo.enemy_scene = enemy_scene
-	solo.start_x_percent = start_x_percent
+	solo.start_pos = start_pos
+	solo.end_pos = end_pos
 	solo.start_delay = start_delay
 	solo.enemy_died.connect(_on_enemy_died)
 	add_child(solo)
@@ -223,14 +224,15 @@ func spawn_hive_solo(enemy_scene: PackedScene, start_x_percent: float = 0.5, sta
 # way down, shake out of sync, and fire an 8-way wall volley - see
 # enemies/hive_squad.gd. Used by levels/hive_level.gd and
 # SquadWaveLevel.spawn_hive_squad_wave().
-func spawn_hive_squad(enemy_scene: PackedScene, start_x_percent: float = 0.5, start_delay: float = 0.0) -> HiveSquad:
-	"""Spawn one HiveSquad (always 2 enemies) centered on `start_x_percent`
-	of the screen width, entering from above the top edge. `start_delay`
-	parks it off-screen for that many seconds first. Kills are wired into
-	this level's own scoring (_on_enemy_died())."""
+func spawn_hive_squad(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, start_delay: float = 0.0) -> HiveSquad:
+	"""Spawn one HiveSquad (always 2 enemies) whose pair is centered on the
+	straight line from `start_pos` (normally just off-screen) to `end_pos`.
+	`start_delay` parks it at start_pos for that many seconds first. Kills
+	are wired into this level's own scoring (_on_enemy_died())."""
 	var squad := HiveSquad.new()
 	squad.enemy_scene = enemy_scene
-	squad.start_x_percent = start_x_percent
+	squad.start_pos = start_pos
+	squad.end_pos = end_pos
 	squad.start_delay = start_delay
 	squad.enemy_died.connect(_on_enemy_died)
 	add_child(squad)

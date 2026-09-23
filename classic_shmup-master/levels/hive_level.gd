@@ -24,6 +24,10 @@ func _ready() -> void:
 func spawn_enemies() -> void:
 	# BaseLevel calls this once at the start (current_wave = 0) and again
 	# each time every enemy is gone (current_wave already incremented).
+	# This level extends BaseLevel directly, so it passes exact start/end
+	# positions (x, y) - levels built on SquadWaveLevel use side+percent
+	# instead (see spawn_hive_wave() in levels/squad_wave_level.gd).
+	var size: Vector2 = get_viewport_rect().size
 	match current_wave:
-		0: spawn_hive_solo(ENEMY_HIVE, 0.4)
-		1: spawn_hive_squad(ENEMY_HIVE, 0.5)
+		0: spawn_hive_solo(ENEMY_HIVE, Vector2(size.x * 0.4, -40), Vector2(size.x * 0.4, size.y + 40))
+		1: spawn_hive_squad(ENEMY_HIVE, Vector2(size.x * 0.5, -40), Vector2(size.x * 0.5, size.y + 40))

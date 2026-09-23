@@ -1,13 +1,15 @@
 # hive_squad.gd
 # A two-enemy HiveEnemy squad (see enemies/enemy_hive.gd). Choreography:
 #
-#   1. DESCEND - both hives enter from above the screen side by side
-#      (`spacing` px apart, centered on start_x_percent) and creep straight
-#      down at path_speed.
-#   2. MERGE   - converge_height px before a third of the way down the screen
-#      (meet_fraction), each turns diagonally inward so they arrive at the
-#      same point at the same moment and overlap.
-#   3. HOLD    - both sit perfectly still, facing down, for hold_duration.
+#   1. DESCEND - both hives enter side by side (`spacing` px apart, centered
+#      on the line from start_pos to end_pos) and creep along that line at
+#      path_speed, facing the way they're moving.
+#   2. MERGE   - converge_height px before each meet point (meet_fractions -
+#      by default a third and two thirds of the way across the on-screen
+#      part of the line, see HiveSolo.screen_span()), each turns diagonally
+#      inward so they arrive at the same point at the same moment and overlap.
+#   3. HOLD    - both sit perfectly still, facing the direction of travel, for
+#      hold_duration.
 #   4. JITTER  - both shake violently like the solo hive, but each on its own
 #      random timeline (the second one's re-roll timer is offset by half an
 #      interval) AND the one drawn on top swaps every top_swap_interval, so
@@ -16,30 +18,34 @@
 #      WallBullets (enemy_bullets/wall_bullet.gd) evenly around a full circle
 #      (8 = every 45 degrees).
 #   6. SPLIT   - they turn diagonally back outward (mirror of the merge) to
-#      side-by-side again,
-#   7. EXIT    - and creep straight down until off the bottom of the screen.
+#      side-by-side again. Steps 1-6 repeat for every meet point.
+#   7. EXIT    - after the last meet point, keep creeping in the same
+#      direction until fully off-screen.
 #
 # If one hive is killed, the other carries on the choreography alone (the
 # volley still fires as long as either is alive). Every phase is a straight
 # line between fixed points, so positions are pure functions of elapsed time.
 #
-# Spawned via BaseLevel.spawn_hive_squad() - see levels/hive_level.gd.
+# Spawned via BaseLevel.spawn_hive_squad() (or SquadWaveLevel.
+# spawn_hive_squad_wave(), which takes side+percent like every other wave
+# pattern) - see levels/hive_level.gd and levels/yellow_level.gd.
 extends Node2D
 class_name HiveSquad
 
 signal enemy_died(value: int)
 
-const SPAWN_MARGIN := 40.0
+const DESPAWN_MARGIN := 40.0  # px past the screen edge before a member is removed
 const WALL_SCENE := preload("res://enemy_bullets/wall_bullet.tscn")
 const SQUAD_SIZE := 2  # the hive squad is always a pair
 
 @export var enemy_scene: PackedScene
-@export var start_x_percent: float = 0.5   # center of the pair, 0.0-1.0 of screen width
+@export var start_pos: Vector2 = Vector2(120, -40)  # center of the pair at spawn (normally off-screen)
+@export var end_pos: Vector2 = Vector2(120, 360)    # sets the pair's direction of travel
 @export var start_delay: float = 0.0
 @export var path_speed: float = 20.0       # px/s - same slow creep as the solo hive
-@export var spacing: float = 60.0          # px between the two hives while side by side
-@export var meet_fraction: float = 1.0 / 3.0  # where they meet, as a fraction of screen height
-@export var converge_height: float = 30.0  # px above the meet point where they turn inward (30 with 60 spacing = a 45-degree diagonal)
+@export var spacing: float = 32.0          # px between the two hives while side by side
+@export var meet_fractions: Array[float] = [1.0 / 3.0, 2.0 / 3.0]  # where they merge + fire, as fractions of the on-screen part of the path
+@export var converge_height: float = 16.0  # px above/below each meet point where they turn in/out (half of spacing = a 45-degree diagonal)
 @export var turn_speed: float = 10.0       # how quickly they rotate to face a new direction (higher = snappier)
 
 # ----- stop timing -----
@@ -58,7 +64,7 @@ const SQUAD_SIZE := 2  # the hive squad is always a pair
 
 enum Phase { DESCEND, MERGE, HOLD, JITTER, SPLIT, EXIT }
 
-var _members: Array = []           # HiveEnemy nodes, index 0 = left, 1 = right
+var _members: Array = []           # HiveEnemy nodes, index 0 = left, 1 = right (relative to travel direction)
 var _screensize: Vector2 = Vector2.ZERO
 var _wait_time: float = 0.0
 
@@ -66,11 +72,20 @@ var _phase: Phase = Phase.DESCEND
 var _phase_time: float = 0.0
 var _phase_duration: float = 0.0
 
-# Per-member fixed waypoints (built once in _build_path()).
+# Fixed waypoints (built once in _build_path()). _start is per member;
+# _meets holds one point per stop, and _pre_merge/_post_split hold one
+# Array[Vector2] (per member) per stop.
 var _start: Array[Vector2] = []
-var _pre_merge: Array[Vector2] = []
+var _meets: Array[Vector2] = []
+var _pre_merges: Array = []
+var _post_splits: Array = []
+var _stop: int = 0                  # which meet point we're currently heading to / at
+var _leg_from: Array[Vector2] = []  # per member - where the current DESCEND leg began
+var _meet: Vector2 = Vector2.ZERO   # current stop's meet point
+var _pre_merge: Array[Vector2] = [] # current stop's per-member points
 var _post_split: Array[Vector2] = []
-var _meet: Vector2 = Vector2.ZERO
+var _dir: Vector2 = Vector2.DOWN    # direction of travel (start_pos -> end_pos)
+var _facing: float = 0.0            # rotation that faces _dir
 
 # Per-member jitter state - each member re-rolls on its own timer so they
 # never shake in lockstep.
@@ -89,19 +104,42 @@ func _ready() -> void:
 
 
 func _build_path() -> void:
-	var cx: float = _screensize.x * start_x_percent
-	var half: float = spacing / 2.0
-	var meet_y: float = _screensize.y * meet_fraction
-	_meet = Vector2(cx, meet_y)
+	_dir = (end_pos - start_pos).normalized()
+	if _dir == Vector2.ZERO:
+		_dir = Vector2.DOWN
+	_facing = HiveSolo.facing_rotation_for(_dir)
+	# "Side by side" = offset perpendicular to the direction of travel.
+	var across: Vector2 = _dir.orthogonal() * (spacing / 2.0)
 	for i in range(SQUAD_SIZE):
 		var side: float = -1.0 if i == 0 else 1.0
-		var x: float = cx + side * half
-		_start.append(Vector2(x, -SPAWN_MARGIN))
-		_pre_merge.append(Vector2(x, meet_y - converge_height))
-		_post_split.append(Vector2(x, meet_y + converge_height))
+		_start.append(start_pos + across * side)
 		_jitter_timers.append(0.0)
 		_jitter_offsets.append(Vector2.ZERO)
 		_jitter_rotations.append(0.0)
+	var span: Vector2 = HiveSolo.screen_span(start_pos, end_pos, _screensize)
+	for f in meet_fractions:
+		var meet: Vector2 = start_pos.lerp(end_pos, lerpf(span.x, span.y, f))
+		_meets.append(meet)
+		var pre: Array[Vector2] = []
+		var post: Array[Vector2] = []
+		for i in range(SQUAD_SIZE):
+			var side: float = -1.0 if i == 0 else 1.0
+			pre.append(meet - _dir * converge_height + across * side)
+			post.append(meet + _dir * converge_height + across * side)
+		_pre_merges.append(pre)
+		_post_splits.append(post)
+	_leg_from = _start.duplicate()
+	_load_stop(0)
+
+
+func _load_stop(k: int) -> void:
+	"""Point _meet/_pre_merge/_post_split at stop `k`'s waypoints."""
+	_stop = k
+	if k >= _meets.size():
+		return
+	_meet = _meets[k]
+	_pre_merge = _pre_merges[k]
+	_post_split = _post_splits[k]
 
 
 func _spawn_members() -> void:
@@ -114,7 +152,7 @@ func _spawn_members() -> void:
 		e.can_dive = false
 		e.can_shoot = false
 		e.position = _start[i]
-		e.rotation = 0.0
+		e.rotation = _facing
 		if "last_position" in e:
 			e.last_position = e.position
 		if e.has_method("_stop_idle_rock"):
@@ -133,8 +171,9 @@ func _alive(i: int) -> bool:
 	return is_instance_valid(e) and e.is_alive
 
 
-func _facing_rotation_for(direction: Vector2) -> float:
-	return direction.angle() - Vector2.DOWN.angle()
+func _is_off_screen(pos: Vector2) -> bool:
+	return pos.x < -DESPAWN_MARGIN or pos.x > _screensize.x + DESPAWN_MARGIN \
+		or pos.y < -DESPAWN_MARGIN or pos.y > _screensize.y + DESPAWN_MARGIN
 
 
 func _enter_phase(phase: Phase) -> void:
@@ -142,7 +181,10 @@ func _enter_phase(phase: Phase) -> void:
 	_phase_time = 0.0
 	match phase:
 		Phase.DESCEND:
-			_phase_duration = _start[0].distance_to(_pre_merge[0]) / path_speed
+			if _stop >= _meets.size():
+				_enter_phase(Phase.EXIT)  # no meet points configured
+				return
+			_phase_duration = _leg_from[0].distance_to(_pre_merge[0]) / path_speed
 		Phase.MERGE:
 			_phase_duration = _pre_merge[0].distance_to(_meet) / path_speed
 		Phase.HOLD:
@@ -185,14 +227,14 @@ func _process(delta: float) -> void:
 			continue
 		var e = _members[i]
 		var pos: Vector2
-		var target_rot: float = 0.0
+		var target_rot: float = _facing
 		var extra_rot: float = 0.0
 		match _phase:
 			Phase.DESCEND:
-				pos = _start[i].lerp(_pre_merge[i], t)
+				pos = _leg_from[i].lerp(_pre_merge[i], t)
 			Phase.MERGE:
 				pos = _pre_merge[i].lerp(_meet, t)
-				target_rot = _facing_rotation_for(_meet - _pre_merge[i])
+				target_rot = HiveSolo.facing_rotation_for(_meet - _pre_merge[i])
 			Phase.HOLD:
 				pos = _meet
 			Phase.JITTER:
@@ -201,15 +243,15 @@ func _process(delta: float) -> void:
 				extra_rot = jitter[1]
 			Phase.SPLIT:
 				pos = _meet.lerp(_post_split[i], t)
-				target_rot = _facing_rotation_for(_post_split[i] - _meet)
+				target_rot = HiveSolo.facing_rotation_for(_post_split[i] - _meet)
 			Phase.EXIT:
-				pos = _post_split[i] + Vector2.DOWN * path_speed * _phase_time
+				pos = _leg_from[i] + _dir * path_speed * _phase_time
 		e.position = pos
 		if _phase == Phase.JITTER:
 			e.rotation = target_rot + extra_rot
 		else:
 			e.rotation = lerp_angle(e.rotation, target_rot, 1.0 - exp(-turn_speed * delta))
-		if pos.y <= _screensize.y + SPAWN_MARGIN:
+		if not _is_off_screen(pos):
 			all_off_screen = false
 
 	if _phase == Phase.EXIT:
@@ -254,7 +296,14 @@ func _advance_phase() -> void:
 					_members[i].z_index = 0
 			_fire_wall_volley()
 			_enter_phase(Phase.SPLIT)
-		Phase.SPLIT: _enter_phase(Phase.EXIT)
+		Phase.SPLIT:
+			# Next leg starts from where this split ended.
+			_leg_from = _post_split.duplicate()
+			_load_stop(_stop + 1)
+			if _stop < _meets.size():
+				_enter_phase(Phase.DESCEND)
+			else:
+				_enter_phase(Phase.EXIT)
 
 
 func _fire_wall_volley() -> void:

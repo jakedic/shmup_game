@@ -48,7 +48,8 @@
 #                    the same way.
 #
 # SIDE + PERCENT: rather than picking exact screen coordinates,
-# spawn_squad_wave()/spawn_solo_wave()/spawn_drift_wave() describe where
+# spawn_squad_wave()/spawn_solo_wave()/spawn_drift_wave()/spawn_hive_wave()/
+# spawn_hive_squad_wave() describe where
 # their enemy starts and ends as a screen edge (Side.LEFT/RIGHT/TOP/BOTTOM)
 # plus how far along that edge (0.0-1.0). For LEFT/RIGHT, 0.0 is the top of
 # that edge and 1.0 is the bottom; for TOP/BOTTOM, 0.0 is the left end and
@@ -99,18 +100,20 @@
 #                              out for DEFAULT_DRIFT_SPEED.
 #
 # ----- spawn_hive_wave(config) - see enemies/hive_solo.gd -----
-# One enemy creeping straight down, stopping every third of the screen to
-# shake and fire a 3-wall volley. Always enters from the top edge.
-#   x_percent   - OPTIONAL - 0.0-1.0 fraction of the way across the top edge.
-#                 Leave it out for LANE_CENTER.
-#   start_delay - OPTIONAL - seconds to wait before it starts moving.
+# One enemy creeping slowly in a straight line, stopping a third and two
+# thirds of the way across the screen to shake and fire a 3-wall spread.
+#   start_side/start_percent - defaults to the top edge, centered
+#   end_side/end_percent     - sets its direction (it keeps going until it's
+#                              off-screen). Defaults to the bottom edge, at
+#                              the same percent as the start.
 #
 # ----- spawn_hive_squad_wave(config) - see enemies/hive_squad.gd -----
-# Two hive enemies side by side that merge a third of the way down, shake
-# out of sync, then fire an 8-way wall volley. Always enters from the top.
-#   x_percent   - OPTIONAL - 0.0-1.0 center of the pair across the top edge.
-#                 Leave it out for LANE_CENTER.
-#   start_delay - OPTIONAL - seconds to wait before it starts moving.
+# Two hive enemies side by side that merge a third and two thirds of the way
+# across the screen, shake out of sync, and fire an 8-way wall volley.
+#   start_side/start_percent - where the CENTER of the pair starts. Defaults
+#                              to the top edge, centered.
+#   end_side/end_percent     - sets its direction. Defaults to the bottom
+#                              edge, at the same percent as the start.
 #
 # ---------------------------------------------------------------------------
 # HOW TO ADD A NEW PATTERN (a new enemy with its own movement/abilities):
@@ -307,9 +310,13 @@ func spawn_hive_wave(config: Dictionary) -> void:
 	"""Spawn a "hive" enemy (see enemies/hive_solo.gd's slow march) via
 	BaseLevel.spawn_hive_solo(), from a labeled config - see
 	spawn_hive_wave(config)'s field list in the header comment above."""
+	var start_percent: float = config.get("start_percent", LANE_CENTER)
+	var start_pos: Vector2 = _side_point(config.get("start_side", Side.TOP), start_percent)
+	var end_pos: Vector2 = _side_point(config.get("end_side", Side.BOTTOM), config.get("end_percent", start_percent))
 	spawn_hive_solo(
 		config.get("enemy", fallback_enemy),
-		config.get("x_percent", LANE_CENTER),
+		start_pos,
+		end_pos,
 		config.get("start_delay", 0.0),
 	)
 
@@ -318,9 +325,13 @@ func spawn_hive_squad_wave(config: Dictionary) -> void:
 	"""Spawn a two-enemy hive squad (see enemies/hive_squad.gd) via
 	BaseLevel.spawn_hive_squad(), from a labeled config - see the field list
 	in the header comment above."""
+	var start_percent: float = config.get("start_percent", LANE_CENTER)
+	var start_pos: Vector2 = _side_point(config.get("start_side", Side.TOP), start_percent)
+	var end_pos: Vector2 = _side_point(config.get("end_side", Side.BOTTOM), config.get("end_percent", start_percent))
 	spawn_hive_squad(
 		config.get("enemy", fallback_enemy),
-		config.get("x_percent", LANE_CENTER),
+		start_pos,
+		end_pos,
 		config.get("start_delay", 0.0),
 	)
 
