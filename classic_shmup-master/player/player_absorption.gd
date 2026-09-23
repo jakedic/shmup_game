@@ -164,12 +164,15 @@ static func shoot_bubble(player: Player) -> void:
 	# Visual/sound effects
 	on_bubble_shot(player)
 
+const DEFAULT_BUBBLE_SCENE: PackedScene = preload("res://bullets/bubble.tscn")
+
 static func create_bubble(player: Player) -> Node2D:
 	"""Create bubble projectile instance"""
 	var bubble: Node2D
 	if not player.bubble_scene:
-		# Create a simple bubble if no scene is assigned
-		bubble = create_simple_bubble()
+		# No scene assigned on the Player node - fall back to the standard
+		# bubble scene (res://bullets/bubble.tscn, which uses Bubble_asset.png).
+		bubble = DEFAULT_BUBBLE_SCENE.instantiate()
 	else:
 		bubble = player.bubble_scene.instantiate()
 	apply_bubble_stats(bubble)
@@ -187,28 +190,9 @@ static func apply_bubble_stats(bubble: Node2D) -> void:
 		bubble.hit_points = bub.hit_points
 
 static func create_simple_bubble() -> Node2D:
-	"""Fallback bubble creation if no bubble scene is assigned"""
-	var bubble = Area2D.new()
-
-	# Add sprite
-	var sprite = Sprite2D.new()
-	sprite.texture = preload("res://Mini Pixel Pack 3/Projectiles/Player_charged_donut_shot (16 x 16).png")  # Add your bubble texture
-	sprite.hframes = 4  # Set horizontal frames to 4
-	sprite.frame = 0    # Start with first frame
-	sprite.scale = Vector2(3.0, 3.0)
-	bubble.add_child(sprite)
-
-	# Add collision shape
-	var collision = CollisionShape2D.new()
-	var shape = CircleShape2D.new()
-	shape.radius = 8
-	collision.shape = shape
-	bubble.add_child(collision)
-
-	# Add bubble script
-	bubble.set_script(preload("res://bullets/bubble.gd"))
-
-	return bubble
+	"""Kept for callers like Player.create_simple_bubble() - now just
+	returns an instance of the standard bubble scene (Bubble_asset.png)."""
+	return DEFAULT_BUBBLE_SCENE.instantiate()
 
 static func launch_bubble(player: Player, bubble: Node2D) -> void:
 	"""Launch bubble projectile"""

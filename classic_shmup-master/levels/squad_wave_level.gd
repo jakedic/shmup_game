@@ -99,13 +99,18 @@
 #                              out for DEFAULT_DRIFT_SPEED.
 #
 # ----- spawn_hive_wave(config) - see enemies/hive_solo.gd -----
-# One enemy playing its own stop-jitter-fire dance. Always enters from the
-# top edge - there's no start_side/end_side for this one, just how far
-# across the top it is and how far down it pauses.
+# One enemy creeping straight down, stopping every third of the screen to
+# shake and fire a 3-wall volley. Always enters from the top edge.
 #   x_percent   - OPTIONAL - 0.0-1.0 fraction of the way across the top edge.
 #                 Leave it out for LANE_CENTER.
-#   pause_y     - OPTIONAL - how far down the screen (px) it pauses to dance.
-#                 Leave it out for 60.0.
+#   start_delay - OPTIONAL - seconds to wait before it starts moving.
+#
+# ----- spawn_hive_squad_wave(config) - see enemies/hive_squad.gd -----
+# Two hive enemies side by side that merge a third of the way down, shake
+# out of sync, then fire an 8-way wall volley. Always enters from the top.
+#   x_percent   - OPTIONAL - 0.0-1.0 center of the pair across the top edge.
+#                 Leave it out for LANE_CENTER.
+#   start_delay - OPTIONAL - seconds to wait before it starts moving.
 #
 # ---------------------------------------------------------------------------
 # HOW TO ADD A NEW PATTERN (a new enemy with its own movement/abilities):
@@ -299,16 +304,23 @@ func spawn_drift_wave(config: Dictionary) -> void:
 
 
 func spawn_hive_wave(config: Dictionary) -> void:
-	"""Spawn a "hive" enemy (see enemies/hive_solo.gd's stop-jitter-fire
-	dance) via BaseLevel.spawn_hive_solo(), from a labeled config - see
-	spawn_hive_wave(config)'s field list in the header comment above. Always
-	enters from the top edge - there's no start_side/end_side for this
-	pattern, just how far across the top it is (x_percent) and how far down
-	the screen it pauses (pause_y)."""
+	"""Spawn a "hive" enemy (see enemies/hive_solo.gd's slow march) via
+	BaseLevel.spawn_hive_solo(), from a labeled config - see
+	spawn_hive_wave(config)'s field list in the header comment above."""
 	spawn_hive_solo(
 		config.get("enemy", fallback_enemy),
 		config.get("x_percent", LANE_CENTER),
-		config.get("pause_y", 60.0),
+		config.get("start_delay", 0.0),
+	)
+
+
+func spawn_hive_squad_wave(config: Dictionary) -> void:
+	"""Spawn a two-enemy hive squad (see enemies/hive_squad.gd) via
+	BaseLevel.spawn_hive_squad(), from a labeled config - see the field list
+	in the header comment above."""
+	spawn_hive_squad(
+		config.get("enemy", fallback_enemy),
+		config.get("x_percent", LANE_CENTER),
 		config.get("start_delay", 0.0),
 	)
 

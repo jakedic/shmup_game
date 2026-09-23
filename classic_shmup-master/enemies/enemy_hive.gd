@@ -18,7 +18,7 @@ var last_position: Vector2 = Vector2.ZERO
 
 func _ready():
 	# Set hive enemy specific properties
-	max_health = 3   # tougher than a bee enemy's 1 health
+	max_health = 6   # much tougher than a bee enemy's 1 health
 	current_health = max_health
 	bullet_scene = preload("res://enemy_bullets/enemy_bullet.tscn")
 
