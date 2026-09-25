@@ -332,7 +332,8 @@ func spawn_astroid(config: Dictionary) -> void:
 func spawn_flower(config: Dictionary) -> void:
 	"""Spawns one flower that floats down like a leaf.
 	"scene" - the flower scene (e.g. preload("res://enemies/flower_enemy.tscn"))
-	"start" - Vector2 where it appears (use a negative y to start above the screen)
+	"start" - Vector2 where it appears
+	"start_delay" - optional, seconds it waits (hidden) before it starts falling
 	Optional - any other key overrides that export on flower_enemy.gd for
 	just this flower, e.g.:
 	"fall_speed" - how fast it sinks, pixels/second
@@ -368,7 +369,8 @@ func spawn_flower_squad(config: Dictionary) -> FlowerSquad:
 	enemies/flower_squad.gd).
 	"scene" - the flower scene (e.g. preload("res://enemies/flower_enemy.tscn"))
 	"start" - Vector2 where the front (lowest) flower appears; the other two
-	line up above it (use a negative y to start above the screen)
+	line up above it
+	"start_delay" - optional, seconds the squad waits (hidden) before it starts falling
 	Optional - squad settings "spacing", "attack_heights" (e.g. [0.0, 0.4]), or
 	any flower setting (same keys as spawn_flower(), e.g. "fall_speed",
 	"sway_width", "swings_before_fire") applied to all three flowers."""

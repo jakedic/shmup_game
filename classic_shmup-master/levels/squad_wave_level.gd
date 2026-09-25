@@ -115,6 +115,36 @@
 #   end_side/end_percent     - sets its direction. Defaults to the bottom
 #                              edge, at the same percent as the start.
 #
+# ----- spawn_flower_wave(config) - see enemies/flower_enemy.gd -----
+# One flower that floats down like a falling leaf (swinging side to side,
+# spinning) and every few swings stops to charge and fire a laser straight
+# down. Flowers always fall from the top, so there's no start_side/end_side.
+#   start_percent  - where along the TOP edge it drops in (0.0 = left end,
+#                    1.0 = right end). Defaults to LANE_CENTER. This is the
+#                    center line it swings back and forth across.
+#   attack_heights - OPTIONAL - list of how far down the screen (0.0 top -
+#                    1.0 bottom) it fires, once each, in order, e.g.
+#                    [0.2, 0.5, 0.8]. It fires as it passes through the
+#                    middle of its first swing after reaching each height.
+#                    Leave it out to fire every swings_before_fire swings.
+#   ...plus OPTIONAL flower settings by name, for just this flower (see the
+#   exports at the top of enemies/flower_enemy.gd): fall_speed, sway_width,
+#   sway_time, swings_before_fire, charge_time, laser_time, laser_damage,
+#   spin_speed_deg, swing_pace_center, swing_pace_ends, ...
+#
+# ----- spawn_flower_squad_wave(config) - see enemies/flower_squad.gd -----
+# Three flowers falling in a zig-zag column that stop together to charge and
+# fire at set heights on the screen.
+#   start_percent  - where along the TOP edge the column's center line is.
+#                    Defaults to LANE_CENTER.
+#   attack_heights - OPTIONAL - list of how far down the screen (0.0 top -
+#                    1.0 bottom, measured at the middle flower) the squad
+#                    stops to fire, once each, e.g. [0.0, 0.4]. 0.0 means
+#                    "as soon as all three are on screen".
+#   spacing        - OPTIONAL - vertical gap between the flowers, px
+#   ...plus OPTIONAL flower settings by name (same as spawn_flower_wave()),
+#   applied to all three flowers.
+#
 # ---------------------------------------------------------------------------
 # HOW TO ADD A NEW PATTERN (a new enemy with its own movement/abilities):
 #   Write a `spawn_<name>_wave(config: Dictionary) -> void` function below,
@@ -183,6 +213,12 @@ const DEFAULT_SQUAD_SIZE := 4
 # How far along its start->end line a squad circles when its config doesn't
 # say otherwise (see the `circle_progress` field above).
 const DEFAULT_CIRCLE_PROGRESS := 0.35
+
+# Where flowers (spawn_flower_wave()/spawn_flower_squad_wave()) appear, px
+# above the top edge - just far enough to be hidden, so they float into view
+# right away instead of falling through a long stretch of empty off-screen
+# space first (flowers fall slowly). Use start_delay to stagger entrances.
+const FLOWER_ENTRY_Y := -16.0
 
 # How fast a spawn_drift_wave() entry travels, in px/s, when its config
 # doesn't say otherwise (see the `speed` field above).
@@ -334,6 +370,36 @@ func spawn_hive_squad_wave(config: Dictionary) -> void:
 		end_pos,
 		config.get("start_delay", 0.0),
 	)
+
+
+func spawn_flower_wave(config: Dictionary) -> void:
+	"""Spawn one falling-leaf flower (see enemies/flower_enemy.gd) via
+	BaseLevel.spawn_flower(), from a labeled config - see
+	spawn_flower_wave(config)'s field list in the header comment above."""
+	spawn_flower(_flower_spawn_config(config))
+
+
+func spawn_flower_squad_wave(config: Dictionary) -> FlowerSquad:
+	"""Spawn a 3-flower squad (see enemies/flower_squad.gd) via
+	BaseLevel.spawn_flower_squad(), from a labeled config - see
+	spawn_flower_squad_wave(config)'s field list in the header comment
+	above."""
+	return spawn_flower_squad(_flower_spawn_config(config))
+
+
+func _flower_spawn_config(config: Dictionary) -> Dictionary:
+	"""Turn a wave-style flower config ("enemy", "start_percent", ...) into
+	the {"scene", "start", ...} config BaseLevel's flower helpers take.
+	Everything else (start_delay, attack_heights, fall_speed, ...) is passed
+	straight through."""
+	var size: Vector2 = get_viewport_rect().size
+	var result := {}
+	for key in config:
+		if key != "enemy" and key != "start_percent":
+			result[key] = config[key]
+	result["scene"] = config.get("enemy", fallback_enemy)
+	result["start"] = Vector2(size.x * float(config.get("start_percent", LANE_CENTER)), FLOWER_ENTRY_Y)
+	return result
 
 
 func _spawn_boss_wave() -> void:

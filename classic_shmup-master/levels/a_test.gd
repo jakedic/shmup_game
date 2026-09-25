@@ -2,39 +2,45 @@
 #
 # Scratch/test level for trying out new enemies. Right now it shows off the
 # flower enemy (enemies/flower_enemy.gd) and the flower squad
-# (enemies/flower_squad.gd). Waves alternate: a flower squad, then a batch of
-# solo flowers, then a squad again, and so on - a new wave drops in every
-# time the last one is gone (shot or drifted off the bottom), so you can keep
-# watching as long as you like. Pause -> Quit to leave.
-extends BaseLevel
+# (enemies/flower_squad.gd). Built the same way as Yellow/Dylan Level - one
+# function per wave, each spawn a labeled config (see
+# levels/squad_wave_level.gd's header comment for every field). Unlike those
+# levels, the waves here loop forever (squad, solos, squad, solos, ...) so
+# you can keep watching as long as you like. Pause -> Quit to leave.
+extends SquadWaveLevel
 
-const FLOWER = preload("res://enemies/flower_enemy.tscn")
+const FLOWER := preload("res://enemies/flower_enemy.tscn")
 
-func _ready():
+
+# Wave 1 - one flower squad down the middle, firing at the top of the screen
+# and again about 40% of the way down.
+func _wave_1() -> void:
+	spawn_flower_squad_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "attack_heights": [0.0, 0.4]})
+
+
+# Wave 2 - solo flowers dropping in one after another. The first three
+# choose exactly where they fire with attack_heights; the last two use the
+# default (fire every couple of swings).
+func _wave_2() -> void:
+	spawn_flower_wave({"enemy": FLOWER, "start_percent": LANE_LEFT, "attack_heights": [0.15, 0.5]})
+	spawn_flower_wave({"enemy": FLOWER, "start_percent": LANE_RIGHT, "start_delay": 2.5, "attack_heights": [0.3]})
+	spawn_flower_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "start_delay": 5.0, "attack_heights": [0.1, 0.35, 0.6]})
+	# Example of tweaking one flower's motion: wider, slower, lazier swing.
+	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.35, "start_delay": 8.0, "sway_width": 55.0, "sway_time": 3.5, "fall_speed": 20.0})
+	# ...and a quicker, tighter one.
+	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.7, "start_delay": 10.0, "sway_width": 22.0, "sway_time": 1.6, "fall_speed": 40.0})
+
+
+func _ready() -> void:
 	level_paths = {
 		"next_level": "res://levels/test_menu.tscn"
 	}
-	max_waves = 999  # keep dropping new waves
+	waves = [_wave_1, _wave_2]
+	fallback_enemy = FLOWER
 	super._ready()
+	max_waves = 999  # keep looping the waves (see spawn_enemies() below)
 
-func spawn_enemies():
-	if current_wave % 2 == 0:
-		_spawn_squad_wave()
-	else:
-		_spawn_solo_wave()
 
-func _spawn_squad_wave():
-	# Three flowers in a synced column, front flower starting just above
-	# the screen at the center.
-	spawn_flower_squad({"scene": FLOWER, "start": Vector2(120, -20)})
-
-func _spawn_solo_wave():
-	# Flowers start at different heights above the screen so they float in
-	# one after another instead of all at once.
-	spawn_flower({"scene": FLOWER, "start": Vector2(60, -20)})
-	spawn_flower({"scene": FLOWER, "start": Vector2(180, -90)})
-	spawn_flower({"scene": FLOWER, "start": Vector2(120, -160)})
-	# Example of tweaking one flower's motion: wider, slower, lazier swing.
-	spawn_flower({"scene": FLOWER, "start": Vector2(90, -240), "sway_width": 55.0, "sway_time": 3.5, "fall_speed": 20.0})
-	# ...and a quicker, tighter one.
-	spawn_flower({"scene": FLOWER, "start": Vector2(170, -300), "sway_width": 22.0, "sway_time": 1.6, "fall_speed": 40.0})
+func spawn_enemies() -> void:
+	# Loop through `waves` forever instead of ending after the last one.
+	waves[current_wave % waves.size()].call()

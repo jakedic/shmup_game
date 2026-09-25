@@ -46,6 +46,10 @@ const BACK := 2     # top flower
 # also waits until the whole squad is on screen, so 0.0 means "as soon as
 # all three are visible".
 @export var attack_heights: Array = [0.0, 0.4]
+# Seconds the squad waits (hidden, at its start point) before it starts
+# falling. The flowers still count as enemies while waiting, so the wave
+# won't end early.
+@export var start_delay: float = 0.0
 
 enum FlowerSquadState { FLOATING, CLOSING_IN, FIRING, OPENING_OUT }
 var _state: FlowerSquadState = FlowerSquadState.FLOATING
@@ -68,6 +72,7 @@ var _attack_timer: float = 0.0
 var _resync_phase: float = 0.0   # middle of the swing where everyone lines back up after an attack
 var _resync_fall_y: float = 0.0
 var _screen: Vector2
+var _delay_left: float = 0.0
 
 # Movement settings, read from the front flower once it's been configured.
 var _fall_speed: float
@@ -119,12 +124,23 @@ func setup(flower_scene: PackedScene, start_pos: Vector2, overrides: Dictionary 
 	_fire_max_y_ratio = lead.fire_max_y_ratio
 
 	_update_poses()
+	_delay_left = start_delay
+	if _delay_left > 0.0:
+		for f in members:
+			f.visible = false
 	return members.duplicate()
 
 func _process(delta: float) -> void:
 	var alive = _alive_members()
 	if alive.is_empty():
 		queue_free()
+		return
+
+	if _delay_left > 0.0:
+		_delay_left -= delta
+		if _delay_left <= 0.0:
+			for f in alive:
+				f.visible = true
 		return
 
 	match _state:

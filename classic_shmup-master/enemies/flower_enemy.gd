@@ -37,7 +37,12 @@ class_name FlowerEnemy
 @export var spin_speed_deg: float = 120.0   # how fast it spins while falling, degrees/second (direction is random per flower)
 
 # ===== LASER ATTACK =====
-@export var swings_before_fire: float = 2.0     # full back-and-forth swings between laser attacks
+@export var swings_before_fire: float = 2.0     # full back-and-forth swings between laser attacks (only used when attack_heights is empty)
+# Where to fire, as fractions of the screen height (0 = top, 1 = bottom),
+# e.g. [0.2, 0.5]. Each one is used once, in order: the flower fires as it
+# passes through the middle of its first swing after reaching that height.
+# Leave empty to fire every swings_before_fire swings instead.
+@export var attack_heights: Array = []
 @export var charge_time: float = 0.9            # seconds charging before the laser fires
 @export var charge_spin_max_deg: float = 1080.0 # spin speed the flower winds up to by the end of the charge (and keeps while firing), degrees/second
 @export var spin_down_time: float = 0.8         # seconds to slow back to normal spin after the laser ends
@@ -53,6 +58,12 @@ class_name FlowerEnemy
 @export var normal_texture: Texture2D
 @export var charge_texture: Texture2D
 @export var laser_texture: Texture2D
+
+# ===== START DELAY =====
+# Seconds to wait (hidden, at its start point) before it starts falling. Lets
+# a level stagger entrances instead of placing flowers higher up. The flower
+# still counts as an enemy while it waits, so its wave won't end early.
+@export var start_delay: float = 0.0
 
 # ===== OFF-SCREEN DESPAWN =====
 # How far past the bottom edge it can fall before it's removed (no score).
@@ -77,10 +88,12 @@ var _center_x: float = 0.0     # the invisible line it swings back and forth acr
 var _base_y: float = 0.0       # its "falling" height before the arc lift is added
 var _phase: float = 0.0        # where it is in its swing, radians
 var _swing_since_fire: float = 0.0  # radians of swing since the last attack
+var _next_attack: int = 0           # index into attack_heights
 var _state_timer: float = 0.0
 var _spin_angle: float = 0.0       # accumulated spin, radians (tilt is added on top)
 var _spin_dir: float = 1.0         # 1 = clockwise, -1 = counter-clockwise
 var _spin_speed_now: float = 0.0   # current falling spin speed, deg/s (eases back to spin_speed_deg after an attack)
+var _delay_left: float = 0.0       # start_delay countdown (see launch())
 var _squad_driven: bool = false    # true when a FlowerSquad is moving this flower (see join_squad())
 var _charge_ramp_time: float = 0.0 # how long the charge spin takes to wind up to full speed
 var _hold_charge: bool = false     # squad-controlled charge: keep charging until fire_now() is called
@@ -121,6 +134,9 @@ func launch(start_pos: Vector2, overrides: Dictionary = {}) -> void:
 	_spin_speed_now = spin_speed_deg
 	_apply_leaf_position()
 	_is_floating = true
+	_delay_left = start_delay
+	if _delay_left > 0.0:
+		visible = false
 
 static func swing_pace(phase: float, center: float, ends: float) -> float:
 	"""Speed multiplier at this point in the swing: `center` in the middle
@@ -188,6 +204,11 @@ func start(pos: Vector2) -> void:
 func custom_process(delta: float):
 	if not _is_floating or not is_alive:
 		return
+	if _delay_left > 0.0:
+		_delay_left -= delta
+		if _delay_left <= 0.0:
+			visible = true
+		return
 	match _state:
 		FlowerState.FLOATING:
 			_process_floating(delta)
@@ -217,7 +238,7 @@ func _process_floating(delta: float) -> void:
 	# swing (phase = a multiple of PI), where it's upright and at the bottom
 	# of its arc - so the laser points straight down.
 	var crossed_middle = floor(_phase / PI) != floor(old_phase / PI)
-	if crossed_middle and _swing_since_fire >= swings_before_fire * TAU and _can_fire_here():
+	if crossed_middle and _ready_to_fire():
 		_phase = floor(_phase / PI) * PI
 		_apply_leaf_position()
 		_enter_state(FlowerState.CHARGING)
@@ -252,6 +273,19 @@ func _process_firing(delta: float) -> void:
 				break
 	if _state_timer <= 0.0:
 		_enter_state(FlowerState.FLOATING)
+
+func _ready_to_fire() -> bool:
+	"""Solo flowers only. Height-based if attack_heights is set, otherwise
+	every swings_before_fire swings."""
+	if attack_heights.is_empty():
+		return _swing_since_fire >= swings_before_fire * TAU and _can_fire_here()
+	if _next_attack >= attack_heights.size():
+		return false  # used up every attack height - just floats from here on
+	var target_y = max(fire_min_y, float(attack_heights[_next_attack]) * screensize.y)
+	if position.y >= target_y and position.y <= screensize.y:
+		_next_attack += 1
+		return true
+	return false
 
 func _can_fire_here() -> bool:
 	return position.y >= fire_min_y and position.y <= screensize.y * fire_max_y_ratio
