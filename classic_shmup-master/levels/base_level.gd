@@ -326,6 +326,71 @@ func spawn_astroid(config: Dictionary) -> void:
 		a.died.connect(_on_enemy_died)
 
 
+# ===== FLOWER HELPER =====
+# Spawns a falling-leaf flower (see enemies/flower_enemy.gd). Same labeled-
+# config style as spawn_astroid() above, so every level gets it for free.
+func spawn_flower(config: Dictionary) -> void:
+	"""Spawns one flower that floats down like a leaf.
+	"scene" - the flower scene (e.g. preload("res://enemies/flower_enemy.tscn"))
+	"start" - Vector2 where it appears (use a negative y to start above the screen)
+	Optional - any other key overrides that export on flower_enemy.gd for
+	just this flower, e.g.:
+	"fall_speed" - how fast it sinks, pixels/second
+	"sway_width" - how far it swings left/right, pixels
+	"sway_time" - seconds for one full left-right-left swing
+	"swings_before_fire" - full swings between laser attacks
+	"charge_time" / "laser_time" - seconds charging / seconds the laser is on
+	"laser_damage" - damage per laser hit"""
+	var scene: PackedScene = config.get("scene")
+	if scene == null:
+		push_error("%s: spawn_flower() called with no \"scene\" in its config" % scene_file_path)
+		return
+	var start_pos: Vector2 = config.get("start", Vector2.ZERO)
+	var overrides := {}
+	for key in config:
+		if key != "scene" and key != "start":
+			overrides[key] = config[key]
+
+	var f = scene.instantiate()
+	add_child(f)
+	if not f.has_method("launch"):
+		push_error("%s: %s has no launch() method - spawn_flower() only works with enemies/flower_enemy.gd" % [scene_file_path, scene.resource_path])
+		f.queue_free()
+		return
+	f.launch(start_pos, overrides)
+	if f.has_signal("died"):
+		f.died.connect(_on_enemy_died)
+
+
+func spawn_flower_squad(config: Dictionary) -> FlowerSquad:
+	"""Spawns a squad of 3 flowers falling in a synced zig-zag column that
+	stops to fire together at each of its attack_heights (see
+	enemies/flower_squad.gd).
+	"scene" - the flower scene (e.g. preload("res://enemies/flower_enemy.tscn"))
+	"start" - Vector2 where the front (lowest) flower appears; the other two
+	line up above it (use a negative y to start above the screen)
+	Optional - squad settings "spacing", "attack_heights" (e.g. [0.0, 0.4]), or
+	any flower setting (same keys as spawn_flower(), e.g. "fall_speed",
+	"sway_width", "swings_before_fire") applied to all three flowers."""
+	var scene: PackedScene = config.get("scene")
+	if scene == null:
+		push_error("%s: spawn_flower_squad() called with no \"scene\" in its config" % scene_file_path)
+		return null
+	var start_pos: Vector2 = config.get("start", Vector2.ZERO)
+	var overrides := {}
+	for key in config:
+		if key != "scene" and key != "start":
+			overrides[key] = config[key]
+
+	var squad := FlowerSquad.new()
+	squad.name = "FlowerSquad"
+	add_child(squad)
+	for f in squad.setup(scene, start_pos, overrides):
+		if f.has_signal("died"):
+			f.died.connect(_on_enemy_died)
+	return squad
+
+
 func _process(_delta):
 	if get_tree().get_nodes_in_group("enemies").size() == 0 and playing:
 		handle_wave_completion()

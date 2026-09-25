@@ -1,0 +1,62 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://enemies/flower_enemy.gd" id="1_flower"]
+[ext_resource type="Texture2D" path="res://Art assets/Player assets and transformations/Flower.png" id="2_flower"]
+[ext_resource type="Texture2D" path="res://Art assets/Player assets and transformations/Flower_Charge.png" id="3_flower"]
+[ext_resource type="Texture2D" path="res://Art assets/Player assets and transformations/Flower_Lazer.png" id="4_flower"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_flower"]
+radius = 8.4375
+
+[node name="FlowerEnemy" type="Area2D" groups=["enemies"]]
+collision_layer = 3
+collision_mask = 3
+script = ExtResource("1_flower")
+enemy_name = "Flower"
+max_health = 2
+score_value = 10
+normal_texture = ExtResource("2_flower")
+charge_texture = ExtResource("3_flower")
+laser_texture = ExtResource("4_flower")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+scale = Vector2(0.0279, 0.0279)
+texture = ExtResource("2_flower")
+region_enabled = true
+region_rect = Rect2(1010, 627, 807, 805)
+
+[node name="Beam" type="Sprite2D" parent="."]
+visible = false
+centered = false
+texture = ExtResource("4_flower")
+region_enabled = true
+region_rect = Rect2(1280, 1432, 280, 600)
+
+[node name="ChargeLine" type="Sprite2D" parent="."]
+visible = false
+centered = false
+texture = ExtResource("3_flower")
+region_enabled = true
+region_rect = Rect2(1404, 1432, 20, 600)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_flower")
+
+[node name="LaserHitbox" type="Area2D" parent="."]
+collision_layer = 2
+collision_mask = 1
+monitorable = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LaserHitbox"]
+disabled = true
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+
+[node name="MoveTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="."]
+one_shot = true
+
+[connection signal="timeout" from="MoveTimer" to="." method="_on_timer_timeout"]
+[connection signal="timeout" from="ShootTimer" to="." method="_on_shoot_timer_timeout"]
