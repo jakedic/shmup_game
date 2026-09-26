@@ -138,4 +138,4 @@ static func is_invincible(player: Player) -> bool:
 	own Area2D, so it needs this explicit check instead."""
 	# Every dash is a jump now, so the ship is untouchable for the whole
 	# dash (not just with dash_invincible) - see PlayerMovement.start_dash().
-	return player.is_dashing or player.is_post_dash_invincible
+	return player.is_dashing or player.is_post_dash_invincible or player.is_landing_grace

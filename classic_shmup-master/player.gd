@@ -85,6 +85,9 @@ var _invincibility_flash_tween: Tween = null
 var jump_height: float = 0.0
 var ship_base_scale: Vector2 = Vector2.ZERO
 var _jump_tween: Tween = null
+# True for a split second after landing a dash jump - see
+# PlayerMovement._begin_landing_grace() / PlayerHealth.is_invincible().
+var is_landing_grace: bool = false
 
 # ===== YELLOW POWER-UP: POLLEN SHOT =====
 # Secondary fire granted by the "Pollen Shot" power-up (see
@@ -193,6 +196,7 @@ func initialize_player():
 	if ship_base_scale == Vector2.ZERO:
 		ship_base_scale = $Ship.scale
 	PlayerMovement.reset_jump(self)
+	is_landing_grace = false
 
 	# Pull current stats from the central Stats system and stay subscribed
 	# so transformations (add_modifier/remove_modifier) update us live.

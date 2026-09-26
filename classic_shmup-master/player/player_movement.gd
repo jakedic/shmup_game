@@ -25,6 +25,13 @@ const JUMP_SCALE_AMOUNT := 0.3
 # Higher = more responsive (was a hardcoded 2.0).
 const DASH_STEER_RATE := 3.5
 
+# Brief invincibility right after landing a dash jump, so the landing
+# shockwave gets a chance to kill whatever the ship came down on (or next
+# to) before it can hurt the player. Kept short on purpose: when it ends,
+# anything the ship is STILL touching hits it (see _check_landing()). The
+# shockwave ring is ~90% of its full size by 0.2s.
+const LANDING_GRACE_DURATION := 0.2
+
 static func handle_movement(player: Player, delta: float) -> void:
 	"""Process player movement with smooth acceleration"""
 	var input = Input.get_vector("left", "right", "up", "down")
@@ -231,14 +238,15 @@ static func on_dash_end(player: Player) -> void:
 	if player.is_alive:
 		_spawn_landing_shockwave(player)
 
-	if player.bullet_invincible_during_dash:
+	if player.bullet_invincible_during_dash and player.post_dash_invincibility_duration > LANDING_GRACE_DURATION:
+		# Dash Invincibility power-up: its longer grace period already
+		# covers the landing.
 		_begin_post_dash_grace(player)
 	else:
-		# Plain dash - drop the tint immediately, nothing to keep signaling,
-		# and the ship is back on the ground: bullets can hit it again.
-		player.modulate = player.player_color
-		_restore_bullet_collision(player)
-		_check_landing(player)
+		if not player.bullet_invincible_during_dash:
+			# Plain dash - drop the tint, nothing to keep signaling.
+			player.modulate = player.player_color
+		_begin_landing_grace(player)
 
 	# Stop particle effects
 	if player.has_node("DashParticles"):
@@ -254,10 +262,27 @@ static func on_dash_end(player: Player) -> void:
 	if is_instance_valid(player.get_node("Ship")):
 		player.get_node("Ship").rotation = 0
 
+static func _begin_landing_grace(player: Player) -> void:
+	"""Stay untouchable (bullets + ships) for LANDING_GRACE_DURATION after
+	touching down, then check for anything the ship is still on top of."""
+	player.is_landing_grace = true
+	var timer = player.get_tree().create_timer(LANDING_GRACE_DURATION)
+	timer.timeout.connect(func():
+		if not is_instance_valid(player):
+			return
+		player.is_landing_grace = false
+		# A new dash already started - it owns the collision state now.
+		if player.is_dashing:
+			return
+		_end_invincibility(player)
+		_check_landing(player)
+	)
+
 static func _check_landing(player: Player) -> void:
-	"""The ship only clears things it's fully over - if it lands right on
-	top of an enemy ship, that counts as a hit. (area_entered won't fire
-	for an enemy it was already overlapping mid-jump, so check by hand.)"""
+	"""Runs when the landing grace ends. Anything the ship is still
+	touching - an enemy the shockwave didn't kill, or one that drifted in
+	during the grace - hits it now. (area_entered won't fire again for an
+	enemy it was already overlapping, so check by hand.)"""
 	for area in player.get_overlapping_areas():
 		if not player.is_alive:
 			return
