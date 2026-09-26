@@ -16,6 +16,15 @@ class_name PlayerMovement
 const DASH_TINT_COLOR := Color(0.5, 0.8, 1.0, 0.7)  # blue tint used both for the plain dash and the invincibility flash
 const INVINCIBILITY_FLASH_INTERVAL := 0.08  # seconds per half-blink
 
+# Dash "jump" look: the ship grows by JUMP_SCALE_AMOUNT at the top of the
+# arc (0.3 = 30% bigger) and shrinks back as it lands. The arc lasts the
+# whole dash (dash_duration), so tune the timing there, in stats.gd.
+const JUMP_SCALE_AMOUNT := 0.3
+
+# How quickly mid-dash steering turns the ship toward the held direction.
+# Higher = more responsive (was a hardcoded 2.0).
+const DASH_STEER_RATE := 3.5
+
 static func handle_movement(player: Player, delta: float) -> void:
 	"""Process player movement with smooth acceleration"""
 	var input = Input.get_vector("left", "right", "up", "down")
@@ -45,7 +54,7 @@ static func handle_movement(player: Player, delta: float) -> void:
 		var modified_direction = (base_dash_dir + input * player.steering_influence).normalized()
 
 		# Smoothly transition to new direction
-		player.dash_direction = player.dash_direction.lerp(modified_direction, 2.0 * delta)
+		player.dash_direction = player.dash_direction.lerp(modified_direction, DASH_STEER_RATE * delta)
 
 		# Apply dash velocity with circular motion added
 		player.current_velocity = (player.dash_direction * player.dash_speed) - circle_offset
@@ -174,10 +183,12 @@ static func start_dash(player: Player, direction: Vector2) -> void:
 	# Change to dash speed
 	player.speed = player.dash_speed
 
-	if player.bullet_invincible_during_dash:
-		# Disable collision with enemy bullets
-		player.set_collision_layer_value(1, false)  # Disable player collision layer
-		player.set_collision_mask_value(2, false)   # Disable enemy bullet collision mask
+	# The ship is "in the air" for the whole dash, so it always passes over
+	# enemy bullets (physics toggle below) and enemy ships (see
+	# PlayerHealth.is_invincible()). The dash_invincible power-up now only
+	# adds the blue flash + post-landing grace period on top of this.
+	player.set_collision_layer_value(1, false)  # Disable player collision layer
+	player.set_collision_mask_value(2, false)   # Disable enemy bullet collision mask
 
 	# Start dash duration timer
 	player.dash_timer.start(player.dash_duration)
@@ -201,6 +212,8 @@ static func on_dash_start(player: Player) -> void:
 	if player.has_node("DashParticles"):
 		player.get_node("DashParticles").emitting = true
 
+	_start_jump(player)
+
 static func on_dash_end(player: Player) -> void:
 	"""Clean up dash effects"""
 	# Restore normal speed
@@ -213,21 +226,83 @@ static func on_dash_end(player: Player) -> void:
 	# grace period configured) or after post_dash_invincibility_duration
 	# elapses. The ship side (is_post_dash_invincible) is entirely handled
 	# there too.
+	# Landing shockwave - hits enemies right under the ship immediately, so
+	# killing what you land on spares you the landing hit below.
+	if player.is_alive:
+		_spawn_landing_shockwave(player)
+
 	if player.bullet_invincible_during_dash:
 		_begin_post_dash_grace(player)
 	else:
-		# Plain dash - drop the tint immediately, nothing to keep signaling.
+		# Plain dash - drop the tint immediately, nothing to keep signaling,
+		# and the ship is back on the ground: bullets can hit it again.
 		player.modulate = player.player_color
+		_restore_bullet_collision(player)
+		_check_landing(player)
 
 	# Stop particle effects
 	if player.has_node("DashParticles"):
 		player.get_node("DashParticles").emitting = false
+
+	# Land the jump (the tween is timed to finish right about now anyway -
+	# this just guarantees an exact return to normal size).
+	reset_jump(player)
 
 	# Start cooldown timer
 	player.dash_cooldown_timer.start(player.dash_cooldown)
 
 	if is_instance_valid(player.get_node("Ship")):
 		player.get_node("Ship").rotation = 0
+
+static func _check_landing(player: Player) -> void:
+	"""The ship only clears things it's fully over - if it lands right on
+	top of an enemy ship, that counts as a hit. (area_entered won't fire
+	for an enemy it was already overlapping mid-jump, so check by hand.)"""
+	for area in player.get_overlapping_areas():
+		if not player.is_alive:
+			return
+		if is_instance_valid(area) and area.is_in_group("enemies"):
+			# Skip anything the landing shockwave just killed.
+			if "is_alive" in area and not area.is_alive:
+				continue
+			PlayerHealth.handle_enemy_collision(player, area)
+
+static func _spawn_landing_shockwave(player: Player) -> void:
+	"""Expanding ring at the landing spot that damages nearby enemies
+	(see player/landing_shockwave.gd for damage/radius/timing)."""
+	var parent = player.get_parent()
+	if parent == null:
+		return
+	var wave := LandingShockwave.new()
+	parent.add_child(wave)
+	wave.global_position = player.global_position
+	for area in player.get_overlapping_areas():
+		wave.hit(area)
+
+static func _start_jump(player: Player) -> void:
+	"""Make the dash look like the ship jumping straight up: over the
+	dash's duration, jump_height rises 0 -> 1 -> 0 along a parabola
+	(fast lift-off, hang at the top, fast drop - like gravity), and the
+	Ship sprite's scale follows it."""
+	reset_jump(player)
+	var tween := player.create_tween()
+	tween.tween_method(
+		func(t: float): _apply_jump(player, 4.0 * t * (1.0 - t)),
+		0.0, 1.0, player.dash_duration)
+	player._jump_tween = tween
+
+static func _apply_jump(player: Player, height: float) -> void:
+	player.jump_height = height
+	var ship = player.get_node_or_null("Ship")
+	if ship and player.ship_base_scale != Vector2.ZERO:
+		ship.scale = player.ship_base_scale * (1.0 + JUMP_SCALE_AMOUNT * height)
+
+static func reset_jump(player: Player) -> void:
+	"""Stop any jump in progress and put the ship back on the ground."""
+	if is_instance_valid(player._jump_tween):
+		player._jump_tween.kill()
+	player._jump_tween = null
+	_apply_jump(player, 0.0)
 
 static func _begin_post_dash_grace(player: Player) -> void:
 	"""Keep dash invincibility (and its blue flash) alive for

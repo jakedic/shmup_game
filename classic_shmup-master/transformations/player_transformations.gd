@@ -76,8 +76,12 @@ static func transform_red(player: Player) -> void:
 	Stats.add_modifier("transform_red", {
 		"player": {
 			"shoot_cooldown": {"op": "mult", "value": 0.75},
-			"dash_duration": {"op": "mult", "value": 15.0},
-			"dash_speed": {"op": "mult", "value": 0.2},
+			# Fixed values (rather than multipliers on the base dash) so red's
+			# spin-dash keeps its original feel now that the base dash is a
+			# 1.5s jump - 15x that would be a 22s dash. These equal the old
+			# 0.15s x 15 and 400 x 0.2.
+			"dash_duration": {"op": "set", "value": 2.25},
+			"dash_speed": {"op": "set", "value": 80.0},
 			"spin_speed": {"op": "set", "value": 2080.0},
 			"steering_influence": {"op": "mult", "value": 4.0},
 			"dash_damages_enemies": {"op": "set", "value": true},

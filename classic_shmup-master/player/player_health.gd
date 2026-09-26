@@ -136,4 +136,6 @@ static func is_invincible(player: Player) -> bool:
 	handled separately/physically (collision layer toggle in
 	player_movement.gd), but ship contact is detected through the player's
 	own Area2D, so it needs this explicit check instead."""
-	return (player.is_dashing and player.bullet_invincible_during_dash) or player.is_post_dash_invincible
+	# Every dash is a jump now, so the ship is untouchable for the whole
+	# dash (not just with dash_invincible) - see PlayerMovement.start_dash().
+	return player.is_dashing or player.is_post_dash_invincible

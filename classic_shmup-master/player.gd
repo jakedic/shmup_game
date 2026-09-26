@@ -75,6 +75,17 @@ var is_post_dash_invincible: bool = false
 # find and kill the same tween instead of stacking a second one on top.
 var _invincibility_flash_tween: Tween = null
 
+# ===== DASH JUMP =====
+# The dash plays as a jump: the Ship sprite scales up then back down over
+# the dash (see PlayerMovement._start_jump()). jump_height is 0 on the
+# ground and 1 at the top of the arc - the Shadow node reads it to drift
+# further away / shrink / fade while the ship is "in the air".
+# ship_base_scale is the Ship sprite's normal scale from player.tscn,
+# captured once so the jump always returns to exactly that size.
+var jump_height: float = 0.0
+var ship_base_scale: Vector2 = Vector2.ZERO
+var _jump_tween: Tween = null
+
 # ===== YELLOW POWER-UP: POLLEN SHOT =====
 # Secondary fire granted by the "Pollen Shot" power-up (see
 # player/player_powerups.gd + player/player_pollen_shot.gd). Unrelated to
@@ -176,6 +187,12 @@ func initialize_player():
 
 	is_alive = true
 	show()
+
+	# Capture the ship's normal size once, and make sure a revive mid-jump
+	# never leaves it stuck big.
+	if ship_base_scale == Vector2.ZERO:
+		ship_base_scale = $Ship.scale
+	PlayerMovement.reset_jump(self)
 
 	# Pull current stats from the central Stats system and stay subscribed
 	# so transformations (add_modifier/remove_modifier) update us live.

@@ -11,6 +11,7 @@
 [ext_resource type="Texture2D" uid="uid://b1jinxtgd3rv0" path="res://Mini Pixel Pack 3/Player ship/Boosters_right (16 x 16).png" id="4_bbrn4"]
 [ext_resource type="Texture2D" uid="uid://8sql62rflh1i" path="res://Art assets/Player assets and transformations/Player_topdown.png" id="5_n7ghd"]
 [ext_resource type="Texture2D" uid="uid://2aa2aerwlxgm" path="res://Art assets/Player assets and transformations/Player_topdown_placeholder_transformation_sprite.png" id="6_b26j0"]
+[ext_resource type="Script" path="res://player/player_shadow.gd" id="7_shadow"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_rbfoc"]
 atlas = ExtResource("2_6cdot")
@@ -86,6 +87,9 @@ bullet_pollen_puff_scene = ExtResource("3_pollen_puff")
 absorb_scene = ExtResource("4_b26j0")
 default_sprite_texture = ExtResource("5_n7ghd")
 yellow_sprite_texture = ExtResource("6_b26j0")
+
+[node name="Shadow" type="Sprite2D" parent="." unique_id=1847203915]
+script = ExtResource("7_shadow")
 
 [node name="Ship" type="Sprite2D" parent="." unique_id=1169473419]
 position = Vector2(5, -4.999997)

@@ -56,6 +56,79 @@ const BUBBLE_ATTRACTION_RADIUS := 70.0  # smaller than the original 120 - only k
 const BUBBLE_ATTRACTION_TURN_RATE := 10.0  # how fast direction snaps toward the nearest bubble in range - strong on purpose, see _apply_bubble_attraction()
 const BUBBLE_ATTRACTION_PULL_SPEED := 160.0  # direct extra pull toward the nearest bubble, on top of steering, so the last bit of gap always closes
 
+# ---- Shockwave charge (see on_shockwave_hit()) ----
+# When the player's dash-jump landing shockwave (player/landing_shockwave.gd)
+# reaches a bubble, it bounces away from the blast and becomes "charged" for
+# a blue outline, slightly faster, and it deals SHOCKWAVE_CHARGE_DAMAGE to
+# each enemy it passes through (once per pass - area_entered only fires
+# again after it leaves and re-enters). Enemy bullets still pass through
+# with no effect either way. The charge lasts until the player next
+# paddle-bounces the bubble (see _bounce_off_player()) - another shockwave
+# hit just keeps it charged.
+const SHOCKWAVE_CHARGE_DAMAGE := 1
+const SHOCKWAVE_CHARGE_SPEED_MULT := 1.12
+const SHOCKWAVE_OUTLINE_COLOR := Color(0.3, 0.7, 1.0, 1.0)
+var is_shockwave_charged: bool = false
+# time_elapsed when the charge was applied. A paddle touch within
+# SHOCKWAVE_TOUCH_GRACE of that doesn't clear it - covers landing right next
+# to the bubble, where the ship's touch and the shockwave arrive together.
+var _charged_at: float = -1.0
+const SHOCKWAVE_TOUCH_GRACE := 0.25
+
+# Solo bubbles show the enemy type they carry as a small tinted circle
+# inside the bubble (see _apply_solo_tint()), instead of tinting the whole
+# bubble. Subtle on purpose.
+const TYPE_CORE_RADIUS := 5.0
+const TYPE_CORE_FILL_ALPHA := 0.35
+const TYPE_CORE_RING_ALPHA := 0.7
+
+const COLOR_LOCK_SHADER := "shader_type canvas_item;\nuniform vec4 lock_color : source_color;\nvoid fragment() {\n\tCOLOR = vec4(lock_color.rgb, COLOR.a * lock_color.a);\n}\n"
+
+static func _make_color_lock_material(c: Color) -> ShaderMaterial:
+	"""Material that paints a node's drawing in exactly color c (keeping
+	its alpha), ignoring the bubble's own modulate - so a white hit flash
+	or tint never recolors the outline / type circle."""
+	var shader := Shader.new()
+	shader.code = COLOR_LOCK_SHADER
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("lock_color", c)
+	return mat
+
+class TypeCore extends Node2D:
+	## Small circle inside a solo bubble showing the enemy type it carries.
+	var color: Color = Color(1.0, 0.92, 0.15, 1.0)
+	var radius: float = 5.0
+	var fill_alpha: float = 0.35
+	var ring_alpha: float = 0.7
+
+	func _ready() -> void:
+		material = Bubble._make_color_lock_material(color)
+
+	func _draw() -> void:
+		draw_circle(Vector2.ZERO, radius, Color(1, 1, 1, fill_alpha))
+		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 24, Color(1, 1, 1, ring_alpha), 1.0)
+
+class ChargeOutline extends Node2D:
+	## Pulsing blue ring drawn around a charged bubble. Uses a tiny shader
+	## that replaces the color outright, so the bubble's own tint (yellow
+	## solo bubble, power-bubble glow, white hit flash) doesn't recolor it.
+	var color: Color = Color(0.3, 0.7, 1.0, 1.0)
+	var radius: float = 12.5
+	var _t: float = 0.0
+
+	func _ready() -> void:
+		material = Bubble._make_color_lock_material(color)
+
+	func _process(delta: float) -> void:
+		_t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		# Gentle pulse so it reads as "energized" rather than a static border.
+		var a: float = 0.65 + 0.35 * sin(_t * 10.0)
+		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 32, Color(1, 1, 1, a), 2.0)
+
 func _ready():
 	# Connect to area entered signal
 	area_entered.connect(_on_area_entered)
@@ -67,16 +140,34 @@ func set_enemy_type(enemy_type: String):
 	_apply_solo_tint()
 
 func _apply_solo_tint() -> void:
-	"""Tint a solo (non-fused) bubble to match the transformation it's
-	carrying (e.g. yellow after ejecting a yellow transformation), so it's
-	visually distinct from a plain bubble and from a fused power bubble.
+	"""Mark a solo (non-fused) bubble with a small circle inside it in the
+	color of the transformation it's carrying (e.g. yellow after ejecting a
+	yellow transformation), so it's visually distinct from a plain bubble
+	and from a fused power bubble.
 	Reuses the same per-type palette as a power bubble's glow
 	(POWER_BUBBLE_COLORS) so the color language stays consistent."""
 	if is_power_bubble:
 		return  # power bubbles get their own glow treatment - see apply_power_bubble_visuals()
+	_remove_type_core()
 	if absorbed_enemy_type == "":
 		return
-	modulate = POWER_BUBBLE_COLORS.get(absorbed_enemy_type, DEFAULT_POWER_BUBBLE_COLOR)
+	# A small circle inside the bubble rather than tinting the whole thing.
+	# It's its own child node, so the shockwave charge outline (another
+	# child) and hit flashes leave it alone - it stays for the bubble's life.
+	var core := TypeCore.new()
+	core.name = "TypeCore"
+	core.color = POWER_BUBBLE_COLORS.get(absorbed_enemy_type, DEFAULT_POWER_BUBBLE_COLOR)
+	core.radius = TYPE_CORE_RADIUS
+	core.fill_alpha = TYPE_CORE_FILL_ALPHA
+	core.ring_alpha = TYPE_CORE_RING_ALPHA
+	add_child(core)
+
+func _remove_type_core() -> void:
+	var existing := get_node_or_null("TypeCore")
+	if existing:
+		# Detach first so a replacement added this same frame keeps the name.
+		remove_child(existing)
+		existing.queue_free()
 
 func custom_start():
 	"""Initialize bubble behavior"""
@@ -208,7 +299,13 @@ func _bounce_off_player(player: Node2D) -> void:
 	straight up); the player's own velocity blends in a bit more steering
 	(same idea as get_bubble_launch_direction() in player_absorption.gd); and
 	the resulting speed can pick up slightly but never exceeds
-	PLAYER_BOUNCE_SPEED_MULTIPLIER_CAP times the bubble's original speed."""
+	PLAYER_BOUNCE_SPEED_MULTIPLIER_CAP times the bubble's original speed.
+
+	Also ends a shockwave charge - unless the charge was applied a moment
+	ago (the touch and the landing shockwave arrived together)."""
+	if is_shockwave_charged and time_elapsed - _charged_at > SHOCKWAVE_TOUCH_GRACE:
+		_clear_shockwave_charge()
+
 	var half_extents := _get_player_half_extents(player)
 	# clamp() returns Variant in GDScript even with all-float arguments, so
 	# offset_x needs an explicit type here rather than := - otherwise it
@@ -237,6 +334,48 @@ func _bounce_off_player(player: Node2D) -> void:
 	global_position += bounce_direction * 4.0
 
 	flash_white()
+
+func on_shockwave_hit(center: Vector2) -> void:
+	"""Called by LandingShockwave when its ring reaches this bubble. Bounces
+	off the ring like off a wall (reflect if heading into it; if already
+	heading away it just keeps going), then charges the bubble."""
+	var normal: Vector2 = global_position - center
+	if normal.length() < 0.01:
+		normal = Vector2.UP
+	normal = normal.normalized()
+	if direction.dot(normal) < 0.0:
+		direction = direction.bounce(normal).normalized()
+	global_position += normal * 2.0
+	flash_white()
+	_become_shockwave_charged()
+
+func _become_shockwave_charged() -> void:
+	# Re-hit while already charged: just refresh the grace timer.
+	_charged_at = time_elapsed
+	if is_shockwave_charged:
+		return
+	is_shockwave_charged = true
+	speed *= SHOCKWAVE_CHARGE_SPEED_MULT
+	# Raise the paddle-bounce speed cap by the same amount so the first
+	# bounce off the player doesn't immediately clamp the boost back off.
+	base_speed *= SHOCKWAVE_CHARGE_SPEED_MULT
+	var outline := ChargeOutline.new()
+	outline.name = "ChargeOutline"
+	outline.color = SHOCKWAVE_OUTLINE_COLOR
+	add_child(outline)
+
+func _clear_shockwave_charge() -> void:
+	"""Back to a normal bubble: no outline, no enemy damage, speed boost
+	removed."""
+	if not is_shockwave_charged:
+		return
+	is_shockwave_charged = false
+	speed /= SHOCKWAVE_CHARGE_SPEED_MULT
+	base_speed /= SHOCKWAVE_CHARGE_SPEED_MULT
+	var outline := get_node_or_null("ChargeOutline")
+	if outline:
+		remove_child(outline)
+		outline.queue_free()
 
 func pop_bubble():
 	"""Create a pop effect when bubble expires"""
@@ -376,7 +515,15 @@ func _on_area_entered(area: Area2D):
 	# on either side. (Enemy bullets and enemies used to chip away at
 	# current_hits/hit_points here and eventually pop the bubble - removed
 	# per request so the bubble is fully immune to them.)
-	if area.is_in_group("enemy_bullet") or area.is_in_group("enemies") or area.is_in_group("enemy"):
+	#
+	# Exception: a shockwave-charged bubble (see on_shockwave_hit()) chips
+	# SHOCKWAVE_CHARGE_DAMAGE off each enemy it passes through. Still no
+	# effect on the bubble itself, and enemy bullets are still ignored.
+	if area.is_in_group("enemies") or area.is_in_group("enemy"):
+		if is_shockwave_charged and area.has_method("take_damage"):
+			area.take_damage(SHOCKWAVE_CHARGE_DAMAGE)
+		return
+	if area.is_in_group("enemy_bullet"):
 		return
 
 	# NEW: Check if hit by player's bullet
@@ -409,8 +556,12 @@ func _try_merge_with_bubble(other: Bubble) -> void:
 	var combined_types: Array = enemy_types.duplicate()
 	combined_types.append_array(other.enemy_types)
 
+	var other_charged: bool = other.is_shockwave_charged
 	other.queue_free()
 	become_power_bubble(combined_types)
+	# A charge on either bubble carries over into the fused one.
+	if other_charged:
+		_become_shockwave_charged()
 
 func become_power_bubble(combined_types: Array) -> void:
 	"""Turn this bubble into a power bubble containing combined_types
@@ -419,6 +570,7 @@ func become_power_bubble(combined_types: Array) -> void:
 	enemy_types = combined_types
 	absorbed_enemy_type = combined_types[0] if combined_types.size() > 0 else absorbed_enemy_type
 	current_hits = 0  # fresh health pool for the fused bubble
+	_remove_type_core()  # the power glow shows the type now
 
 	apply_power_bubble_visuals()
 

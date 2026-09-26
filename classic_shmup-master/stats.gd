@@ -47,8 +47,14 @@ var default_stats: Dictionary = {
 		"shield_regen_delay": 3.0,
 		"shoot_cooldown": 0.25,
 		"absorb_cooldown": 2.0,
-		"dash_speed": 400.0,
-		"dash_duration": 0.15,
+		# Dash is a "jump" (ship scales up then down - see
+		# PlayerMovement._start_jump()). While airborne the ship passes
+		# over enemy bullets and enemy ships (see start_dash() /
+		# PlayerHealth.is_invincible()). Distance travelled is roughly
+		# dash_speed x dash_duration (100 x 0.8 = ~80px, on a 240x320
+		# screen) - lower dash_speed for a shorter hop.
+		"dash_speed": 100.0,
+		"dash_duration": 0.8,
 		"dash_cooldown": 0.5,
 		"can_multi_shoot": false,
 		"shot_count": 1,
