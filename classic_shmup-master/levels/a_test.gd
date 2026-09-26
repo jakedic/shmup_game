@@ -15,7 +15,7 @@ const FLOWER := preload("res://enemies/flower_enemy.tscn")
 # Wave 1 - one flower squad down the middle, firing at the top of the screen
 # and again about 40% of the way down.
 func _wave_1() -> void:
-	spawn_flower_squad_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "attack_heights": [0.0, 0.4]})
+	spawn_flower_squad_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "attack_heights": [0.0,0.2, 0.4]})
 
 
 # Wave 2 - solo flowers dropping in one after another. The first three

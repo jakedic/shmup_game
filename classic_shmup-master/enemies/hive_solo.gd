@@ -41,8 +41,8 @@ const WALL_SCENE := preload("res://enemy_bullets/wall_bullet.tscn")
 @export var start_pos: Vector2 = Vector2(120, -40)  # where it spawns (normally off-screen)
 @export var end_pos: Vector2 = Vector2(120, 360)    # sets its direction of travel
 @export var start_delay: float = 0.0       # seconds parked at start_pos before it starts moving
-@export var path_speed: float = 20.0       # px/s - very slow forward creep
-@export var stop_fractions: Array[float] = [1.0 / 3.0, 2.0 / 3.0]  # where it stops, as fractions of the on-screen part of its path
+@export var path_speed: float = 40.0       # px/s - very slow forward creep
+@export var stop_fractions: Array[float] = [1.0/4.0, 1.0 / 3.0, 13.0/32.0, 2.0/4.0, 7/12, 2.0/3.0, 3/4, 83/99]  # where it stops, as fractions of the on-screen part of its path
 
 # ----- per-stop timing -----
 @export var hold_duration: float = 0.5     # seconds of stillness before the shake starts

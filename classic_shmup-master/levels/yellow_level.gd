@@ -26,6 +26,7 @@ const FLOWER := preload("res://enemies/flower_enemy.tscn")
 # squad on the right a few seconds later. Both creep down slowly and stop to
 # fire walls, so the player has time to learn the pattern.
 func _wave_1() -> void:
+	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.3})
 	spawn_flower_squad_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "attack_heights": [0.0, 0.4]})
 	spawn_flower_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "start_delay": 10.0, "attack_heights": [0.1, 0.35, 0.6]})
 	# Example of tweaking one flower's motion: wider, slower, lazier swing.
@@ -34,7 +35,7 @@ func _wave_1() -> void:
 	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.7, "start_delay": 18.0, "sway_width": 22.0, "sway_time": 1.6, "fall_speed": 40.0})
 
 func _wave_2() -> void:
-	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.3})
+	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.3, "attack_heights": [.02, .35, .6]})
 	spawn_hive_squad_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.7, "end_side": Side.BOTTOM, "end_percent": 0.7, "start_delay": 3.0})
 	spawn_drift_wave({"enemy": ASTROID_MEDIUM, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.35, "speed": 18.0})
 	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": 0.55, "speed": 26.0, "start_delay": 1.0})
