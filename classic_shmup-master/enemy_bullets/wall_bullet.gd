@@ -4,9 +4,11 @@
 # perpendicular to its direction of travel. Drawn as a code-built Polygon2D
 # placeholder; swap in real art by adding a Sprite2D to wall_bullet.tscn.
 #
-# Player bullets pass through walls rather than destroying them (see
-# handle_player_bullet_collision below) - delete that override if walls
-# should be shootable.
+# Walls BLOCK player bullets: any player bullet that touches a wall is
+# destroyed, while the wall itself is untouched and keeps travelling (see
+# handle_player_bullet_collision below). This ignores the global
+# Bullet.bullet_vs_bullet_collision_enabled switch on purpose - walls always
+# block. Bubbles aren't in the "player_bullet" group, so they're unaffected.
 extends EnemyBullet
 class_name WallBullet
 
@@ -31,8 +33,11 @@ func custom_start():
 	rotation = direction.angle() - Vector2.DOWN.angle()
 
 
-func handle_player_bullet_collision(_area: Area2D):
-	pass  # walls can't be shot down
+func handle_player_bullet_collision(area: Area2D):
+	# Wall survives; the player's bullet is absorbed.
+	if is_queued_for_deletion() or area.is_queued_for_deletion():
+		return
+	area.queue_free()
 
 
 func _build_wall_shape() -> void:

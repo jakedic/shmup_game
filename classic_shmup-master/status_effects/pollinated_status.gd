@@ -111,4 +111,4 @@ func _spawn_explosion_visual(enemy: BaseEnemy, explosion_radius: float) -> void:
 	var explosion := PollenExplosionVisual.new()
 	explosion.global_position = enemy.global_position
 	explosion.max_radius = explosion_radius
-	enemy.get_tree().root.add_child(explosion)
+	GameShell.game_root().add_child(explosion)

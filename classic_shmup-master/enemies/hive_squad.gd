@@ -53,8 +53,8 @@ const SQUAD_SIZE := 2  # the hive squad is always a pair
 @export var jitter_duration: float = 1.0
 
 # ----- jitter tuning -----
-@export var jitter_amplitude: float = 4.0
-@export var jitter_rotation_amplitude_deg: float = 10.0
+@export var jitter_amplitude: float = 1.5   # was 4.0 - toned down to a subtle buzz
+@export var jitter_rotation_amplitude_deg: float = 4.0  # was 10.0
 @export var jitter_update_interval: float = 0.04
 @export var jitter_ramp_up: float = 0.25
 @export var top_swap_interval: float = 0.08  # seconds between swapping which hive is drawn on top
@@ -311,5 +311,5 @@ func _fire_wall_volley() -> void:
 	for k in range(count):
 		var dir: Vector2 = Vector2.DOWN.rotated(TAU * float(k) / float(count))
 		var wall := WALL_SCENE.instantiate()
-		get_tree().root.add_child(wall)
+		GameShell.game_root().add_child(wall)
 		wall.start(to_global(_meet), dir)

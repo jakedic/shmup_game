@@ -414,7 +414,7 @@ func _spawn_pollen_cone_visual(origin: Vector2, cone_dir: Vector2) -> void:
 	visual.cone_direction = cone_dir
 	visual.cone_range = pollen_cone_range
 	visual.cone_angle_degrees = pollen_cone_angle_degrees
-	get_tree().root.add_child(visual)
+	GameShell.game_root().add_child(visual)
 
 func custom_area_collision(area: Area2D):
 	"""Override this in child classes for custom area collision behavior"""

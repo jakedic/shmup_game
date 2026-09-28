@@ -28,6 +28,8 @@ var is_power_bubble: bool = false
 const POWER_BUBBLE_COLORS := {
 	"yellow": Color(1.0, 0.92, 0.15, 1.0),
 	"red": Color(1.0, 0.25, 0.25, 1.0),
+	"hive": Color(1.0, 0.6, 0.15, 1.0),
+	"flower": Color(1.0, 0.45, 0.8, 1.0),
 }
 const DEFAULT_POWER_BUBBLE_COLOR := Color(0.75, 0.3, 1.0, 1.0)
 
@@ -408,6 +410,10 @@ func create_pop_damage():
 			if distance <= explosion_radius:
 				enemies_in_range.append(enemy)
 	
+	# The pop also wipes out every enemy bullet inside the blast (including
+	# the hive's walls, which normal shots can't destroy).
+	_clear_enemy_bullets(explosion_radius)
+
 	# yellow_bubble_pollen_pop power-up: the pop explosion no longer deals
 	# damage at all - it guarantees the "pollinated" status effect on every
 	# enemy it hits instead (see status_effects/pollinated_status.gd for
@@ -430,6 +436,15 @@ func create_pop_damage():
 	# Create a visual explosion effect (optional)
 	create_visual_explosion()
 	
+
+func _clear_enemy_bullets(radius: float) -> void:
+	"""Remove every enemy bullet (group "enemy_bullet") within `radius` of the
+	bubble's pop."""
+	for b in get_tree().get_nodes_in_group("enemy_bullet"):
+		if not is_instance_valid(b) or b.is_queued_for_deletion():
+			continue
+		if global_position.distance_to(b.global_position) <= radius:
+			b.queue_free()
 
 func create_visual_explosion():
 	"""Create a blue circular explosion effect using a Polygon2D"""
@@ -467,7 +482,7 @@ func create_visual_explosion():
 			explosion.queue_free()
 		cleanup_timer.queue_free()
 	)
-	get_tree().root.add_child(cleanup_timer)
+	GameShell.game_root().add_child(cleanup_timer)
 	cleanup_timer.start()
 
 '''func _on_area_entered(area: Area2D):

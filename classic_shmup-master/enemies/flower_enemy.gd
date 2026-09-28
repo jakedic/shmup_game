@@ -379,6 +379,11 @@ func _apply_leaf_position() -> void:
 	# Spin, plus a tilt into the swing like a leaf rocking on the air.
 	rotation = _spin_angle + deg_to_rad(-tilt_deg * swing)
 
+func get_enemy_type():
+	# Absorbing a flower turns the player into the "flower" form
+	# (PlayerTransformations.transform_flower).
+	return 'flower'
+
 func custom_die():
 	# Shut the laser off immediately if it's killed mid-attack.
 	_beam.visible = false

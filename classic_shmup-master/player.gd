@@ -88,6 +88,16 @@ var _jump_tween: Tween = null
 # True for a split second after landing a dash jump - see
 # PlayerMovement._begin_landing_grace() / PlayerHealth.is_invincible().
 var is_landing_grace: bool = false
+# Brief freeze right after landing a jump: while true the ship can't move
+# (see PlayerMovement._begin_landing_pause()). Length = landing_pause_duration.
+var is_landing_paused: bool = false
+
+# ===== HIT INVINCIBILITY =====
+# After taking damage the ship blinks and can't be hurt again for
+# PlayerHealth.HIT_INVINCIBILITY_DURATION seconds (see PlayerHealth.take_damage()).
+var is_hit_invincible: bool = false
+var _hit_blink_tween: Tween = null
+var landing_pause_duration: float = 0.0
 
 # ===== YELLOW POWER-UP: POLLEN SHOT =====
 # Secondary fire granted by the "Pollen Shot" power-up (see
@@ -145,6 +155,9 @@ var dash_cooldown_timer: Timer
 var is_dashing: bool = false
 var can_dash: bool = true
 var dash_direction: Vector2 = Vector2.ZERO
+# True when the current jump was started with no direction held (L alone).
+# Informational only - in-place jumps can still be steered mid-air.
+var dash_in_place: bool = false
 var original_speed: float
 
 # Visual properties
@@ -160,6 +173,8 @@ var current_form_data: Dictionary = {}
 var yellow_form = preload("res://transformations/yellow.tres")
 var default_form = preload("res://transformations/default.tres")
 var current_form='default'
+# True while an absorb has the game frozen (see PlayerAbsorption.absorb()).
+var absorb_froze_game: bool = false
 var form_path
 var form_resource
 # Sound properties (add these if you have sound)
@@ -197,6 +212,8 @@ func initialize_player():
 		ship_base_scale = $Ship.scale
 	PlayerMovement.reset_jump(self)
 	is_landing_grace = false
+	is_landing_paused = false
+	PlayerHealth.end_hit_invincibility(self)
 
 	# Pull current stats from the central Stats system and stay subscribed
 	# so transformations (add_modifier/remove_modifier) update us live.
@@ -214,6 +231,7 @@ func initialize_player():
 	apply_visuals()
 
 	setup_dash_timers()
+	PlayerMovement.ensure_jump_input()
 	original_speed = speed
 	can_dash = true
 	is_dashing = false
@@ -251,6 +269,7 @@ func _sync_player_stats():
 	dash_speed = s.dash_speed
 	dash_duration = s.dash_duration
 	dash_cooldown = s.dash_cooldown
+	landing_pause_duration = s.get("landing_pause_duration", 0.0)
 	spin_speed = s.spin_speed
 	circle_radius = s.circle_radius
 	circle_speed = s.circle_speed
@@ -512,6 +531,12 @@ func transform_yellow():
 
 func transform_red():
 	PlayerTransformations.transform_red(self)
+
+func transform_hive():
+	PlayerTransformations.transform_hive(self)
+
+func transform_flower():
+	PlayerTransformations.transform_flower(self)
 
 # ===== SHIELD/HEALTH SYSTEM =====
 func set_shield(value: int):

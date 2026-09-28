@@ -160,7 +160,7 @@ func _activate_row(row: Dictionary) -> void:
 		RowType.LAUNCH:
 			_launch()
 		RowType.BACK:
-			get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+			GameShell.change_scene("res://levels/title_screen.tscn")
 
 
 func _launch() -> void:
@@ -182,7 +182,7 @@ func _launch() -> void:
 			var powerup: Dictionary = powerups[i]
 			Stats.choose_run_powerup(powerup.get("id", ""), powerup.get("stats", {}))
 
-	get_tree().change_scene_to_file(level_paths[level_index])
+	GameShell.change_scene(level_paths[level_index])
 
 
 func _process(_delta: float) -> void:

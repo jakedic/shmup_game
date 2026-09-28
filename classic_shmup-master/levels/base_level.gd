@@ -12,6 +12,12 @@ extends Node2D
 # never a full top-up to MAX_POWERUP_CHOICES worth of gray power-ups.
 const MAX_POWERUP_CHOICES := 3
 
+# Score multiplier: every KILLS_PER_MULTIPLIER kills bumps it up by one, up to
+# MAX_SCORE_MULTIPLIER. multiplier_timer (5s, restarted by each kill while at
+# 2x or more) knocks it back down one step each time it runs out.
+const KILLS_PER_MULTIPLIER := 5
+const MAX_SCORE_MULTIPLIER := 4
+
 # Common variables for all levels
 var score = 0
 var playing = false
@@ -59,6 +65,10 @@ func _ready():
 	add_child(multiplier_timer)
 	multiplier_timer.autostart = false # tells the timer not to start on creation
 	multiplier_timer.wait_time = 5.0 # defines how long the timer is
+	multiplier_timer.timeout.connect(timeout_multiplier_timer)
+	# The side-panel multiplier bar reads this timer to show the decay.
+	if ui.has_method("set_multiplier_timer"):
+		ui.set_multiplier_timer(multiplier_timer)
 
 	# Put the player in its proper starting state (full shield, start position)
 	# right away, so it looks correct while the start popup is showing instead
@@ -77,7 +87,8 @@ func start_score_multipliplier_timer():#this creates a function that checks if t
 		multiplier_timer.wait_time = 5.0
 	else:
 		multiplier_timer.stop()
-	multiplier_timer.timeout.connect(timeout_multiplier_timer)
+	# (timeout is connected once in _ready() - connecting it here on every
+	# kill only produced "already connected" errors.)
 # Virtual method - override in child classes
 func initialize_level():
 	# Child classes can override to set up level-specific data
@@ -125,18 +136,20 @@ func spawn_enemy_at_position(x, y):
 func _on_enemy_died(value):
 	score += value * score_multiplier
 	ui.update_score(score)
-	ui.update_score_multiplier(score_multiplier)
 	camera.add_trauma(0.5)
 	start_score_multipliplier_timer()
 	multiplier_increase_tracker += 1
-	if score_multiplier >= 4:
+	if score_multiplier >= MAX_SCORE_MULTIPLIER:
 		multiplier_increase_tracker = 0
-	if multiplier_increase_tracker > 4:
+	if multiplier_increase_tracker >= KILLS_PER_MULTIPLIER:
 		score_multiplier += 1
 		multiplier_increase_tracker = 0
 	else:
 		pass
-		
+	# Update the HUD after the multiplier logic above so it shows the
+	# multiplier (and bar progress) as it is now, not as it was before this kill.
+	_refresh_multiplier_ui()
+
 	# Add this line to update the player's multiplier
 	if player and player.has_method("update_multiplier"):
 		player.update_multiplier(score_multiplier)
@@ -439,18 +452,18 @@ func change_levels():
 		return
 
 	if level_paths.has("next_level"):
-		get_tree().change_scene_to_file(level_paths["next_level"])
+		GameShell.change_scene(level_paths["next_level"])
 	else:
 		# Default behavior - go to next level numerically
-		var current_scene = get_tree().current_scene.scene_file_path
+		var current_scene = scene_file_path
 		var level_num = current_scene.get_file().trim_suffix(".tscn").substr(6).to_int()
 		var next_level = "res://levels/level_%d.tscn" % (level_num + 1)
 
 		if ResourceLoader.exists(next_level):
-			get_tree().change_scene_to_file(next_level)
+			GameShell.change_scene(next_level)
 		else:
 			# If no next level exists, go to victory screen or title
-			get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+			GameShell.change_scene("res://levels/title_screen.tscn")
 
 func _offer_run_powerup_choice() -> void:
 	"""Called at the end of a level that's part of an overworld run. If the
@@ -521,7 +534,7 @@ func _on_player_died():
 		# all the way back to the title screen.
 		GameProgress.on_level_lost()
 	else:
-		get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+		GameShell.change_scene("res://levels/title_screen.tscn")
 	start_button.show()
 
 func new_game():
@@ -545,6 +558,8 @@ func new_game():
 func game_started():
 	# Child classes can override for level-specific startup logic
 	ui.update_score_multiplier(1)
+	if ui.has_method("update_multiplier_progress"):
+		ui.update_multiplier_progress(multiplier_increase_tracker, KILLS_PER_MULTIPLIER, false)
 	pass
 
 func _on_start_pressed():
@@ -617,13 +632,21 @@ func _on_quit_pressed():
 	is_powerup_choice_active = false
 	get_tree().paused = false
 	playing = false
-	get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+	GameShell.change_scene("res://levels/title_screen.tscn")
 func timeout_multiplier_timer():
 	score_multiplier = score_multiplier - 1
 	multiplier_increase_tracker = 0
-	ui.update_score_multiplier(score_multiplier)
+	_refresh_multiplier_ui()
 	if score_multiplier >= 2:
 		pass
 	else:
 		multiplier_timer.stop()
 	
+
+
+# Pushes the current multiplier + progress toward the next one to the HUD
+# (the side-panel multiplier bar - see game_shell.gd / multiplier_bar.gd).
+func _refresh_multiplier_ui() -> void:
+	ui.update_score_multiplier(score_multiplier)
+	if ui.has_method("update_multiplier_progress"):
+		ui.update_multiplier_progress(multiplier_increase_tracker, KILLS_PER_MULTIPLIER, score_multiplier >= MAX_SCORE_MULTIPLIER)

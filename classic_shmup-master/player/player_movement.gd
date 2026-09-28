@@ -1,8 +1,10 @@
 extends RefCounted
 class_name PlayerMovement
 
-## Handles per-frame movement (acceleration/deceleration), the double-tap
-## dash detection, and the dash itself (circular strafe motion, timers).
+## Handles per-frame movement (acceleration/deceleration), the jump (dash)
+## input - the "jump" action (L) jumps toward the held direction, or in
+## place if none is held (double-tap-to-dash was removed) - and the dash
+## itself (circular strafe motion, timers).
 ## Called from player.gd as e.g. PlayerMovement.handle_movement(self, delta).
 ##
 ## Dash invincibility (dash_invincible stat, see player/player_powerups.gd -
@@ -60,7 +62,8 @@ static func handle_movement(player: Player, delta: float) -> void:
 		# Apply player input to modify dash direction
 		var modified_direction = (base_dash_dir + input * player.steering_influence).normalized()
 
-		# Smoothly transition to new direction
+		# Smoothly transition to new direction. Works for in-place jumps too:
+		# they start with no direction and steer toward whatever is held.
 		player.dash_direction = player.dash_direction.lerp(modified_direction, DASH_STEER_RATE * delta)
 
 		# Apply dash velocity with circular motion added
@@ -69,8 +72,12 @@ static func handle_movement(player: Player, delta: float) -> void:
 		# Reset dash time when not dashing
 		player.dash_time = 0
 
+		if player.is_landing_paused:
+			# Just landed a jump - stay put until the landing pause ends.
+			player.current_velocity = Vector2.ZERO
+			input = Vector2.ZERO
 		# Normal movement with acceleration/deceleration
-		if input.length() > 0:
+		elif input.length() > 0:
 			player.current_velocity = player.current_velocity.lerp(input * player.speed, player.acceleration * delta)
 		else:
 			player.current_velocity = player.current_velocity.lerp(Vector2.ZERO, player.deceleration * delta)
@@ -135,44 +142,34 @@ static func update_doubletap_timers(player: Player, delta: float) -> void:
 		player.doubletap_time_down -= delta
 
 static func handle_dash_input(player: Player) -> void:
-	"""Handle dash input based on double-tap detection"""
+	"""Jump (dash) on the "jump" action (L). Jumps toward whatever direction
+	is held at the moment L is pressed, or straight up in place if no
+	direction is held."""
 	if not player.is_alive or not player.can_dash or player.is_dashing:
 		return
+	if Input.is_action_just_pressed("jump"):
+		var dir := Input.get_vector("left", "right", "up", "down")
+		start_dash(player, dir)
 
-	# Check for double-tap in each direction
-	if Input.is_action_just_pressed("left"):
-		if player.doubletap_time_left > 0:
-			start_dash(player, Vector2.LEFT)
-		else:
-			player.doubletap_time_left = Player.DOUBLETAP_DELAY
-
-	if Input.is_action_just_pressed("right"):
-		if player.doubletap_time_right > 0:
-			start_dash(player, Vector2.RIGHT)
-		else:
-			player.doubletap_time_right = Player.DOUBLETAP_DELAY
-
-	if Input.is_action_just_pressed("up"):
-		if player.doubletap_time_up > 0:
-			start_dash(player, Vector2.UP)
-		else:
-			player.doubletap_time_up = Player.DOUBLETAP_DELAY
-
-	if Input.is_action_just_pressed("down"):
-		if player.doubletap_time_down > 0:
-			start_dash(player, Vector2.DOWN)
-		else:
-			player.doubletap_time_down = Player.DOUBLETAP_DELAY
-
-	# Also check for double-tap using held direction + opposite press
-	# (Alternative method: tap direction, release, tap same direction quickly)
-	var input = Input.get_vector("left", "right", "up", "down")
-	if input != Vector2.ZERO and input != player.last_direction_input:
-		# Check if this is a quick return to the same direction
-		if player.last_direction_input != Vector2.ZERO and input.dot(player.last_direction_input) > 0.7:
-			# This detects quick direction changes (like left-right-left)
-			pass
-	player.last_direction_input = input
+static func ensure_jump_input() -> void:
+	"""Make sure the "jump" action exists and is on L, and that L no longer
+	triggers "revert" (removed - L used to be revert). This is also set in
+	project.godot's Input Map; doing it here too means it still works even
+	if the editor ever writes an older project.godot back over it."""
+	if not InputMap.has_action("jump"):
+		InputMap.add_action("jump", 0.5)
+	var has_l := false
+	for e in InputMap.action_get_events("jump"):
+		if e is InputEventKey and e.physical_keycode == KEY_L:
+			has_l = true
+	if not has_l:
+		var ev := InputEventKey.new()
+		ev.physical_keycode = KEY_L
+		InputMap.action_add_event("jump", ev)
+	if InputMap.has_action("revert"):
+		for e in InputMap.action_get_events("revert"):
+			if e is InputEventKey and e.physical_keycode == KEY_L:
+				InputMap.action_erase_event("revert", e)
 
 static func start_dash(player: Player, direction: Vector2) -> void:
 	"""Start a dash in the given direction"""
@@ -183,6 +180,9 @@ static func start_dash(player: Player, direction: Vector2) -> void:
 	if direction.length() > 1:
 		direction = direction.normalized()
 
+	# No direction held -> jump straight up in place (still steerable
+	# mid-air, same as any other jump).
+	player.dash_in_place = direction == Vector2.ZERO
 	player.dash_direction = direction
 	player.is_dashing = true
 	player.can_dash = false
@@ -256,11 +256,29 @@ static func on_dash_end(player: Player) -> void:
 	# this just guarantees an exact return to normal size).
 	reset_jump(player)
 
+	# Freeze in place for a moment after touching down.
+	_begin_landing_pause(player)
+
 	# Start cooldown timer
 	player.dash_cooldown_timer.start(player.dash_cooldown)
 
 	if is_instance_valid(player.get_node("Ship")):
 		player.get_node("Ship").rotation = 0
+
+static func _begin_landing_pause(player: Player) -> void:
+	"""Hold the ship still for landing_pause_duration seconds after a jump
+	lands (handle_movement() zeroes its velocity while is_landing_paused)."""
+	if player.landing_pause_duration <= 0.0 or not player.is_alive:
+		return
+	player.is_landing_paused = true
+	player.current_velocity = Vector2.ZERO
+	# process_always = false so the pause doesn't tick down while the game
+	# itself is paused.
+	var timer = player.get_tree().create_timer(player.landing_pause_duration, false)
+	timer.timeout.connect(func():
+		if is_instance_valid(player):
+			player.is_landing_paused = false
+	)
 
 static func _begin_landing_grace(player: Player) -> void:
 	"""Stay untouchable (bullets + ships) for LANDING_GRACE_DURATION after

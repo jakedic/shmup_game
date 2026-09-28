@@ -55,7 +55,12 @@ var default_stats: Dictionary = {
 		# screen) - lower dash_speed for a shorter hop.
 		"dash_speed": 100.0,
 		"dash_duration": 0.8,
-		"dash_cooldown": 0.5,
+		# Seconds after landing before the player can jump again (the side
+		# panel's Jump meter shows this refilling).
+		"dash_cooldown": 3.0,
+		# Seconds the ship stays frozen in place right after landing a jump
+		# (see PlayerMovement._begin_landing_pause()). 0 = no pause.
+		"landing_pause_duration": 0.25,
 		"can_multi_shoot": false,
 		"shot_count": 1,
 		"shot_spread": 30.0,

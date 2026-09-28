@@ -49,9 +49,9 @@ const WALL_SCENE := preload("res://enemy_bullets/wall_bullet.tscn")
 @export var jitter_duration: float = 0.9   # seconds of violent shaking; the volley fires the moment this ends
 
 # ----- jitter tuning (gatling-gun shake) -----
-@export var jitter_amplitude: float = 3.0              # px
-@export var jitter_rotation_amplitude_deg: float = 10.0
-@export var jitter_update_interval: float = 0.02       # seconds between re-rolls - very fast
+@export var jitter_amplitude: float = 1.25             # px (was 3.0 - toned down to a subtle buzz)
+@export var jitter_rotation_amplitude_deg: float = 4.0  # was 10.0
+@export var jitter_update_interval: float = 0.03       # seconds between re-rolls (was 0.02)
 @export var jitter_ramp_up: float = 0.25               # seconds for the shake to reach full strength (spin-up feel)
 
 # ----- wall volley -----
@@ -220,5 +220,5 @@ func _fire_wall_volley() -> void:
 	var angle: float = deg_to_rad(wall_spread_angle_deg)
 	for dir in [_dir.rotated(angle), _dir, _dir.rotated(-angle)]:
 		var wall := WALL_SCENE.instantiate()
-		get_tree().root.add_child(wall)
+		GameShell.game_root().add_child(wall)
 		wall.start(_enemy.global_position, dir)

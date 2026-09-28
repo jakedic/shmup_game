@@ -411,7 +411,7 @@ func shoot_multiple():
 		
 		# Create bullet
 		var bullet = bullet_scene.instantiate()
-		get_tree().root.add_child(bullet)
+		GameShell.game_root().add_child(bullet)
 		
 		# Set bullet properties
 		if bullet.has_method("start"):
@@ -436,7 +436,7 @@ func configure_bullet(bullet: Node2D):
 
 func launch_bullet(bullet: Node2D, bullet_position: Vector2):
 	"""Launch a bullet from position"""
-	get_tree().root.add_child(bullet)
+	GameShell.game_root().add_child(bullet)
 	bullet.start(bullet_position)
 	
 	# Emit signal

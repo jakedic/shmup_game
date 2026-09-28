@@ -98,6 +98,10 @@ var absorption_active = true  # Whether absorption is still happening
 var original_sprite_height = 0.0
 
 func _ready():
+	# The whole game freezes (tree paused) while the absorb beam is out - see
+	# PlayerAbsorption.absorb() - so the beam itself has to keep running.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
 	# Get the sprite's texture height
 	if $Sprite2D.texture:
 		original_sprite_height = $Sprite2D.texture.get_size().y
@@ -151,6 +155,11 @@ func _physics_process(delta):
 		
 		# Update position to keep bottom fixed
 		update_sprite_position(current_scale_y)
+
+		# While the game is frozen the physics server is paused too, so
+		# area_entered never fires - look for enemies under the beam by hand.
+		if get_tree().paused and not has_hit_enemy:
+			_check_overlaps_manually()
 	
 	# Remove if goes off screen (optional - adjust based on your needs)
 	if position.y < -20 or position.y > get_viewport().get_visible_rect().size.y + 20:
@@ -180,6 +189,35 @@ func smoothstep(edge0, edge1, x):
 	x = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0)
 	# Evaluate polynomial
 	return x * x * (3 - 2 * x)
+
+func _check_overlaps_manually() -> void:
+	var shape_node: CollisionShape2D = $CollisionShape2D
+	if shape_node.shape == null:
+		return
+	var params := PhysicsShapeQueryParameters2D.new()
+	params.shape = shape_node.shape
+	params.transform = shape_node.global_transform
+	params.collide_with_areas = true
+	params.collide_with_bodies = false
+	params.collision_mask = collision_mask
+	params.exclude = [get_rid()]
+	var hits := get_world_2d().direct_space_state.intersect_shape(params, 16)
+	for hit in hits:
+		var area = hit.get("collider")
+		if area is Area2D and is_instance_valid(area):
+			if "is_alive" in area and not area.is_alive:
+				continue
+			_on_area_entered(area)
+			if has_hit_enemy:
+				return
+
+
+func _exit_tree():
+	# Safety net: if the beam goes away without reporting back (e.g. freed
+	# off-screen), still end the absorb so the game unfreezes.
+	if is_instance_valid(target_player) and target_player.currently_absorbing:
+		target_player.absorb_fail()
+
 
 func _on_area_entered(area):
 	if area.is_in_group("enemies") and not has_hit_enemy:

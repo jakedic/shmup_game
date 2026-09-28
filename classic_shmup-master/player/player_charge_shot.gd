@@ -80,7 +80,7 @@ static func _fire_charged_shot(player: Player) -> void:
 	player.can_shoot = false
 	player.get_node("GunCooldown").start()
 
-	player.get_tree().root.add_child(bullet)
+	GameShell.game_root().add_child(bullet)
 
 	# Configured exactly like a normal shot - damage/speed/pierce/max_distance
 	# all come from Stats.get_category("bullet"), i.e. whatever the active
@@ -115,7 +115,7 @@ static func _fire_pollen_puff(player: Player) -> void:
 	# Stats-driven values - same reason as _fire_charged_shot() above: the
 	# bullet's own _ready() hardcodes fallback stats that would otherwise
 	# clobber whatever we set beforehand.
-	player.get_tree().root.add_child(bullet)
+	GameShell.game_root().add_child(bullet)
 
 	var p: Dictionary = Stats.get_category("pollen_puff")
 	if bullet.has_method("set_damage"):

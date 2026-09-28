@@ -64,7 +64,7 @@ static func shoot_multiple(player: Player, bullet_type: PackedScene) -> void:
 
 		# Add to the tree first so _ready() runs, THEN reapply the
 		# Stats-driven values - same fix and same reason as launch_bullet().
-		player.get_tree().root.add_child(bullet)
+		GameShell.game_root().add_child(bullet)
 		configure_bullet(bullet)
 
 		# Set bullet direction if supported
@@ -123,7 +123,7 @@ static func configure_bullet(bullet: Node2D) -> void:
 
 static func launch_bullet(player: Player, bullet: Node2D, spawn_pos: Vector2) -> void:
 	"""Launch a bullet into the game"""
-	player.get_tree().root.add_child(bullet)
+	GameShell.game_root().add_child(bullet)
 
 	# The bullet's own _ready() just fired via add_child() above, and it
 	# hardcodes fallback stats (see bullet.gd / bullet_yellow.gd) - those
