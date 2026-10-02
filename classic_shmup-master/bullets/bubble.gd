@@ -197,6 +197,8 @@ func _process(delta: float):
 	same spirit as a normal bullet leaving the screen. bubble_lifetime is
 	still a safety-net pop in case a bubble somehow keeps bouncing forever
 	without ever resolving either way."""
+	if _is_fusing:
+		return  # driven by _play_fusion_sequence() instead
 	time_elapsed += delta
 	if time_elapsed >= bubble_lifetime:
 		pop_bubble()
@@ -257,7 +259,7 @@ func _apply_bubble_attraction(delta: float) -> void:
 	for other in get_tree().get_nodes_in_group("bubble"):
 		if other == self or not is_instance_valid(other) or other.is_queued_for_deletion():
 			continue
-		if other.is_power_bubble:
+		if other.is_power_bubble or other._is_fusing:
 			continue
 		var dist := global_position.distance_to(other.global_position)
 		if dist < closest_dist:
@@ -561,6 +563,8 @@ func _try_merge_with_bubble(other: Bubble) -> void:
 	waits to be freed."""
 	if is_power_bubble or other.is_power_bubble:
 		return  # power bubbles don't fuse further
+	if _is_fusing or other._is_fusing:
+		return  # already mid-fusion with something else
 	if is_queued_for_deletion() or other.is_queued_for_deletion():
 		return
 	if get_instance_id() > other.get_instance_id():
@@ -571,12 +575,103 @@ func _try_merge_with_bubble(other: Bubble) -> void:
 	var combined_types: Array = enemy_types.duplicate()
 	combined_types.append_array(other.enemy_types)
 
-	var other_charged: bool = other.is_shockwave_charged
-	other.queue_free()
+	_play_fusion_sequence(other, combined_types)
+
+# ---- Fusion cutscene (see _play_fusion_sequence()) ----
+# Everything here runs while the whole game is paused, like the absorb freeze.
+const FUSION_ORBIT_DURATION := 0.9   # seconds the two bubbles spiral around each other
+const FUSION_ORBIT_TURNS := 2.5      # full revolutions during the spiral
+const FUSION_MIN_ORBIT_RADIUS := 10.0  # start radius if they touched almost dead-centre
+const FUSION_GROW_DURATION := 0.3    # pop up into the bigger bubble
+const FUSION_BIG_SCALE := 1.8        # size of the fused bubble vs a normal one
+const FUSION_HOLD_DURATION := 0.2    # beat to admire the big bubble before it moves
+const FUSION_TRAVEL_SPEED := 260.0   # px/s flying to the player
+const FUSION_MIN_TRAVEL_TIME := 0.25
+const FUSION_ABSORB_DURATION := 0.15 # shrink into the player on arrival
+
+var _is_fusing: bool = false
+
+func _play_fusion_sequence(other: Bubble, combined_types: Array) -> void:
+	"""Two bubbles met: freeze the game, spiral them around each other into
+	one bigger power bubble, fly it to the player, then grant the power-up
+	(whose popup - BaseLevel.show_powerup_popup() - keeps the game paused
+	until the player dismisses it). Fire-and-forget coroutine; the bubble
+	frees itself at the end."""
+	_is_fusing = true
+	other._is_fusing = true
+	# No more collisions for either bubble while this plays out.
+	set_deferred("monitoring", false)
+	set_deferred("monitorable", false)
+	other.set_deferred("monitoring", false)
+	other.set_deferred("monitorable", false)
+
+	var tree := get_tree()
+	tree.paused = true
+
+	# --- 1. Spiral around each other ---
+	var center: Vector2 = (global_position + other.global_position) * 0.5
+	var start_offset: Vector2 = global_position - center
+	if start_offset.length() < FUSION_MIN_ORBIT_RADIUS:
+		start_offset = start_offset.normalized() * FUSION_MIN_ORBIT_RADIUS if start_offset.length() > 0.01 else Vector2(FUSION_MIN_ORBIT_RADIUS, 0)
+	var orbit := func(t: float) -> void:
+		# Ease in so the spin speeds up as they close in.
+		var e := t * t
+		var off := start_offset.rotated(TAU * FUSION_ORBIT_TURNS * e) * (1.0 - e)
+		if is_instance_valid(self):
+			global_position = center + off
+		if is_instance_valid(other):
+			other.global_position = center - off
+	var tw := _paused_tween()
+	tw.tween_method(orbit, 0.0, 1.0, FUSION_ORBIT_DURATION)
+	await tw.finished
+
+	# --- 2. Combine into a bigger bubble ---
+	var other_charged: bool = is_instance_valid(other) and other.is_shockwave_charged
+	if is_instance_valid(other):
+		other.queue_free()
+	global_position = center
 	become_power_bubble(combined_types)
-	# A charge on either bubble carries over into the fused one.
 	if other_charged:
 		_become_shockwave_charged()
+	var base_scale := scale
+	tw = _paused_tween()
+	tw.tween_property(self, "scale", base_scale * FUSION_BIG_SCALE * 1.2, FUSION_GROW_DURATION * 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "scale", base_scale * FUSION_BIG_SCALE, FUSION_GROW_DURATION * 0.4)
+	tw.tween_interval(FUSION_HOLD_DURATION)
+	await tw.finished
+
+	# --- 3. Fly to the player ---
+	var player = tree.get_first_node_in_group("player")
+	if player == null or not is_instance_valid(player) or ("is_alive" in player and not player.is_alive):
+		# Nobody to give it to - just end the freeze and drop the bubble.
+		tree.paused = false
+		queue_free()
+		return
+	var target: Vector2 = player.global_position
+	var travel_time: float = max(global_position.distance_to(target) / FUSION_TRAVEL_SPEED, FUSION_MIN_TRAVEL_TIME)
+	tw = _paused_tween()
+	tw.tween_property(self, "global_position", target, travel_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_property(self, "scale", Vector2.ZERO, FUSION_ABSORB_DURATION)
+	await tw.finished
+
+	# --- 4. Give the player the power-up and show it ---
+	var first_enemy_type: String = enemy_types[0] if enemy_types.size() > 0 else absorbed_enemy_type
+	var granted: Dictionary = {}
+	if is_instance_valid(player) and player.has_method("apply_random_powerup"):
+		granted = player.apply_random_powerup(first_enemy_type)
+	if granted.is_empty():
+		# No power-up available for this type (so no popup to dismiss) -
+		# unfreeze ourselves.
+		tree.paused = false
+	# Otherwise the power-up popup is now up and owns the pause; it unpauses
+	# when the player dismisses it.
+	queue_free()
+
+func _paused_tween() -> Tween:
+	"""A tween that keeps running while the tree is paused."""
+	var tw := create_tween()
+	tw.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	return tw
 
 func become_power_bubble(combined_types: Array) -> void:
 	"""Turn this bubble into a power bubble containing combined_types

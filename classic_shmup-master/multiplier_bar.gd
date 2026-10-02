@@ -9,6 +9,14 @@
 #     the level's multiplier timer is running, and when it runs out the
 #     multiplier drops by one. The strip drains as that timer counts down and
 #     turns red near the end. It refills every time a kill restarts the timer.
+#
+# Ability mode: while the player has an absorbed ability (current_form isn't
+# 'default' and its transformation timer is running), the top part stops
+# showing kill progress and instead shows how much time is left on the
+# ability, as one bar in the ability's color that drains and blinks near the
+# end. As soon as the ability ends (timed out, or the player shot it out as a
+# bubble) it goes straight back to the kill-progress segments. The decay strip
+# underneath keeps showing the multiplier decay the whole time.
 extends Control
 
 const BORDER_COLOR := Color(0.85, 0.85, 0.92)
@@ -29,6 +37,21 @@ var at_max := false
 var decay_timer: Timer = null
 
 var _pulse := 0.0
+
+# Ability mode state (refreshed every frame in _process from the player).
+const ABILITY_DEFAULT_COLOR := Color(0.75, 0.3, 1.0)
+# Same palette as bubble.gd's POWER_BUBBLE_COLORS (copied rather than
+# referenced so this autoload-owned HUD script doesn't pull in Bubble).
+const ABILITY_COLORS := {
+	"yellow": Color(1.0, 0.92, 0.15),
+	"red": Color(1.0, 0.25, 0.25),
+	"hive": Color(1.0, 0.6, 0.15),
+	"flower": Color(1.0, 0.45, 0.8),
+}
+const ABILITY_LOW_FRACTION := 0.3  # starts blinking below this much time left
+var ability_active := false
+var ability_fraction := 0.0
+var ability_color := ABILITY_DEFAULT_COLOR
 
 
 func _ready() -> void:
@@ -60,7 +83,23 @@ func _decay_fraction() -> float:
 
 func _process(delta: float) -> void:
 	_pulse = fmod(_pulse + delta * 4.0, TAU)
+	_update_ability_state()
 	queue_redraw()
+
+
+func _update_ability_state() -> void:
+	ability_active = false
+	var player = get_tree().get_first_node_in_group("player")
+	if player == null or not is_instance_valid(player):
+		return
+	if not ("current_form" in player) or player.current_form == 'default':
+		return
+	var t: Timer = player.transformation_timer
+	if t == null or not is_instance_valid(t) or t.is_stopped() or t.wait_time <= 0.0:
+		return
+	ability_active = true
+	ability_fraction = clamp(t.time_left / t.wait_time, 0.0, 1.0)
+	ability_color = ABILITY_COLORS.get(player.current_form, ABILITY_DEFAULT_COLOR)
 
 
 func _draw() -> void:
@@ -73,7 +112,28 @@ func _draw() -> void:
 		Vector2(inner.position.x, inner.end.y - DECAY_STRIP_HEIGHT),
 		Vector2(inner.size.x, DECAY_STRIP_HEIGHT))
 
-	# --- progress segments ---
+	# --- ability timer (replaces the progress segments while an ability is active) ---
+	if ability_active:
+		draw_rect(prog_rect, SEGMENT_EMPTY_COLOR)
+		var acol := ability_color
+		if ability_fraction < ABILITY_LOW_FRACTION:
+			# Blink faster as it runs out so the player knows it's about to end.
+			acol = ability_color.lerp(Color.WHITE, 0.5 + 0.5 * sin(_pulse * 3.0))
+		draw_rect(Rect2(prog_rect.position, Vector2(prog_rect.size.x * ability_fraction, prog_rect.size.y)), acol)
+	else:
+		_draw_progress_segments(prog_rect)
+
+	# --- decay strip ---
+	draw_rect(decay_rect, SEGMENT_EMPTY_COLOR)
+	var frac := _decay_fraction()
+	if frac > 0.0:
+		var col := DECAY_COLOR if frac > DECAY_LOW_FRACTION else DECAY_LOW_COLOR
+		draw_rect(Rect2(decay_rect.position, Vector2(decay_rect.size.x * frac, decay_rect.size.y)), col)
+
+	draw_rect(r, BORDER_COLOR, false, 1.0)
+
+
+func _draw_progress_segments(prog_rect: Rect2) -> void:
 	var seg_w := (prog_rect.size.x - SEGMENT_GAP * (kills_needed - 1)) / kills_needed
 	for i in kills_needed:
 		var seg := Rect2(
@@ -85,12 +145,3 @@ func _draw() -> void:
 		elif i < kills:
 			col = PROGRESS_COLOR
 		draw_rect(seg, col)
-
-	# --- decay strip ---
-	draw_rect(decay_rect, SEGMENT_EMPTY_COLOR)
-	var frac := _decay_fraction()
-	if frac > 0.0:
-		var col := DECAY_COLOR if frac > DECAY_LOW_FRACTION else DECAY_LOW_COLOR
-		draw_rect(Rect2(decay_rect.position, Vector2(decay_rect.size.x * frac, decay_rect.size.y)), col)
-
-	draw_rect(r, BORDER_COLOR, false, 1.0)

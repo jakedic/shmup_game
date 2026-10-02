@@ -57,7 +57,7 @@ var default_stats: Dictionary = {
 		"dash_duration": 0.8,
 		# Seconds after landing before the player can jump again (the side
 		# panel's Jump meter shows this refilling).
-		"dash_cooldown": 3.0,
+		"dash_cooldown": 2.0,
 		# Seconds the ship stays frozen in place right after landing a jump
 		# (see PlayerMovement._begin_landing_pause()). 0 = no pause.
 		"landing_pause_duration": 0.25,

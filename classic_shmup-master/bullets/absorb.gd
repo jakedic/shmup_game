@@ -89,7 +89,7 @@ var hit_enemy_type = 0
 # Add these variables for scaling effect
 var scale_progress = 0.0  # 0 to 1 for growing, then 1 to 0 for shrinking
 var scaling_speed = 1.5  # How fast it scales
-var max_scale_y = 8.0
+var max_scale_y = 11.0  # was 8.0 - beam reaches a bit further
 var min_scale_y = 1.0
 var growing = true  # Whether we're in the growing or shrinking phase
 var absorption_active = true  # Whether absorption is still happening
@@ -232,7 +232,15 @@ func _on_area_entered(area):
 			# through untouched instead: the boss isn't hurt or absorbed, and no
 			# power is granted.
 			return
-		area.explode()  # Or whatever enemy destruction method you have
+		# Grab the type first - die() can free/alter the enemy.
+		hit_enemy_type = area.get_enemy_type()
 		has_hit_enemy = true
 		returning = true
-		hit_enemy_type = area.get_enemy_type()
+		# Kill the enemy outright. explode() alone only played the animation:
+		# it never set is_alive = false or stopped the enemy's move/shoot
+		# timers, so a hit enemy could keep acting until it was freed. die()
+		# does the full death (and ignores invincibility, e.g. a looping bee).
+		if area.has_method("die"):
+			area.die()
+		else:
+			area.explode()
