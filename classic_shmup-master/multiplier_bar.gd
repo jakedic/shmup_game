@@ -3,12 +3,13 @@
 #
 # One bar, two parts:
 #   - Top (thick): progress toward the NEXT multiplier. It's split into one
-#     segment per kill needed, and each kill lights up a segment. At the max
-#     multiplier the whole top is lit and pulses.
+#     segment per multiplier point needed (10). Points can be fractional
+#     (damage is worth 0.5), so the segment being worked on fills partway.
+#     At the max multiplier the whole top is lit and pulses.
 #   - Bottom (thin strip): the decay timer. While the multiplier is above 1x
 #     the level's multiplier timer is running, and when it runs out the
 #     multiplier drops by one. The strip drains as that timer counts down and
-#     turns red near the end. It refills every time a kill restarts the timer.
+#     turns red near the end. It refills every time a point gain restarts the timer.
 #
 # Ability mode: while the player has an absorbed ability (current_form isn't
 # 'default' and its transformation timer is running), the top part stops
@@ -31,8 +32,8 @@ const DECAY_LOW_FRACTION := 0.3  # strip turns red below this much time left
 const DECAY_STRIP_HEIGHT := 4.0
 const SEGMENT_GAP := 1.0
 
-var kills := 0
-var kills_needed := 5
+var points := 0.0
+var points_needed := 10
 var at_max := false
 var decay_timer: Timer = null
 
@@ -60,9 +61,9 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 
-func set_progress(p_kills: int, p_kills_needed: int, p_at_max: bool) -> void:
-	kills = p_kills
-	kills_needed = max(p_kills_needed, 1)
+func set_progress(p_points: float, p_points_needed: float, p_at_max: bool) -> void:
+	points = p_points
+	points_needed = max(int(ceil(p_points_needed)), 1)
 	at_max = p_at_max
 	queue_redraw()
 
@@ -134,14 +135,16 @@ func _draw() -> void:
 
 
 func _draw_progress_segments(prog_rect: Rect2) -> void:
-	var seg_w := (prog_rect.size.x - SEGMENT_GAP * (kills_needed - 1)) / kills_needed
-	for i in kills_needed:
+	var seg_w := (prog_rect.size.x - SEGMENT_GAP * (points_needed - 1)) / points_needed
+	for i in points_needed:
 		var seg := Rect2(
 			Vector2(prog_rect.position.x + i * (seg_w + SEGMENT_GAP), prog_rect.position.y),
 			Vector2(seg_w, prog_rect.size.y))
-		var col := SEGMENT_EMPTY_COLOR
+		draw_rect(seg, SEGMENT_EMPTY_COLOR)
 		if at_max:
-			col = MAX_COLOR.lerp(PROGRESS_COLOR, 0.5 + 0.5 * sin(_pulse))
-		elif i < kills:
-			col = PROGRESS_COLOR
-		draw_rect(seg, col)
+			draw_rect(seg, MAX_COLOR.lerp(PROGRESS_COLOR, 0.5 + 0.5 * sin(_pulse)))
+			continue
+		# How much of this segment is filled (0..1) - partial for half points.
+		var fill: float = clamp(points - i, 0.0, 1.0)
+		if fill > 0.0:
+			draw_rect(Rect2(seg.position, Vector2(seg.size.x * fill, seg.size.y)), PROGRESS_COLOR)

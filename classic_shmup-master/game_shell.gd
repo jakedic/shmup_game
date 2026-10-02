@@ -179,7 +179,7 @@ func hud_attach() -> void:
 	_set_hud_visible(true)
 	update_score(0)
 	update_score_multiplier(1)
-	update_multiplier_progress(0, 5, false)
+	update_multiplier_progress(0.0, 10.0, false)
 	_hit_id += 1
 	_reset_portrait()
 
@@ -250,11 +250,59 @@ func _reset_portrait() -> void:
 		_portrait.texture = _portrait_neutral_tex
 
 
-## kills: kills counted toward the next multiplier; kills_needed: how many it
-## takes; at_max: the multiplier can't go any higher.
-func update_multiplier_progress(kills: int, kills_needed: int, at_max: bool) -> void:
+## points: multiplier points earned toward the next multiplier (can be
+## fractional); points_needed: how many it takes; at_max: the multiplier
+## can't go any higher.
+func update_multiplier_progress(points: float, points_needed: float, at_max: bool) -> void:
 	if _multiplier_bar:
-		_multiplier_bar.set_progress(kills, kills_needed, at_max)
+		_multiplier_bar.set_progress(points, points_needed, at_max)
+
+
+# --- Multiplier point forwarding ---
+# Enemies, bubbles and the player call these instead of hunting for the
+# level themselves. They forward to the current scene if it's a BaseLevel
+# (anything with the matching method) and silently do nothing otherwise
+# (title screen, overworld, test menu...). See base_level.gd's multiplier
+# section for the actual rules.
+
+func add_multiplier_points(points: float) -> void:
+	if _current_scene and _current_scene.has_method("add_multiplier_points"):
+		_current_scene.add_multiplier_points(points)
+
+
+func multiplier_on_damage_dealt(damage: int) -> void:
+	if _current_scene and _current_scene.has_method("on_damage_dealt_multiplier"):
+		_current_scene.on_damage_dealt_multiplier(damage)
+
+
+func multiplier_on_bubble_bounce() -> void:
+	if _current_scene and _current_scene.has_method("on_bubble_bounce_multiplier"):
+		_current_scene.on_bubble_bounce_multiplier()
+
+
+func multiplier_on_bubble_shot_pop() -> void:
+	if _current_scene and _current_scene.has_method("on_bubble_shot_pop_multiplier"):
+		_current_scene.on_bubble_shot_pop_multiplier()
+
+
+func multiplier_on_player_hit() -> void:
+	if _current_scene and _current_scene.has_method("on_player_hit_multiplier"):
+		_current_scene.on_player_hit_multiplier()
+
+
+func multiplier_on_ability_gained() -> void:
+	if _current_scene and _current_scene.has_method("on_ability_gained_multiplier"):
+		_current_scene.on_ability_gained_multiplier()
+
+
+func multiplier_on_ability_shot_out() -> void:
+	if _current_scene and _current_scene.has_method("on_ability_shot_out_multiplier"):
+		_current_scene.on_ability_shot_out_multiplier()
+
+
+func multiplier_on_absorb_miss() -> void:
+	if _current_scene and _current_scene.has_method("on_absorb_miss_multiplier"):
+		_current_scene.on_absorb_miss_multiplier()
 
 
 ## The level's multiplier decay Timer - the bar reads it every frame to show

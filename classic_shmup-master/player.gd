@@ -32,7 +32,7 @@ signal player_healed(amount: int)
 
 #Transformation Timer Properties
 var transformation_timer: Timer
-var transformation_duration: float = 5.0
+var transformation_duration: float = 10.0  # doubled from 5.0
 
 # ===== GAMEPLAY STATS =====
 # These are no longer hand-set here. They're synced from the Stats autoload

@@ -6,12 +6,19 @@ class_name PlayerAbsorption
 ## dispatching to the right transform_*() function once an absorb lands.
 ## Called from player.gd as e.g. PlayerAbsorption.absorb(self).
 
+# Score multiplier the player must be at before they can fire an absorb.
+const ABSORB_REQUIRED_MULTIPLIER := 4
+
 static func handle_absorb_input(player: Player) -> void:
 	"""Process absorption input"""
-	if Input.is_action_pressed("absorb") and player.can_absorb and player.current_form == 'default' and player.score_multiplier >= 1:
+	# Absorbing is only allowed at ABSORB_REQUIRED_MULTIPLIER (max, 4x).
+	if Input.is_action_pressed("absorb") and player.can_absorb and player.current_form == 'default' and player.score_multiplier >= ABSORB_REQUIRED_MULTIPLIER:
 		absorb(player)
 	if Input.is_action_pressed("absorb") and player.can_absorb and player.current_form != 'default':
 		shoot_bubble(player)
+		# Back to 1x, keeping half the points earned while transformed (see
+		# base_level.gd). Called before revert so current_form is still set.
+		GameShell.multiplier_on_ability_shot_out()
 		revert_absorption(player)
 	if Input.is_action_pressed("revert") and not player.is_dashing:
 		revert_absorption(player)
@@ -107,11 +114,19 @@ static func absorb_complete(player: Player, hit_enemy_type: String) -> void:
 		if player.has_method(transform_func_name):
 			player.call(transform_func_name)
 
+		# Absorbing "spends" the multiplier: back to 1x (see base_level.gd).
+		GameShell.multiplier_on_ability_gained()
+
 		emphasize_ability_acquired(player)
 
 static func absorb_fail(player: Player) -> void:
+	# The beam can report a miss more than once - only penalize the first.
+	var was_absorbing: bool = player.currently_absorbing
 	player.currently_absorbing = false
 	_end_absorb_freeze(player)
+	if was_absorbing:
+		# Missed absorb costs multiplier points (see base_level.gd).
+		GameShell.multiplier_on_absorb_miss()
 
 # ===== Ability-acquired emphasis (brief pause + screen darken) =====
 

@@ -30,6 +30,9 @@ static func take_damage(player: Player, damage_amount: int = 1) -> void:
 	# Visual feedback
 	flash_damage(player)
 
+	# Getting hit drops the score multiplier one step (see base_level.gd).
+	GameShell.multiplier_on_player_hit()
+
 	if player.is_alive:
 		start_hit_invincibility(player)
 		GameShell.on_player_hit(HIT_INVINCIBILITY_DURATION)

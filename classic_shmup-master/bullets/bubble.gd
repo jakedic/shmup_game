@@ -5,7 +5,7 @@ class_name Bubble
 # Safety net only - the bubble now moves and bounces continuously (see
 # _process() below) rather than traveling then stopping, so this is just how
 # long it's allowed to keep bouncing before it's forced to pop on its own.
-@export var bubble_lifetime: float = 30.0
+@export var bubble_lifetime: float = 3600.0
 
 @onready var screensize: Vector2 = get_viewport_rect().size
 
@@ -339,6 +339,9 @@ func _bounce_off_player(player: Node2D) -> void:
 
 	flash_white()
 
+	# Multiplier points for keeping the bubble in play (POINTS_PER_BUBBLE_BOUNCE).
+	GameShell.multiplier_on_bubble_bounce()
+
 func on_shockwave_hit(center: Vector2) -> void:
 	"""Called by LandingShockwave when its ring reaches this bubble. Bounces
 	off the ring like off a wall (reflect if heading into it; if already
@@ -549,6 +552,10 @@ func _on_area_entered(area: Area2D):
 		# Remove the player bullet
 		area.queue_free()
 		
+		# Multiplier points for shooting it (POINTS_PER_BUBBLE_SHOT_POP) -
+		# the explosion's damage below earns its own damage points on top.
+		GameShell.multiplier_on_bubble_shot_pop()
+
 		# Create explosion damage
 		pop_bubble()
 		

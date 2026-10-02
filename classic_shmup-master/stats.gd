@@ -122,7 +122,7 @@ var default_stats: Dictionary = {
 		"speed": 100.0,
 		"damage": 1,
 		"travel_distance": 50.0,
-		"lifetime": 30.0,
+		"lifetime": 3600.0,  # 1 hour - effectively never times out; bubbles only pop when shot
 		"hit_points": 3,
 		# If true, popping a power bubble (player bullet hits it) no longer
 		# damages enemies caught in the pop explosion - it guarantees the
