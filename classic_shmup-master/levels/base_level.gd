@@ -41,8 +41,8 @@ const MAX_POWERUP_CHOICES := 3
 # on_ability_gained_multiplier() / on_ability_shot_out_multiplier() /
 # on_absorb_miss_multiplier() below. Callers outside the level reach
 # these through GameShell's forwarding helpers.
-const MULTIPLIER_POINTS_PER_LEVEL := 10.0
-const POINTS_PER_DAMAGE := 0.5
+const MULTIPLIER_POINTS_PER_LEVEL := 5.0
+const POINTS_PER_DAMAGE := 1.0
 const POINTS_PER_KILL := 1.0
 const POINTS_PER_BUBBLE_BOUNCE := 2.0
 const POINTS_PER_BUBBLE_SHOT_POP := 5.0
