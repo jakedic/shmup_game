@@ -26,6 +26,8 @@ const FLOWER := preload("res://enemies/flower_enemy.tscn")
 # squad on the right a few seconds later. Both creep down slowly and stop to
 # fire walls, so the player has time to learn the pattern.
 func _wave_1() -> void:
+	
+	spawn_hive_squad_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.7, "end_side": Side.BOTTOM, "end_percent": 0.7})
 	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.3})
 	spawn_flower_squad_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "attack_heights": [0.0, 0.4]})
 	spawn_flower_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "start_delay": 10.0, "attack_heights": [0.1, 0.35, 0.6]})
