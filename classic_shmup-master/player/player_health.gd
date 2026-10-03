@@ -10,9 +10,18 @@ class_name PlayerHealth
 ## setter (the `set = set_shield` property) or it causes infinite
 ## recursion. See the comment on set_shield() in player.gd.
 
+# After a hit the player can't be hurt again for this long, and blinks the
+# whole time (the side-panel portrait also shows the nervous face for it).
+const HIT_INVINCIBILITY_DURATION := 1.0
+const HIT_BLINK_INTERVAL := 0.07     # seconds per half-blink
+const HIT_BLINK_ALPHA := 0.25        # how see-through the ship gets on the "off" beat
+
 static func take_damage(player: Player, damage_amount: int = 1) -> void:
 	"""Take damage from enemies or hazards"""
 	if not player.is_alive:
+		return
+	# Still blinking from the last hit - ignore.
+	if player.is_hit_invincible:
 		return
 
 	player.shield -= damage_amount
@@ -21,13 +30,47 @@ static func take_damage(player: Player, damage_amount: int = 1) -> void:
 	# Visual feedback
 	flash_damage(player)
 
+	# Getting hit drops the score multiplier one step (see base_level.gd).
+	GameShell.multiplier_on_player_hit()
+
+	if player.is_alive:
+		start_hit_invincibility(player)
+		GameShell.on_player_hit(HIT_INVINCIBILITY_DURATION)
+
+static func start_hit_invincibility(player: Player) -> void:
+	"""Blink and ignore all damage for HIT_INVINCIBILITY_DURATION seconds."""
+	player.is_hit_invincible = true
+	if is_instance_valid(player._hit_blink_tween):
+		player._hit_blink_tween.kill()
+	# Blink by fading the ship in/out (alpha only, so it doesn't fight the
+	# red hit flash / dash tint, which change the colour).
+	var tween := player.create_tween()
+	tween.set_loops()
+	tween.tween_property(player, "modulate:a", HIT_BLINK_ALPHA, HIT_BLINK_INTERVAL)
+	tween.tween_property(player, "modulate:a", 1.0, HIT_BLINK_INTERVAL)
+	player._hit_blink_tween = tween
+	# process_always = false so pausing the game pauses the countdown too.
+	var timer := player.get_tree().create_timer(HIT_INVINCIBILITY_DURATION, false)
+	timer.timeout.connect(func():
+		if is_instance_valid(player) and tween == player._hit_blink_tween:
+			end_hit_invincibility(player)
+	)
+
+static func end_hit_invincibility(player: Player) -> void:
+	player.is_hit_invincible = false
+	if is_instance_valid(player._hit_blink_tween):
+		player._hit_blink_tween.kill()
+	player._hit_blink_tween = null
+	player.modulate.a = 1.0
+
 static func flash_damage(player: Player) -> void:
 	"""Visual feedback when taking damage"""
 	var original_color = player.modulate
 	player.modulate = Color.RED
 
 	var timer = player.get_tree().create_timer(0.1)
-	timer.timeout.connect(func(): player.modulate = original_color)
+	# Restore the colour but keep whatever alpha the hit blink is on.
+	timer.timeout.connect(func(): player.modulate = Color(original_color, player.modulate.a))
 
 static func heal(player: Player, amount: int) -> void:
 	"""Heal the player"""
@@ -138,4 +181,4 @@ static func is_invincible(player: Player) -> bool:
 	own Area2D, so it needs this explicit check instead."""
 	# Every dash is a jump now, so the ship is untouchable for the whole
 	# dash (not just with dash_invincible) - see PlayerMovement.start_dash().
-	return player.is_dashing or player.is_post_dash_invincible or player.is_landing_grace
+	return player.is_dashing or player.is_post_dash_invincible or player.is_landing_grace or player.is_hit_invincible

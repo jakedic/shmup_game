@@ -97,6 +97,34 @@ static func transform_red(player: Player) -> void:
 	player.get_node("Ship").texture = red_texture
 	player.get_node("Ship").hframes = 3
 
+static func transform_hive(player: Player) -> void:
+	"""Hive form - placeholder: plays exactly like the normal ship for now.
+	Add its stat changes to the modifier below (same format as
+	transform_yellow / transform_red) and swap its sprite when ready."""
+	_start_placeholder_form(player, "hive", Color(1.0, 0.6, 0.15))
+
+static func transform_flower(player: Player) -> void:
+	"""Flower form - placeholder: plays exactly like the normal ship for now.
+	Add its stat changes to the modifier below (same format as
+	transform_yellow / transform_red) and swap its sprite when ready."""
+	_start_placeholder_form(player, "flower", Color(1.0, 0.45, 0.8))
+
+static func _start_placeholder_form(player: Player, form: String, flash_color: Color) -> void:
+	if player.transformation_timer:
+		player.transformation_timer.stop()
+		player.transformation_timer.start(player.transformation_duration)
+
+	# Empty for now - this is where the form's stat changes go, e.g.
+	# {"player": {"speed": {"op": "mult", "value": 1.5}}}. It's still
+	# registered so reverting (which removes "transform_<form>") stays
+	# symmetrical with the other forms.
+	Stats.add_modifier("transform_" + form, {})
+
+	# Brief color flash so it's clear the absorb worked.
+	player.modulate = flash_color
+	var timer = player.get_tree().create_timer(0.5)
+	timer.timeout.connect(func(): player.modulate = player.player_color)
+
 static func play_simple_transition_effect(player: Player) -> void:
 	"""Play a simple transformation effect"""
 	var tween = player.create_tween()

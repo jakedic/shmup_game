@@ -218,6 +218,13 @@ func take_damage(damage_amount: int = 1, context: Dictionary = {}) -> bool:
 	if is_invincible:
 		return false
 
+	# Multiplier points for the damage actually dealt - overkill past the
+	# enemy's remaining health doesn't count. See base_level.gd's multiplier
+	# section (POINTS_PER_DAMAGE).
+	var dealt: int = clamp(damage_amount, 0, max(current_health, 0))
+	if dealt > 0:
+		GameShell.multiplier_on_damage_dealt(dealt)
+
 	current_health -= damage_amount
 	health_changed.emit(current_health, max_health)
 	
@@ -411,7 +418,7 @@ func shoot_multiple():
 		
 		# Create bullet
 		var bullet = bullet_scene.instantiate()
-		get_tree().root.add_child(bullet)
+		GameShell.game_root().add_child(bullet)
 		
 		# Set bullet properties
 		if bullet.has_method("start"):
@@ -436,7 +443,7 @@ func configure_bullet(bullet: Node2D):
 
 func launch_bullet(bullet: Node2D, bullet_position: Vector2):
 	"""Launch a bullet from position"""
-	get_tree().root.add_child(bullet)
+	GameShell.game_root().add_child(bullet)
 	bullet.start(bullet_position)
 	
 	# Emit signal

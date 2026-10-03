@@ -55,7 +55,12 @@ var default_stats: Dictionary = {
 		# screen) - lower dash_speed for a shorter hop.
 		"dash_speed": 100.0,
 		"dash_duration": 0.8,
-		"dash_cooldown": 0.5,
+		# Seconds after landing before the player can jump again (the side
+		# panel's Jump meter shows this refilling).
+		"dash_cooldown": 2.0,
+		# Seconds the ship stays frozen in place right after landing a jump
+		# (see PlayerMovement._begin_landing_pause()). 0 = no pause.
+		"landing_pause_duration": 0.25,
 		"can_multi_shoot": false,
 		"shot_count": 1,
 		"shot_spread": 30.0,
@@ -117,7 +122,7 @@ var default_stats: Dictionary = {
 		"speed": 100.0,
 		"damage": 1,
 		"travel_distance": 50.0,
-		"lifetime": 30.0,
+		"lifetime": 3600.0,  # 1 hour - effectively never times out; bubbles only pop when shot
 		"hit_points": 3,
 		# If true, popping a power bubble (player bullet hits it) no longer
 		# damages enemies caught in the pop explosion - it guarantees the

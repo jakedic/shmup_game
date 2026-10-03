@@ -1,7 +1,8 @@
 extends Sprite2D
 class_name PlayerShadow
 
-## Drop shadow under the player ship.
+## Drop shadow under the player ship - only shown while the ship is in the
+## air during a dash jump (hidden on the ground).
 ##
 ## Mirrors the "Ship" Sprite2D every frame (texture, frame, rotation, recoil
 ## position, form swaps) and draws it as a flat, semi-transparent silhouette
@@ -64,7 +65,12 @@ func _sync() -> void:
 	if not is_instance_valid(_target):
 		visible = false
 		return
-	visible = _target.visible
+	# Only show the shadow while the ship is in the air (dash jump).
+	var p = get_parent()
+	var airborne: bool = p is Player and p.is_dashing
+	visible = _target.visible and airborne
+	if not visible:
+		return
 
 	# Copy whatever the ship is currently showing (form swaps change
 	# texture/hframes, movement changes frame, dash changes rotation).
@@ -87,7 +93,6 @@ func _sync() -> void:
 	# should get smaller as the ship goes up, not bigger.
 	var h: float = 0.0
 	var base_scale: Vector2 = _target.scale
-	var p = get_parent()
 	if p is Player:
 		h = p.jump_height
 		if p.ship_base_scale != Vector2.ZERO:

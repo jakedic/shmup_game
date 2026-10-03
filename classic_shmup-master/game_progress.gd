@@ -169,9 +169,9 @@ func has_won_run() -> bool:
 func select_and_play(node_id: int) -> void:
 	pending_node_id = node_id
 	if is_shop_node(node_id):
-		get_tree().change_scene_to_file(SHOP_SCENE)
+		GameShell.change_scene(SHOP_SCENE)
 	else:
-		get_tree().change_scene_to_file(get_level_scene(node_id))
+		GameShell.change_scene(get_level_scene(node_id))
 
 
 # ---------- Level/shop outcome hooks ----------
@@ -185,9 +185,9 @@ func on_level_won() -> void:
 	pending_node_id = -1
 	if not path_history.has(current_node_id):
 		path_history.append(current_node_id)
-	get_tree().change_scene_to_file("res://levels/overworld.tscn")
+	GameShell.change_scene("res://levels/overworld.tscn")
 
 
 func on_level_lost() -> void:
 	reset_run()
-	get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+	GameShell.change_scene("res://levels/title_screen.tscn")

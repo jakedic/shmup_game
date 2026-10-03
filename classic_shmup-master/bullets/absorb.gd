@@ -89,7 +89,7 @@ var hit_enemy_type = 0
 # Add these variables for scaling effect
 var scale_progress = 0.0  # 0 to 1 for growing, then 1 to 0 for shrinking
 var scaling_speed = 1.5  # How fast it scales
-var max_scale_y = 8.0
+var max_scale_y = 11.0  # was 8.0 - beam reaches a bit further
 var min_scale_y = 1.0
 var growing = true  # Whether we're in the growing or shrinking phase
 var absorption_active = true  # Whether absorption is still happening
@@ -98,6 +98,10 @@ var absorption_active = true  # Whether absorption is still happening
 var original_sprite_height = 0.0
 
 func _ready():
+	# The whole game freezes (tree paused) while the absorb beam is out - see
+	# PlayerAbsorption.absorb() - so the beam itself has to keep running.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
 	# Get the sprite's texture height
 	if $Sprite2D.texture:
 		original_sprite_height = $Sprite2D.texture.get_size().y
@@ -151,6 +155,11 @@ func _physics_process(delta):
 		
 		# Update position to keep bottom fixed
 		update_sprite_position(current_scale_y)
+
+		# While the game is frozen the physics server is paused too, so
+		# area_entered never fires - look for enemies under the beam by hand.
+		if get_tree().paused and not has_hit_enemy:
+			_check_overlaps_manually()
 	
 	# Remove if goes off screen (optional - adjust based on your needs)
 	if position.y < -20 or position.y > get_viewport().get_visible_rect().size.y + 20:
@@ -181,6 +190,35 @@ func smoothstep(edge0, edge1, x):
 	# Evaluate polynomial
 	return x * x * (3 - 2 * x)
 
+func _check_overlaps_manually() -> void:
+	var shape_node: CollisionShape2D = $CollisionShape2D
+	if shape_node.shape == null:
+		return
+	var params := PhysicsShapeQueryParameters2D.new()
+	params.shape = shape_node.shape
+	params.transform = shape_node.global_transform
+	params.collide_with_areas = true
+	params.collide_with_bodies = false
+	params.collision_mask = collision_mask
+	params.exclude = [get_rid()]
+	var hits := get_world_2d().direct_space_state.intersect_shape(params, 16)
+	for hit in hits:
+		var area = hit.get("collider")
+		if area is Area2D and is_instance_valid(area):
+			if "is_alive" in area and not area.is_alive:
+				continue
+			_on_area_entered(area)
+			if has_hit_enemy:
+				return
+
+
+func _exit_tree():
+	# Safety net: if the beam goes away without reporting back (e.g. freed
+	# off-screen), still end the absorb so the game unfreezes.
+	if is_instance_valid(target_player) and target_player.currently_absorbing:
+		target_player.absorb_fail()
+
+
 func _on_area_entered(area):
 	if area.is_in_group("enemies") and not has_hit_enemy:
 		if not area.has_method("get_enemy_type"):
@@ -194,7 +232,15 @@ func _on_area_entered(area):
 			# through untouched instead: the boss isn't hurt or absorbed, and no
 			# power is granted.
 			return
-		area.explode()  # Or whatever enemy destruction method you have
+		# Grab the type first - die() can free/alter the enemy.
+		hit_enemy_type = area.get_enemy_type()
 		has_hit_enemy = true
 		returning = true
-		hit_enemy_type = area.get_enemy_type()
+		# Kill the enemy outright. explode() alone only played the animation:
+		# it never set is_alive = false or stopped the enemy's move/shoot
+		# timers, so a hit enemy could keep acting until it was freed. die()
+		# does the full death (and ignores invincibility, e.g. a looping bee).
+		if area.has_method("die"):
+			area.die()
+		else:
+			area.explode()

@@ -49,7 +49,7 @@ func _show_victory() -> void:
 	queue_redraw()
 	await get_tree().create_timer(2.5).timeout
 	GameProgress.reset_run()
-	get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+	GameShell.change_scene("res://levels/title_screen.tscn")
 
 
 func _process(delta: float) -> void:

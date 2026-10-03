@@ -6,12 +6,19 @@ class_name PlayerAbsorption
 ## dispatching to the right transform_*() function once an absorb lands.
 ## Called from player.gd as e.g. PlayerAbsorption.absorb(self).
 
+# Score multiplier the player must be at before they can fire an absorb.
+const ABSORB_REQUIRED_MULTIPLIER := 4
+
 static func handle_absorb_input(player: Player) -> void:
 	"""Process absorption input"""
-	if Input.is_action_pressed("absorb") and player.can_absorb and player.current_form == 'default' and player.score_multiplier >= 1:
+	# Absorbing is only allowed at ABSORB_REQUIRED_MULTIPLIER (max, 4x).
+	if Input.is_action_pressed("absorb") and player.can_absorb and player.current_form == 'default' and player.score_multiplier >= ABSORB_REQUIRED_MULTIPLIER:
 		absorb(player)
 	if Input.is_action_pressed("absorb") and player.can_absorb and player.current_form != 'default':
 		shoot_bubble(player)
+		# Back to 1x, keeping half the points earned while transformed (see
+		# base_level.gd). Called before revert so current_form is still set.
+		GameShell.multiplier_on_ability_shot_out()
 		revert_absorption(player)
 	if Input.is_action_pressed("revert") and not player.is_dashing:
 		revert_absorption(player)
@@ -31,6 +38,12 @@ static func absorb(player: Player) -> void:
 	var boomerang = create_absorption_projectile(player)
 	if boomerang:
 		launch_absorption_projectile(player, boomerang)
+		# Freeze the whole game while the absorb beam is out. The beam
+		# (bullets/absorb.gd) keeps running on its own and ends the freeze
+		# through absorb_complete()/absorb_fail() below.
+		_start_absorb_freeze(player)
+	else:
+		player.currently_absorbing = false
 
 	# Visual/sound effects
 	on_absorb(player)
@@ -43,7 +56,7 @@ static func create_absorption_projectile(player: Player) -> Node2D:
 
 static func launch_absorption_projectile(player: Player, projectile: Node2D) -> void:
 	"""Launch absorption projectile"""
-	player.get_tree().root.add_child(projectile)
+	GameShell.game_root().add_child(projectile)
 
 	if projectile.has_method("start"):
 		projectile.start(player.position + Vector2(0, -8), player)
@@ -80,8 +93,18 @@ static func reset_to_default_form(player: Player) -> void:
 	player.modulate = player.player_color
 	PlayerVisuals.update_sprite(player)
 
+static func _start_absorb_freeze(player: Player) -> void:
+	player.absorb_froze_game = true
+	player.get_tree().paused = true
+
+static func _end_absorb_freeze(player: Player) -> void:
+	if player.absorb_froze_game:
+		player.absorb_froze_game = false
+		player.get_tree().paused = false
+
 static func absorb_complete(player: Player, hit_enemy_type: String) -> void:
 	player.currently_absorbing = false
+	_end_absorb_freeze(player)
 	if hit_enemy_type:
 		player.current_form = hit_enemy_type
 
@@ -91,10 +114,19 @@ static func absorb_complete(player: Player, hit_enemy_type: String) -> void:
 		if player.has_method(transform_func_name):
 			player.call(transform_func_name)
 
+		# Absorbing "spends" the multiplier: back to 1x (see base_level.gd).
+		GameShell.multiplier_on_ability_gained()
+
 		emphasize_ability_acquired(player)
 
 static func absorb_fail(player: Player) -> void:
+	# The beam can report a miss more than once - only penalize the first.
+	var was_absorbing: bool = player.currently_absorbing
 	player.currently_absorbing = false
+	_end_absorb_freeze(player)
+	if was_absorbing:
+		# Missed absorb costs multiplier points (see base_level.gd).
+		GameShell.multiplier_on_absorb_miss()
 
 # ===== Ability-acquired emphasis (brief pause + screen darken) =====
 
@@ -130,7 +162,7 @@ static func emphasize_ability_acquired(player: Player) -> void:
 	overlay.offset_bottom = 0
 	overlay_layer.add_child(overlay)
 
-	player.get_tree().root.add_child(overlay_layer)
+	GameShell.game_root().add_child(overlay_layer)
 
 	player.get_tree().paused = true
 	# process_always = true so this timer still ticks down while the tree is
@@ -196,7 +228,7 @@ static func create_simple_bubble() -> Node2D:
 
 static func launch_bubble(player: Player, bubble: Node2D) -> void:
 	"""Launch bubble projectile"""
-	player.get_tree().root.add_child(bubble)
+	GameShell.game_root().add_child(bubble)
 
 	# Normally the bubble launches upward/in front of the player. If the
 	# player has picked up the gray_bubble_behind power-up, flip both the

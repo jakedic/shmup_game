@@ -46,7 +46,7 @@ func shoot():
 	can_shoot = false
 	$GunCooldown.start()
 	var b = bullet_scene.instantiate()
-	get_tree().root.add_child(b)
+	GameShell.game_root().add_child(b)
 	b.start(position + Vector2(0, -8))
 	var tween = create_tween().set_parallel(false)
 	tween.tween_property($Ship, "position:y", 1, 0.1)

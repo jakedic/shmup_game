@@ -50,7 +50,7 @@ static func _spawn_one(player: Player, spawn_pos: Vector2, p: Dictionary) -> voi
 	# Stats-driven values - same reason as PlayerShooting.launch_bullet():
 	# the bullet's own _ready() hardcodes fallback stats that would
 	# otherwise clobber whatever we set beforehand.
-	player.get_tree().root.add_child(bullet)
+	GameShell.game_root().add_child(bullet)
 
 	if bullet.has_method("set_damage"):
 		bullet.set_damage(p.get("damage", 1))

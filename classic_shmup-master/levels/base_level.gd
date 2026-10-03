@@ -12,6 +12,48 @@ extends Node2D
 # never a full top-up to MAX_POWERUP_CHOICES worth of gray power-ups.
 const MAX_POWERUP_CHOICES := 3
 
+# Score multiplier (points-based). Earning MULTIPLIER_POINTS_PER_LEVEL
+# multiplier points bumps it up by one, up to MAX_SCORE_MULTIPLIER. Leftover
+# points carry over into the next level. Points come from:
+#   - dealing damage to enemies:    POINTS_PER_DAMAGE per point of damage dealt
+#   - killing an enemy:             POINTS_PER_KILL (on top of the damage points)
+#   - paddle-bouncing a bubble:     POINTS_PER_BUBBLE_BOUNCE
+#   - shooting a bubble so it pops: POINTS_PER_BUBBLE_SHOT_POP (plus the
+#                                   damage its explosion does)
+# Losing it:
+#   - multiplier_timer (MULTIPLIER_DECAY_TIME, 7.5s) runs whenever you have
+#     any points and is restarted by every point gain. When it runs out your
+#     points start draining at MULTIPLIER_DRAIN_RATE per second (dropping a
+#     multiplier level whenever progress hits 0) until you earn a point
+#     again or reach 1x / 0.
+#   - getting hit costs PLAYER_HIT_PENALTY points (can drop a level).
+#   - absorbing an enemy (only allowed at 4x - see PlayerAbsorption's
+#     ABSORB_REQUIRED_MULTIPLIER) spends it: straight back to 1x, 0 progress.
+#     While transformed you earn points normally and build it back up.
+#   - shooting the ability out as a bubble drops it to 1x again, but you keep
+#     TRANSFORM_POINTS_KEEP_FRACTION (half) of the points you have at that
+#     moment - i.e. what you ended up with since the absorb reset you to 1x,
+#     after any hits/decay. E.g. at 3x with 4/10 (24 points) -> shoot out ->
+#     keep 12 -> 2x, 2/10.
+#   - an absorb that misses costs ABSORB_MISS_PENALTY points, which can drop
+#     you a multiplier level (e.g. 4x -> 3x with 5/10).
+# See add_multiplier_points() / on_player_hit_multiplier() /
+# on_ability_gained_multiplier() / on_ability_shot_out_multiplier() /
+# on_absorb_miss_multiplier() below. Callers outside the level reach
+# these through GameShell's forwarding helpers.
+const MULTIPLIER_POINTS_PER_LEVEL := 5.0
+const POINTS_PER_DAMAGE := 1.0
+const POINTS_PER_KILL := 1.0
+const POINTS_PER_BUBBLE_BOUNCE := 2.0
+const POINTS_PER_BUBBLE_SHOT_POP := 5.0
+const ABSORB_MISS_PENALTY := 5.0
+const TRANSFORM_POINTS_KEEP_FRACTION := 0.5
+const PLAYER_HIT_PENALTY := 5.0
+const MULTIPLIER_DECAY_TIME := 7.5   # was 5.0 (+50%)
+const MULTIPLIER_DRAIN_RATE := 2.0   # points/second lost once the decay timer runs out
+const MULTIPLIER_DRAIN_TICK := 0.1   # seconds between drain steps
+const MAX_SCORE_MULTIPLIER := 4
+
 # Common variables for all levels
 var score = 0
 var playing = false
@@ -19,8 +61,9 @@ var wave = 0
 var current_wave = 0
 var max_waves = 3  # Default value, can be overridden
 var score_multiplier = 1
-var multiplier_increase_tracker = 0 #tracks when the multiplier should be increased
+var multiplier_points: float = 0.0 # progress toward the next multiplier (0..MULTIPLIER_POINTS_PER_LEVEL)
 var multiplier_timer : Timer = Timer.new() #creates the multiplier timer variable
+var multiplier_drain_timer : Timer = Timer.new() # ticks the point drain after multiplier_timer runs out
 var auto_start_delay: float = 1.5 #how long the start popup stays up before the game auto-starts
 var auto_start_timer : Timer = Timer.new() #timer that auto-triggers the game start
 # Common UI elements (assumes similar structure in all levels)
@@ -58,7 +101,15 @@ func _ready():
 	initialize_level()
 	add_child(multiplier_timer)
 	multiplier_timer.autostart = false # tells the timer not to start on creation
-	multiplier_timer.wait_time = 5.0 # defines how long the timer is
+	multiplier_timer.wait_time = MULTIPLIER_DECAY_TIME # defines how long the timer is
+	multiplier_timer.timeout.connect(timeout_multiplier_timer)
+	add_child(multiplier_drain_timer)
+	multiplier_drain_timer.one_shot = false
+	multiplier_drain_timer.wait_time = MULTIPLIER_DRAIN_TICK
+	multiplier_drain_timer.timeout.connect(_on_multiplier_drain_tick)
+	# The side-panel multiplier bar reads this timer to show the decay.
+	if ui.has_method("set_multiplier_timer"):
+		ui.set_multiplier_timer(multiplier_timer)
 
 	# Put the player in its proper starting state (full shield, start position)
 	# right away, so it looks correct while the start popup is showing instead
@@ -72,12 +123,92 @@ func _ready():
 	auto_start_timer.timeout.connect(_on_auto_start_timeout)
 	auto_start_timer.start()
 func start_score_multipliplier_timer():#this creates a function that checks if the score multiplier should start counting dowwn
-	if score_multiplier >= 2:
-		multiplier_timer.start()
-		multiplier_timer.wait_time = 5.0
+	"""(Re)start the decay countdown if the player has any points, and stop
+	any drain in progress. With no points there's nothing to decay."""
+	multiplier_drain_timer.stop()
+	if _total_multiplier_points() > 0.0:
+		multiplier_timer.start(MULTIPLIER_DECAY_TIME)
 	else:
 		multiplier_timer.stop()
-	multiplier_timer.timeout.connect(timeout_multiplier_timer)
+	# (timeout is connected once in _ready() - connecting it here on every
+	# kill only produced "already connected" errors.)
+
+func _stop_multiplier_decay() -> void:
+	multiplier_timer.stop()
+	multiplier_drain_timer.stop()
+
+# ===== MULTIPLIER POINTS =====
+
+func add_multiplier_points(points: float) -> void:
+	"""Add multiplier points (see the constants at the top). Every
+	MULTIPLIER_POINTS_PER_LEVEL bumps the multiplier up one, extra carries
+	over. Any gain restarts the decay timer (and stops a drain)."""
+	if points <= 0.0 or not playing:
+		return
+	_apply_multiplier_points(points)
+	start_score_multipliplier_timer()
+	_refresh_multiplier_ui()
+
+func on_damage_dealt_multiplier(damage: int) -> void:
+	add_multiplier_points(damage * POINTS_PER_DAMAGE)
+
+func on_bubble_bounce_multiplier() -> void:
+	add_multiplier_points(POINTS_PER_BUBBLE_BOUNCE)
+
+func on_bubble_shot_pop_multiplier() -> void:
+	add_multiplier_points(POINTS_PER_BUBBLE_SHOT_POP)
+
+func _apply_multiplier_points(points: float) -> void:
+	multiplier_points += points
+	while multiplier_points >= MULTIPLIER_POINTS_PER_LEVEL and score_multiplier < MAX_SCORE_MULTIPLIER:
+		multiplier_points -= MULTIPLIER_POINTS_PER_LEVEL
+		score_multiplier += 1
+	if score_multiplier >= MAX_SCORE_MULTIPLIER:
+		multiplier_points = 0.0
+
+func _total_multiplier_points() -> float:
+	"""Points represented by the current multiplier + progress, counting
+	from 1x / 0 (e.g. 3x with 4/10 = 24)."""
+	return (score_multiplier - 1) * MULTIPLIER_POINTS_PER_LEVEL + multiplier_points
+
+func _set_total_multiplier_points(total: float) -> void:
+	"""Set multiplier + progress from a running total (floored at 1x / 0)."""
+	score_multiplier = 1
+	multiplier_points = 0.0
+	_apply_multiplier_points(max(total, 0.0))
+
+func _lose_multiplier_points(points: float) -> void:
+	"""Take points off the running total, dropping levels as needed. Leaves
+	the decay timer / drain as they were unless everything is gone."""
+	_set_total_multiplier_points(_total_multiplier_points() - points)
+	if _total_multiplier_points() <= 0.0:
+		_stop_multiplier_decay()
+	_refresh_multiplier_ui()
+
+func _on_multiplier_drain_tick() -> void:
+	_lose_multiplier_points(MULTIPLIER_DRAIN_RATE * MULTIPLIER_DRAIN_TICK)
+
+func on_player_hit_multiplier() -> void:
+	_lose_multiplier_points(PLAYER_HIT_PENALTY)
+
+func on_absorb_miss_multiplier() -> void:
+	_lose_multiplier_points(ABSORB_MISS_PENALTY)
+
+func on_ability_gained_multiplier() -> void:
+	"""Absorbing an enemy spends the multiplier: back to 1x, no progress."""
+	_set_total_multiplier_points(0.0)
+	_stop_multiplier_decay()
+	_refresh_multiplier_ui()
+
+func on_ability_shot_out_multiplier() -> void:
+	"""The player shot their ability out as a bubble: back to 1x, then
+	re-apply half of the points they currently have. Since absorbing reset
+	them to 1x / 0, that's half of what they ended up with while
+	transformed (net of any hits or decay)."""
+	_set_total_multiplier_points(_total_multiplier_points() * TRANSFORM_POINTS_KEEP_FRACTION)
+	start_score_multipliplier_timer()
+	_refresh_multiplier_ui()
+
 # Virtual method - override in child classes
 func initialize_level():
 	# Child classes can override to set up level-specific data
@@ -125,21 +256,10 @@ func spawn_enemy_at_position(x, y):
 func _on_enemy_died(value):
 	score += value * score_multiplier
 	ui.update_score(score)
-	ui.update_score_multiplier(score_multiplier)
 	camera.add_trauma(0.5)
-	start_score_multipliplier_timer()
-	multiplier_increase_tracker += 1
-	if score_multiplier >= 4:
-		multiplier_increase_tracker = 0
-	if multiplier_increase_tracker > 4:
-		score_multiplier += 1
-		multiplier_increase_tracker = 0
-	else:
-		pass
-		
-	# Add this line to update the player's multiplier
-	if player and player.has_method("update_multiplier"):
-		player.update_multiplier(score_multiplier)
+	# Kill bonus on top of the damage points already earned through
+	# BaseEnemy.take_damage(). Also refreshes the HUD and the player's copy.
+	add_multiplier_points(POINTS_PER_KILL)
 
 # ===== SQUAD HELPER =====
 # Shared by any level that wants squad-based enemies (groups that fly down
@@ -439,18 +559,18 @@ func change_levels():
 		return
 
 	if level_paths.has("next_level"):
-		get_tree().change_scene_to_file(level_paths["next_level"])
+		GameShell.change_scene(level_paths["next_level"])
 	else:
 		# Default behavior - go to next level numerically
-		var current_scene = get_tree().current_scene.scene_file_path
+		var current_scene = scene_file_path
 		var level_num = current_scene.get_file().trim_suffix(".tscn").substr(6).to_int()
 		var next_level = "res://levels/level_%d.tscn" % (level_num + 1)
 
 		if ResourceLoader.exists(next_level):
-			get_tree().change_scene_to_file(next_level)
+			GameShell.change_scene(next_level)
 		else:
 			# If no next level exists, go to victory screen or title
-			get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+			GameShell.change_scene("res://levels/title_screen.tscn")
 
 func _offer_run_powerup_choice() -> void:
 	"""Called at the end of a level that's part of an overworld run. If the
@@ -521,11 +641,15 @@ func _on_player_died():
 		# all the way back to the title screen.
 		GameProgress.on_level_lost()
 	else:
-		get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+		GameShell.change_scene("res://levels/title_screen.tscn")
 	start_button.show()
 
 func new_game():
 	score = 0
+	score_multiplier = 1
+	multiplier_points = 0.0
+	multiplier_timer.stop()
+	multiplier_drain_timer.stop()
 	current_wave = 0
 	ui.update_score(score)
 
@@ -545,6 +669,8 @@ func new_game():
 func game_started():
 	# Child classes can override for level-specific startup logic
 	ui.update_score_multiplier(1)
+	if ui.has_method("update_multiplier_progress"):
+		ui.update_multiplier_progress(multiplier_points, MULTIPLIER_POINTS_PER_LEVEL, false)
 	pass
 
 func _on_start_pressed():
@@ -617,13 +743,19 @@ func _on_quit_pressed():
 	is_powerup_choice_active = false
 	get_tree().paused = false
 	playing = false
-	get_tree().change_scene_to_file("res://levels/title_screen.tscn")
+	GameShell.change_scene("res://levels/title_screen.tscn")
 func timeout_multiplier_timer():
-	score_multiplier = score_multiplier - 1
-	multiplier_increase_tracker = 0
+	# Decay countdown ran out - start draining points until the player earns
+	# one again (add_multiplier_points -> start_score_multipliplier_timer
+	# stops the drain).
+	if _total_multiplier_points() > 0.0:
+		multiplier_drain_timer.start()
+
+# Pushes the current multiplier + progress toward the next one to the HUD
+# (the side-panel multiplier bar - see game_shell.gd / multiplier_bar.gd).
+func _refresh_multiplier_ui() -> void:
 	ui.update_score_multiplier(score_multiplier)
-	if score_multiplier >= 2:
-		pass
-	else:
-		multiplier_timer.stop()
-	
+	if ui.has_method("update_multiplier_progress"):
+		ui.update_multiplier_progress(multiplier_points, MULTIPLIER_POINTS_PER_LEVEL, score_multiplier >= MAX_SCORE_MULTIPLIER)
+	if player and player.has_method("update_multiplier"):
+		player.update_multiplier(score_multiplier)
