@@ -196,6 +196,17 @@ var score_multiplier: int = 1
 
 @onready var screensize = get_viewport_rect().size
 
+# Draw order: enemies, bullets and pickups are all siblings of the player under
+# the level node at the default z_index 0, so whichever was added to the tree
+# later drew on top - anything spawned mid-level (astroids, squads, etc.)
+# covered the ship, which looked wrong when jumping over them. A higher
+# z_index keeps the player (and its child Shadow) above all enemies at all
+# times. Keep this above any z_index enemies use (HiveSquad uses 0/1).
+const PLAYER_Z_INDEX: int = 10
+
+func _ready():
+	z_index = PLAYER_Z_INDEX
+
 # ===== INITIALIZATION =====
 func start():
 	initialize_player()

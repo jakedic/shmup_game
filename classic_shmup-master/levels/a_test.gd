@@ -9,12 +9,18 @@
 # you can keep watching as long as you like. Pause -> Quit to leave.
 extends SquadWaveLevel
 
+const ENEMY_BEE := preload("res://enemies/enemy_yellow.tscn")
+const BEE_MINIBOSS := preload("res://enemies/yellow_miniboss.tscn")
+const ASTROID_MEDIUM := preload("res://enemies/astroid_medium.tscn")
+const ASTROID_SMALL := preload("res://enemies/astroid_small.tscn")
+const ENEMY_HIVE := preload("res://enemies/enemy_hive.tscn")
 const FLOWER := preload("res://enemies/flower_enemy.tscn")
 
 
 # Wave 1 - one flower squad down the middle, firing at the top of the screen
 # and again about 40% of the way down.
 func _wave_1() -> void:
+	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.3})
 	spawn_flower_squad_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "attack_heights": [0.0,0.2, 0.4]})
 
 
