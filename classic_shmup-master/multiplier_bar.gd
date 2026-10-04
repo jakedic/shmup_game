@@ -12,12 +12,11 @@
 #     turns red near the end. It refills every time a point gain restarts the timer.
 #
 # Ability mode: while the player has an absorbed ability (current_form isn't
-# 'default' and its transformation timer is running), the top part stops
-# showing kill progress and instead shows how much time is left on the
-# ability, as one bar in the ability's color that drains and blinks near the
-# end. As soon as the ability ends (timed out, or the player shot it out as a
-# bubble) it goes straight back to the kill-progress segments. The decay strip
-# underneath keeps showing the multiplier decay the whole time.
+# 'default' and its transformation timer is running), the multiplier doesn't
+# decay (cap is 8x instead of 4x), so the bottom strip shows how much time is
+# left on the transformation instead, in the ability's color, blinking near
+# the end. The top keeps showing progress toward the next multiplier. As soon
+# as the ability ends it goes back to showing the decay timer.
 extends Control
 
 const BORDER_COLOR := Color(0.85, 0.85, 0.92)
@@ -113,23 +112,22 @@ func _draw() -> void:
 		Vector2(inner.position.x, inner.end.y - DECAY_STRIP_HEIGHT),
 		Vector2(inner.size.x, DECAY_STRIP_HEIGHT))
 
-	# --- ability timer (replaces the progress segments while an ability is active) ---
+	_draw_progress_segments(prog_rect)
+
+	# --- bottom strip: transformation time while an ability is active,
+	# otherwise the multiplier decay timer ---
+	draw_rect(decay_rect, SEGMENT_EMPTY_COLOR)
 	if ability_active:
-		draw_rect(prog_rect, SEGMENT_EMPTY_COLOR)
 		var acol := ability_color
 		if ability_fraction < ABILITY_LOW_FRACTION:
-			# Blink faster as it runs out so the player knows it's about to end.
+			# Blink as it runs out so the player knows it's about to end.
 			acol = ability_color.lerp(Color.WHITE, 0.5 + 0.5 * sin(_pulse * 3.0))
-		draw_rect(Rect2(prog_rect.position, Vector2(prog_rect.size.x * ability_fraction, prog_rect.size.y)), acol)
+		draw_rect(Rect2(decay_rect.position, Vector2(decay_rect.size.x * ability_fraction, decay_rect.size.y)), acol)
 	else:
-		_draw_progress_segments(prog_rect)
-
-	# --- decay strip ---
-	draw_rect(decay_rect, SEGMENT_EMPTY_COLOR)
-	var frac := _decay_fraction()
-	if frac > 0.0:
-		var col := DECAY_COLOR if frac > DECAY_LOW_FRACTION else DECAY_LOW_COLOR
-		draw_rect(Rect2(decay_rect.position, Vector2(decay_rect.size.x * frac, decay_rect.size.y)), col)
+		var frac := _decay_fraction()
+		if frac > 0.0:
+			var col := DECAY_COLOR if frac > DECAY_LOW_FRACTION else DECAY_LOW_COLOR
+			draw_rect(Rect2(decay_rect.position, Vector2(decay_rect.size.x * frac, decay_rect.size.y)), col)
 
 	draw_rect(r, BORDER_COLOR, false, 1.0)
 

@@ -28,13 +28,17 @@ const MAX_POWERUP_CHOICES := 3
 #     again or reach 1x / 0.
 #   - getting hit costs PLAYER_HIT_PENALTY points (can drop a level).
 #   - absorbing an enemy (only allowed at 4x - see PlayerAbsorption's
-#     ABSORB_REQUIRED_MULTIPLIER) spends it: straight back to 1x, 0 progress.
-#     While transformed you earn points normally and build it back up.
-#   - shooting the ability out as a bubble drops it to 1x again, but you keep
-#     TRANSFORM_POINTS_KEEP_FRACTION (half) of the points you have at that
-#     moment - i.e. what you ended up with since the absorb reset you to 1x,
-#     after any hits/decay. E.g. at 3x with 4/10 (24 points) -> shoot out ->
-#     keep 12 -> 2x, 2/10.
+#     ABSORB_REQUIRED_MULTIPLIER) does NOT cost anything: you stay at 4x.
+#     While transformed the cap rises to MAX_TRANSFORMED_MULTIPLIER (8x),
+#     points are earned normally, and the decay timer is switched off - the
+#     transformation timer takes its place (the HUD's thin strip shows it).
+#     Hits still cost points while transformed.
+#   - when the transformation runs out (or the player reverts manually), the
+#     multiplier is rebuilt from 1x using only the points earned ABOVE 4x.
+#     E.g. 6x with 2/5 = 12 points above 4x -> 3x with 2/5.
+#   - shooting the ability out as a bubble does the same but keeps only
+#     TRANSFORM_POINTS_KEEP_FRACTION (half) of the points above 4x.
+#     E.g. 6x with 2/5 -> 12 above 4x -> keep 6 -> 2x with 1/5.
 #   - an absorb that misses costs ABSORB_MISS_PENALTY points, which can drop
 #     you a multiplier level (e.g. 4x -> 3x with 5/10).
 # See add_multiplier_points() / on_player_hit_multiplier() /
@@ -53,6 +57,7 @@ const MULTIPLIER_DECAY_TIME := 7.5   # was 5.0 (+50%)
 const MULTIPLIER_DRAIN_RATE := 2.0   # points/second lost once the decay timer runs out
 const MULTIPLIER_DRAIN_TICK := 0.1   # seconds between drain steps
 const MAX_SCORE_MULTIPLIER := 4
+const MAX_TRANSFORMED_MULTIPLIER := 8  # cap while the player has an absorbed ability
 
 # Common variables for all levels
 var score = 0
@@ -62,6 +67,7 @@ var current_wave = 0
 var max_waves = 3  # Default value, can be overridden
 var score_multiplier = 1
 var multiplier_points: float = 0.0 # progress toward the next multiplier (0..MULTIPLIER_POINTS_PER_LEVEL)
+var multiplier_transformed := false # true while the player has an absorbed ability (8x cap, no decay)
 var multiplier_timer : Timer = Timer.new() #creates the multiplier timer variable
 var multiplier_drain_timer : Timer = Timer.new() # ticks the point drain after multiplier_timer runs out
 var auto_start_delay: float = 1.5 #how long the start popup stays up before the game auto-starts
@@ -126,6 +132,10 @@ func start_score_multipliplier_timer():#this creates a function that checks if t
 	"""(Re)start the decay countdown if the player has any points, and stop
 	any drain in progress. With no points there's nothing to decay."""
 	multiplier_drain_timer.stop()
+	# No decay while transformed - the transformation timer replaces it.
+	if multiplier_transformed:
+		multiplier_timer.stop()
+		return
 	if _total_multiplier_points() > 0.0:
 		multiplier_timer.start(MULTIPLIER_DECAY_TIME)
 	else:
@@ -160,11 +170,20 @@ func on_bubble_shot_pop_multiplier() -> void:
 
 func _apply_multiplier_points(points: float) -> void:
 	multiplier_points += points
-	while multiplier_points >= MULTIPLIER_POINTS_PER_LEVEL and score_multiplier < MAX_SCORE_MULTIPLIER:
+	var cap := _max_multiplier()
+	while multiplier_points >= MULTIPLIER_POINTS_PER_LEVEL and score_multiplier < cap:
 		multiplier_points -= MULTIPLIER_POINTS_PER_LEVEL
 		score_multiplier += 1
-	if score_multiplier >= MAX_SCORE_MULTIPLIER:
+	if score_multiplier >= cap:
 		multiplier_points = 0.0
+
+func _max_multiplier() -> int:
+	return MAX_TRANSFORMED_MULTIPLIER if multiplier_transformed else MAX_SCORE_MULTIPLIER
+
+func _points_above_base_max() -> float:
+	"""Points earned above the normal 4x cap (0 if below it)."""
+	var base_total: float = (MAX_SCORE_MULTIPLIER - 1) * MULTIPLIER_POINTS_PER_LEVEL
+	return max(_total_multiplier_points() - base_total, 0.0)
 
 func _total_multiplier_points() -> float:
 	"""Points represented by the current multiplier + progress, counting
@@ -195,17 +214,31 @@ func on_absorb_miss_multiplier() -> void:
 	_lose_multiplier_points(ABSORB_MISS_PENALTY)
 
 func on_ability_gained_multiplier() -> void:
-	"""Absorbing an enemy spends the multiplier: back to 1x, no progress."""
-	_set_total_multiplier_points(0.0)
+	"""Absorbing an enemy keeps the multiplier where it is, raises the cap
+	to MAX_TRANSFORMED_MULTIPLIER and pauses decay for the transformation."""
+	multiplier_transformed = true
 	_stop_multiplier_decay()
 	_refresh_multiplier_ui()
 
+func on_ability_ended_multiplier() -> void:
+	"""Transformation ran out (or was reverted manually): rebuild the
+	multiplier from 1x using only the points earned above 4x."""
+	if not multiplier_transformed:
+		return  # already handled (e.g. shot out as a bubble first)
+	_end_transformed_multiplier(1.0)
+
 func on_ability_shot_out_multiplier() -> void:
-	"""The player shot their ability out as a bubble: back to 1x, then
-	re-apply half of the points they currently have. Since absorbing reset
-	them to 1x / 0, that's half of what they ended up with while
-	transformed (net of any hits or decay)."""
-	_set_total_multiplier_points(_total_multiplier_points() * TRANSFORM_POINTS_KEEP_FRACTION)
+	"""The player shot their ability out as a bubble: same as the
+	transformation ending, but only TRANSFORM_POINTS_KEEP_FRACTION (half) of
+	the points above 4x are kept."""
+	if not multiplier_transformed:
+		return
+	_end_transformed_multiplier(TRANSFORM_POINTS_KEEP_FRACTION)
+
+func _end_transformed_multiplier(keep_fraction: float) -> void:
+	var kept: float = _points_above_base_max() * keep_fraction
+	multiplier_transformed = false
+	_set_total_multiplier_points(kept)
 	start_score_multipliplier_timer()
 	_refresh_multiplier_ui()
 
@@ -648,6 +681,7 @@ func new_game():
 	score = 0
 	score_multiplier = 1
 	multiplier_points = 0.0
+	multiplier_transformed = false
 	multiplier_timer.stop()
 	multiplier_drain_timer.stop()
 	current_wave = 0
@@ -747,8 +781,8 @@ func _on_quit_pressed():
 func timeout_multiplier_timer():
 	# Decay countdown ran out - start draining points until the player earns
 	# one again (add_multiplier_points -> start_score_multipliplier_timer
-	# stops the drain).
-	if _total_multiplier_points() > 0.0:
+	# stops the drain). Never drains while transformed.
+	if _total_multiplier_points() > 0.0 and not multiplier_transformed:
 		multiplier_drain_timer.start()
 
 # Pushes the current multiplier + progress toward the next one to the HUD
@@ -756,6 +790,6 @@ func timeout_multiplier_timer():
 func _refresh_multiplier_ui() -> void:
 	ui.update_score_multiplier(score_multiplier)
 	if ui.has_method("update_multiplier_progress"):
-		ui.update_multiplier_progress(multiplier_points, MULTIPLIER_POINTS_PER_LEVEL, score_multiplier >= MAX_SCORE_MULTIPLIER)
+		ui.update_multiplier_progress(multiplier_points, MULTIPLIER_POINTS_PER_LEVEL, score_multiplier >= _max_multiplier())
 	if player and player.has_method("update_multiplier"):
 		player.update_multiplier(score_multiplier)

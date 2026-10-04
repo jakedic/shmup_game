@@ -16,8 +16,8 @@ static func handle_absorb_input(player: Player) -> void:
 		absorb(player)
 	if Input.is_action_pressed("absorb") and player.can_absorb and player.current_form != 'default':
 		shoot_bubble(player)
-		# Back to 1x, keeping half the points earned while transformed (see
-		# base_level.gd). Called before revert so current_form is still set.
+		# Keeps half the points earned above 4x (see base_level.gd). Called
+		# before revert, so revert's "ability ended" call is a no-op.
 		GameShell.multiplier_on_ability_shot_out()
 		revert_absorption(player)
 	if Input.is_action_pressed("revert") and not player.is_dashing:
@@ -68,6 +68,10 @@ static func on_absorb(player: Player) -> void:
 
 static func revert_absorption(player: Player) -> void:
 	if player.current_form != 'default':
+		# Transformation over (timed out or reverted manually): multiplier
+		# keeps the points earned above 4x (see base_level.gd). No-op if the
+		# bubble shot-out already handled it.
+		GameShell.multiplier_on_ability_ended()
 		# Reset to default form
 		reset_to_default_form(player)
 		player.current_form = 'default'
@@ -114,7 +118,8 @@ static func absorb_complete(player: Player, hit_enemy_type: String) -> void:
 		if player.has_method(transform_func_name):
 			player.call(transform_func_name)
 
-		# Absorbing "spends" the multiplier: back to 1x (see base_level.gd).
+		# Absorbing keeps the multiplier and raises its cap to 8x while
+		# transformed (see base_level.gd).
 		GameShell.multiplier_on_ability_gained()
 
 		emphasize_ability_acquired(player)

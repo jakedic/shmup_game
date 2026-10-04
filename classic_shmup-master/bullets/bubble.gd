@@ -64,13 +64,15 @@ const BUBBLE_ATTRACTION_PULL_SPEED := 160.0  # direct extra pull toward the near
 # a blue outline, slightly faster, and it deals SHOCKWAVE_CHARGE_DAMAGE to
 # each enemy it passes through (once per pass - area_entered only fires
 # again after it leaves and re-enters). Enemy bullets still pass through
-# with no effect either way. The charge lasts until the player next
-# paddle-bounces the bubble (see _bounce_off_player()) - another shockwave
-# hit just keeps it charged.
+# with no effect either way. The charge lasts for SHOCKWAVE_CHARGE_TOUCHES
+# paddle-bounces off the player (see _bounce_off_player()) - another
+# shockwave hit refreshes it back to the full count.
 const SHOCKWAVE_CHARGE_DAMAGE := 1
+const SHOCKWAVE_CHARGE_TOUCHES := 3
 const SHOCKWAVE_CHARGE_SPEED_MULT := 1.12
 const SHOCKWAVE_OUTLINE_COLOR := Color(0.3, 0.7, 1.0, 1.0)
 var is_shockwave_charged: bool = false
+var _charge_touches_left: int = 0  # player touches left before the charge ends
 # time_elapsed when the charge was applied. A paddle touch within
 # SHOCKWAVE_TOUCH_GRACE of that doesn't clear it - covers landing right next
 # to the bubble, where the ship's touch and the shockwave arrive together.
@@ -305,10 +307,14 @@ func _bounce_off_player(player: Node2D) -> void:
 	the resulting speed can pick up slightly but never exceeds
 	PLAYER_BOUNCE_SPEED_MULTIPLIER_CAP times the bubble's original speed.
 
-	Also ends a shockwave charge - unless the charge was applied a moment
-	ago (the touch and the landing shockwave arrived together)."""
+	Also uses up one of a shockwave charge's SHOCKWAVE_CHARGE_TOUCHES,
+	ending the charge on the last one - unless the charge was applied a
+	moment ago (the touch and the landing shockwave arrived together), in
+	which case the touch doesn't count."""
 	if is_shockwave_charged and time_elapsed - _charged_at > SHOCKWAVE_TOUCH_GRACE:
-		_clear_shockwave_charge()
+		_charge_touches_left -= 1
+		if _charge_touches_left <= 0:
+			_clear_shockwave_charge()
 
 	var half_extents := _get_player_half_extents(player)
 	# clamp() returns Variant in GDScript even with all-float arguments, so
@@ -357,8 +363,10 @@ func on_shockwave_hit(center: Vector2) -> void:
 	_become_shockwave_charged()
 
 func _become_shockwave_charged() -> void:
-	# Re-hit while already charged: just refresh the grace timer.
+	# Re-hit while already charged: refresh the grace timer and the touch
+	# count back to the full SHOCKWAVE_CHARGE_TOUCHES.
 	_charged_at = time_elapsed
+	_charge_touches_left = SHOCKWAVE_CHARGE_TOUCHES
 	if is_shockwave_charged:
 		return
 	is_shockwave_charged = true
@@ -377,6 +385,7 @@ func _clear_shockwave_charge() -> void:
 	if not is_shockwave_charged:
 		return
 	is_shockwave_charged = false
+	_charge_touches_left = 0
 	speed /= SHOCKWAVE_CHARGE_SPEED_MULT
 	base_speed /= SHOCKWAVE_CHARGE_SPEED_MULT
 	var outline := get_node_or_null("ChargeOutline")

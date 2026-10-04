@@ -27,6 +27,10 @@ const JUMP_SCALE_AMOUNT := 0.3
 # Higher = more responsive (was a hardcoded 2.0).
 const DASH_STEER_RATE := 3.5
 
+# Speed boost while in the air during a jump (1.15 = 15% faster than
+# dash_speed). Duration is unchanged, so jumps also cover 15% more ground.
+const JUMP_SPEED_MULTIPLIER := 1.15
+
 # Brief invincibility right after landing a dash jump, so the landing
 # shockwave gets a chance to kill whatever the ship came down on (or next
 # to) before it can hurt the player. Kept short on purpose: when it ends,
@@ -67,7 +71,7 @@ static func handle_movement(player: Player, delta: float) -> void:
 		player.dash_direction = player.dash_direction.lerp(modified_direction, DASH_STEER_RATE * delta)
 
 		# Apply dash velocity with circular motion added
-		player.current_velocity = (player.dash_direction * player.dash_speed) - circle_offset
+		player.current_velocity = (player.dash_direction * player.dash_speed * JUMP_SPEED_MULTIPLIER) - circle_offset
 	elif not player.currently_absorbing:
 		# Reset dash time when not dashing
 		player.dash_time = 0

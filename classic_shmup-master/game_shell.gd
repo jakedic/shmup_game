@@ -295,6 +295,11 @@ func multiplier_on_ability_gained() -> void:
 		_current_scene.on_ability_gained_multiplier()
 
 
+func multiplier_on_ability_ended() -> void:
+	if _current_scene and _current_scene.has_method("on_ability_ended_multiplier"):
+		_current_scene.on_ability_ended_multiplier()
+
+
 func multiplier_on_ability_shot_out() -> void:
 	if _current_scene and _current_scene.has_method("on_ability_shot_out_multiplier"):
 		_current_scene.on_ability_shot_out_multiplier()
