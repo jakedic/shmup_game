@@ -22,7 +22,7 @@ const FLOWER := preload("res://enemies/flower_enemy.tscn")
 func _wave_1() -> void:
 	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.3})
 	spawn_flower_squad_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "attack_heights": [0.0,0.2, 0.4]})
-
+	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.7, "start_delay": 10.0, "sway_width": 22.0, "sway_time": 1.6, "fall_speed": 40.0})
 
 # Wave 2 - solo flowers dropping in one after another. The first three
 # choose exactly where they fire with attack_heights; the last two use the

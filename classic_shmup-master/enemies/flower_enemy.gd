@@ -37,7 +37,7 @@ class_name FlowerEnemy
 @export var spin_speed_deg: float = 120.0   # how fast it spins while falling, degrees/second (direction is random per flower)
 
 # ===== LASER ATTACK =====
-@export var swings_before_fire: float = 2.0     # full back-and-forth swings between laser attacks (only used when attack_heights is empty)
+@export var swings_before_fire: float = 1     # full back-and-forth swings between laser attacks (only used when attack_heights is empty)
 # Where to fire, as fractions of the screen height (0 = top, 1 = bottom),
 # e.g. [0.2, 0.5]. Each one is used once, in order: the flower fires as it
 # passes through the middle of its first swing after reaching that height.

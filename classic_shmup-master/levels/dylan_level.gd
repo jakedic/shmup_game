@@ -18,11 +18,21 @@ const ENEMY_BEE := preload("res://enemies/enemy_yellow.tscn")
 const BEE_MINIBOSS := preload("res://enemies/yellow_miniboss.tscn")
 const ASTROID_MEDIUM := preload("res://enemies/astroid_medium.tscn")
 const ASTROID_SMALL := preload("res://enemies/astroid_small.tscn")
-
+const FLOWER := preload("res://enemies/flower_enemy.tscn")
+const ENEMY_HIVE := preload("res://enemies/enemy_hive.tscn")
 
 # Wave 1 - a few astroids drifting straight down to open the level with a
 # calm, lower-pressure introduction before the bees start - nothing to shoot
 # back, just something to dodge or pick off.
+func _wave_0() -> void:
+	
+	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.3})
+	spawn_flower_squad_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "attack_heights": [0.0,0.2, 0.4], "start_delay": .5})
+	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.2, "start_delay": .5, "sway_width": 20.0, "sway_time": 2, "fall_speed": 20.0})
+	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.8, "start_delay": .5, "sway_width": 20.0, "sway_time": 2, "fall_speed": 20.0})
+	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.7, "start_delay": 1.0} )
+	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": 0.8, "start_delay": 1.2})
+	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.9, "start_delay": 1.4})
 func _wave_1() -> void:
 	spawn_drift_wave({"enemy": ASTROID_MEDIUM, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.35, "speed": 40})
 	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": 0.55, "speed": 38, "start_delay": 1.0})
@@ -62,16 +72,26 @@ func _wave_5() -> void:
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": .3, "end_side": Side.BOTTOM, "end_percent": .3, "start_delay": .9})
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": .1, "end_side": Side.BOTTOM, "end_percent": .1, "start_delay": 1.2})
 
-
-# Wave 6 - a single squad, straight down the middle, circling at the top portion of the screen to give the player time to understand the pattern. Other enemies should distract/protect the circle long enough for the player to see them dive after circling
+# Wave that introduces flower enemies, with the asteroids and bees it should give the flowers enough time to do one attack
 func _wave_6() -> void:
+	spawn_drift_wave({"enemy": ASTROID_MEDIUM, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.35, "speed": 40})
+	spawn_drift_wave({"enemy": ASTROID_MEDIUM, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": 0.65, "speed": 40})
+	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": .7, "end_side": Side.BOTTOM, "end_percent": .7, "start_delay": .3})
+	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": .2, "end_side": Side.BOTTOM, "end_percent": .2, "start_delay": .3})
+	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.35, "start_delay": 1.5, "sway_width": 55.0, "sway_time": 2, "fall_speed": 20.0})
+	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.65, "start_delay": 1.5, "sway_width": 55.0, "sway_time": 2, "fall_speed": 20.0})
+
+func _wave_7() -> void:
+	spawn_flower_squad_wave({"enemy": FLOWER, "start_percent": LANE_CENTER, "attack_heights": [0.0,0.2, 0.4]})
+# Wave 8 - a single squad, straight down the middle, circling at the top portion of the screen to give the player time to understand the pattern. Other enemies should distract/protect the circle long enough for the player to see them dive after circling
+func _wave_8() -> void:
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": 0.5, "start_delay": 1.0})
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": 0.6, "start_delay": 1.0})
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": 0.2})
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.8, "end_side": Side.BOTTOM, "end_percent": 0.8})
 	spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": LANE_CENTER, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": 1})
 
-func _wave_7() -> void:
+func _wave_9() -> void:
 	spawn_drift_wave({"enemy": ASTROID_MEDIUM, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.35, "speed": 65})
 	spawn_drift_wave({"enemy": ASTROID_MEDIUM, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": 0.65, "speed": 65})
 	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": 60})
@@ -86,8 +106,8 @@ func _wave_7() -> void:
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": .5, "end_side": Side.BOTTOM, "end_percent": .5, "start_delay": 2.8})
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": .3, "end_side": Side.BOTTOM, "end_percent": .3, "start_delay": 3.1})
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": .1, "end_side": Side.BOTTOM, "end_percent": .1, "start_delay": 3.4})
-# Wave 8 - multiple squad wave, just ramping up the challenge slightly
-func _wave_8() -> void:
+# Wave 10 - multiple squad wave, just ramping up the challenge slightly
+func _wave_10() -> void:
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": 0.5, "start_delay": 1.0})
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": 0.6, "start_delay": 1.0})
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": 0.2})
@@ -136,7 +156,7 @@ func _ready() -> void:
 	level_paths = {
 		"next_level": "res://levels/level_1.tscn"
 	}
-	waves = [ _wave_1, _wave_2, _wave_3, _wave_4, _wave_5, _wave_6,_wave_7, _wave_8, _wave_boss]
+	waves = [ _wave_0, _wave_1, _wave_2, _wave_3, _wave_4, _wave_5, _wave_6,_wave_7, _wave_8, _wave_9, _wave_10, _wave_boss]
 	boss_scene = BEE_MINIBOSS
 	fallback_enemy = ENEMY_BEE
 	super._ready()
