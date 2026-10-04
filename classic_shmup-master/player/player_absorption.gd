@@ -9,6 +9,15 @@ class_name PlayerAbsorption
 # Score multiplier the player must be at before they can fire an absorb.
 const ABSORB_REQUIRED_MULTIPLIER := 4
 
+static func is_absorb_ready(player: Player) -> bool:
+	"""True when pressing absorb right now would fire the absorb beam (4x
+	multiplier, off cooldown, untransformed, not already absorbing). Drives
+	the flashing white border around the ship (absorb_ready_outline.gd)
+	and the "hit the button" prompt in the side HUD (game_shell.gd)."""
+	return is_instance_valid(player) and player.is_alive and player.can_absorb \
+		and not player.currently_absorbing and player.current_form == 'default' \
+		and player.score_multiplier >= ABSORB_REQUIRED_MULTIPLIER
+
 static func handle_absorb_input(player: Player) -> void:
 	"""Process absorption input"""
 	# Absorbing is only allowed at ABSORB_REQUIRED_MULTIPLIER (max, 4x).

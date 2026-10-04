@@ -94,6 +94,33 @@ const MULT_BAR_SIZE := Vector2(77, 16)
 const MULT_BAR_SCALE := 5.0
 const STATS_TEXT_COLOR := Color(1, 1, 1)
 
+# "Hit the button" absorb prompt. While an absorb is available
+# (PlayerAbsorption.is_absorb_ready(): 4x multiplier, off cooldown,
+# untransformed) it REPLACES the multiplier row in the stats box (caption,
+# value and bar are hidden) until the player absorbs. Same moment the white
+# border flashes around the ship (player/absorb_ready_outline.gd).
+# Laid out in the stats box's art pixels, inside ABSORB_PROMPT_RECT (the area
+# the multiplier row normally uses).
+const ABSORB_VIDEO := "res://Art assets/Hud assets/Hitting button.ogv"
+const ABSORB_VIDEO_SIZE := Vector2(300, 350)
+# The button only fills the lower middle of the 300x350 clip - crop to it.
+const ABSORB_VIDEO_CROP := Rect2(50, 176, 184, 156)
+const ABSORB_PROMPT_RECT := Rect2(13, 232, 483, 136)
+const ABSORB_VIDEO_SCALE := 0.8    # button clip on the left of the row
+const ABSORB_TITLE_FONT_SIZE := 46  # "ABSORB! (K)" to the right of it
+const ABSORB_TITLE_FLASH_RATE := 3.0  # matches the ship border flash
+const ABSORB_TITLE_COLOR_A := Color(1, 1, 1)
+const ABSORB_TITLE_COLOR_B := Color(1.0, 0.85, 0.3)
+# Keys out the clip's black background so only the button shows.
+const VIDEO_KEY_SHADER := """
+shader_type canvas_item;
+void fragment() {
+	vec4 c = texture(TEXTURE, UV);
+	float l = max(c.r, max(c.g, c.b));
+	COLOR = vec4(c.rgb, c.a * smoothstep(0.03, 0.12, l)) * COLOR;
+}
+"""
+
 # All shell UI hangs off this full-window Control. The shell is a CanvasLayer
 # so a Camera2D that briefly lands on the root (see _adopt_startup_scene())
 # can never shift the side panels.
@@ -121,6 +148,12 @@ var _multiplier_label: Label
 var _shield_bar: TextureProgressBar
 var _hud_users := 0
 
+var _absorb_prompt: Control
+var _multiplier_row: Array[Control] = []  # hidden while the absorb prompt shows
+var _absorb_title: Label
+var _absorb_video: VideoStreamPlayer
+var _absorb_prompt_t := 0.0
+
 
 func _ready() -> void:
 	# The shell itself (and the container that forwards input into the game)
@@ -141,12 +174,17 @@ func _ready() -> void:
 
 	get_tree().root.size_changed.connect(_layout)
 	_layout()
+	_set_absorb_prompt(false)
 
 	# Whatever scene Godot loads at startup (the main scene, or the scene
 	# being run with F6 in the editor) gets added directly to the root, after
 	# the autoloads. Re-load it inside the play-area viewport instead.
 	get_tree().root.child_entered_tree.connect(_on_root_child_entered)
 	_adopt_startup_scene.call_deferred()
+
+
+func _process(delta: float) -> void:
+	_update_absorb_prompt(delta)
 
 
 # ---------------------------------------------------------------------------
@@ -490,6 +528,7 @@ func _build_hud() -> void:
 	var caption := _make_stats_label("Multiplier:", MULT_LABEL_FONT_SIZE)
 	caption.position = MULT_LABEL_POS
 	_stats_box.add_child(caption)
+	_multiplier_row.append(caption)
 
 	_multiplier_label = _make_stats_label("1x", MULT_VALUE_FONT_SIZE)
 	_multiplier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -530,6 +569,103 @@ func _build_hud() -> void:
 	jump_clock.status_label = jump_status
 	_stats_box.add_child(jump_clock)
 	_stats_box.add_child(jump_status)  # after the clock so it draws on top
+
+	_build_absorb_prompt()
+
+
+func _build_absorb_prompt() -> void:
+	"""Stats box, in place of the multiplier row: small looping
+	hitting-button clip on the left, "ABSORB! (K)" on the right. Hidden
+	until an absorb is available."""
+	_multiplier_row.append(_multiplier_label)
+	_multiplier_row.append(_multiplier_bar)
+
+	var video_w := ABSORB_VIDEO_CROP.size.x * ABSORB_VIDEO_SCALE
+	var video_h := ABSORB_VIDEO_CROP.size.y * ABSORB_VIDEO_SCALE
+
+	_absorb_prompt = Control.new()
+	_absorb_prompt.name = "AbsorbPrompt"
+	_absorb_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_absorb_prompt.position = ABSORB_PROMPT_RECT.position
+	_absorb_prompt.size = ABSORB_PROMPT_RECT.size
+	_stats_box.add_child(_absorb_prompt)
+
+	_absorb_title = _make_stats_label("ABSORB! (%s)" % _absorb_key_name(), ABSORB_TITLE_FONT_SIZE)
+	_absorb_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_absorb_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_absorb_title.position = Vector2(video_w, 0)
+	_absorb_title.size = Vector2(ABSORB_PROMPT_RECT.size.x - video_w, ABSORB_PROMPT_RECT.size.y)
+	_absorb_prompt.add_child(_absorb_title)
+
+	# Clip window showing just the button part of the video.
+	var clip := Control.new()
+	clip.name = "VideoClip"
+	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	clip.clip_contents = true
+	clip.size = ABSORB_VIDEO_CROP.size
+	clip.scale = Vector2.ONE * ABSORB_VIDEO_SCALE
+	clip.position = Vector2(0, (ABSORB_PROMPT_RECT.size.y - video_h) * 0.5)
+	_absorb_prompt.add_child(clip)
+
+	_absorb_video = VideoStreamPlayer.new()
+	_absorb_video.name = "HittingButton"
+	_absorb_video.stream = load(ABSORB_VIDEO)
+	_absorb_video.loop = true
+	_absorb_video.autoplay = false
+	_absorb_video.expand = true
+	# The clip has a click sound baked in - muted so it doesn't click every
+	# 0.7s for as long as the prompt is up.
+	_absorb_video.volume_db = -80.0
+	_absorb_video.size = ABSORB_VIDEO_SIZE
+	_absorb_video.position = -ABSORB_VIDEO_CROP.position
+	_absorb_video.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_absorb_video.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	var key_shader := Shader.new()
+	key_shader.code = VIDEO_KEY_SHADER
+	var key_mat := ShaderMaterial.new()
+	key_mat.shader = key_shader
+	_absorb_video.material = key_mat
+	clip.add_child(_absorb_video)
+
+
+func _absorb_key_name() -> String:
+	if InputMap.has_action("absorb"):
+		for e in InputMap.action_get_events("absorb"):
+			if e is InputEventKey:
+				var code: int = e.physical_keycode if e.physical_keycode != 0 else e.keycode
+				if code != 0:
+					return OS.get_keycode_string(code)
+	return "K"
+
+
+func _update_absorb_prompt(delta: float) -> void:
+	var absorb_ready := false
+	if _hud_users > 0 and not get_tree().paused:
+		var p = get_tree().get_first_node_in_group("player")
+		if p is Player:
+			absorb_ready = PlayerAbsorption.is_absorb_ready(p)
+	_set_absorb_prompt(absorb_ready)
+	if absorb_ready and _absorb_title:
+		_absorb_prompt_t += delta
+		var w := 0.5 + 0.5 * cos(_absorb_prompt_t * TAU * ABSORB_TITLE_FLASH_RATE)
+		_absorb_title.add_theme_color_override("font_color",
+			ABSORB_TITLE_COLOR_B.lerp(ABSORB_TITLE_COLOR_A, w))
+
+
+func _set_absorb_prompt(on: bool) -> void:
+	if not _absorb_prompt or _absorb_prompt.visible == on:
+		return
+	_absorb_prompt.visible = on
+	_absorb_prompt_t = 0.0
+	for c in _multiplier_row:
+		if c:
+			c.visible = not on
+	if not _absorb_video:
+		return
+	if on:
+		_absorb_video.play()
+	else:
+		_absorb_video.stop()
 
 
 ## A TextureRect showing `region` of one of the 2048x2048 HUD art sheets.

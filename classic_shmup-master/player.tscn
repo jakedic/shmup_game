@@ -12,6 +12,7 @@
 [ext_resource type="Texture2D" uid="uid://8sql62rflh1i" path="res://Art assets/Player assets and transformations/Player_topdown.png" id="5_n7ghd"]
 [ext_resource type="Texture2D" uid="uid://2aa2aerwlxgm" path="res://Art assets/Player assets and transformations/Player_topdown_placeholder_transformation_sprite.png" id="6_b26j0"]
 [ext_resource type="Script" path="res://player/player_shadow.gd" id="7_shadow"]
+[ext_resource type="Script" path="res://player/absorb_ready_outline.gd" id="8_outline"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_rbfoc"]
 atlas = ExtResource("2_6cdot")
@@ -90,6 +91,10 @@ yellow_sprite_texture = ExtResource("6_b26j0")
 
 [node name="Shadow" type="Sprite2D" parent="." unique_id=1847203915]
 script = ExtResource("7_shadow")
+
+[node name="AbsorbOutline" type="Sprite2D" parent="." unique_id=1290553178]
+visible = false
+script = ExtResource("8_outline")
 
 [node name="Ship" type="Sprite2D" parent="." unique_id=1169473419]
 position = Vector2(5, -4.999997)
