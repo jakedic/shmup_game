@@ -34,6 +34,7 @@ const PANEL_COLOR := Color(0.035, 0.035, 0.07)
 const BORDER_COLOR := Color(0.28, 0.28, 0.42)
 const MULTIPLIER_BAR_SCRIPT := preload("res://multiplier_bar.gd")
 const JUMP_INDICATOR_SCRIPT := preload("res://jump_indicator.gd")
+const DIALOGUE_UI_SCRIPT := preload("res://dialogue_ui.gd")
 
 # HUD art (Art assets/Hud assets). All sheets are 2048x2048 and drawn on the
 # same canvas. Hud_Asset.png holds two pieces that are used separately:
@@ -154,6 +155,15 @@ var _absorb_title: Label
 var _absorb_video: VideoStreamPlayer
 var _absorb_prompt_t := 0.0
 
+# Dialogue boxes (dialogue_ui.gd) - side box above the portrait, center box
+# over the play area. Levels use them through BaseLevel.say()/talk().
+var _dialogue: Control
+# Face of whoever is talking right now (null = the pilot's neutral face).
+# Shown whenever the portrait isn't busy showing the nervous "hit" face.
+var _portrait_override: Texture2D = null
+var _portrait_hit_active := false
+var _portrait_cache := {}
+
 
 func _ready() -> void:
 	# The shell itself (and the container that forwards input into the game)
@@ -170,6 +180,7 @@ func _ready() -> void:
 	_build_panels()
 	_build_game_viewport()
 	_build_hud()
+	_build_dialogue()
 	_set_hud_visible(false)
 
 	get_tree().root.size_changed.connect(_layout)
@@ -210,6 +221,65 @@ func current_scene() -> Node:
 	return _current_scene
 
 
+# --- Dialogue (called by BaseLevel.say()/talk() - see base_level.gd) ---
+
+## Non-pausing side-panel line. Coroutine: finishes when the line is gone.
+func say(text: String, options: Dictionary = {}) -> void:
+	await _dialogue.say(text, options)
+
+
+## Center box (does NOT pause by itself - BaseLevel.talk() does that).
+## Coroutine: finishes when the player has clicked through every line.
+func talk(lines, options: Dictionary = {}) -> void:
+	await _dialogue.talk(lines, options)
+
+
+func is_talking() -> bool:
+	return _dialogue != null and _dialogue.is_talking()
+
+
+func clear_dialogue() -> void:
+	if _dialogue:
+		_dialogue.clear_all()
+
+
+## Turn a dialogue "portrait" value into a texture for the HUD portrait.
+## Accepts a res:// path or a Texture2D. Full 2048x2048 HUD sheets (like
+## Player_Happy_Asset.png) are cropped to PORTRAIT_REGION so the face lines up
+## in the window; any other texture is stretched over the window as-is.
+func make_portrait_texture(portrait) -> Texture2D:
+	if portrait == null or (portrait is String and portrait == ""):
+		return null
+	if _portrait_cache.has(portrait):
+		return _portrait_cache[portrait]
+	var tex: Texture2D = null
+	if portrait is String:
+		tex = load(portrait) as Texture2D
+		if tex == null:
+			push_error("GameShell: dialogue portrait '%s' could not be loaded" % portrait)
+			return null
+	elif portrait is Texture2D:
+		tex = portrait
+	else:
+		push_error("GameShell: dialogue portrait must be a path or a Texture2D, got %s" % [portrait])
+		return null
+	var result: Texture2D = tex
+	if tex.get_width() >= PORTRAIT_REGION.end.x and tex.get_height() >= PORTRAIT_REGION.end.y:
+		var atlas := AtlasTexture.new()
+		atlas.atlas = tex
+		atlas.region = PORTRAIT_REGION
+		result = atlas
+	_portrait_cache[portrait] = result
+	return result
+
+
+## Called by dialogue_ui.gd when the speaker changes (null = back to neutral).
+func set_portrait_override(tex: Texture2D) -> void:
+	_portrait_override = tex
+	if not _portrait_hit_active and _portrait:
+		_portrait.texture = _portrait_override if _portrait_override else _portrait_neutral_tex
+
+
 # --- HUD (called by ui.gd) ---
 
 func hud_attach() -> void:
@@ -219,6 +289,7 @@ func hud_attach() -> void:
 	update_score_multiplier(1)
 	update_multiplier_progress(0.0, 10.0, false)
 	_hit_id += 1
+	_portrait_hit_active = false
 	_reset_portrait()
 
 
@@ -251,6 +322,7 @@ func update_score_multiplier(value) -> void:
 func on_player_hit(nervous_duration: float) -> void:
 	_hit_id += 1
 	var my_hit := _hit_id
+	_portrait_hit_active = true
 	if _portrait:
 		_portrait.texture = _portrait_nervous_tex
 	_shake_portrait()
@@ -258,6 +330,7 @@ func on_player_hit(nervous_duration: float) -> void:
 	# same as the player's own invincibility timer.
 	await get_tree().create_timer(nervous_duration, false).timeout
 	if my_hit == _hit_id:
+		_portrait_hit_active = false
 		_reset_portrait()
 
 
@@ -285,7 +358,8 @@ func _reset_portrait() -> void:
 	if _portrait_shake_root:
 		_portrait_shake_root.position = Vector2.ZERO
 	if _portrait:
-		_portrait.texture = _portrait_neutral_tex
+		# Back to whoever is talking, or the neutral face.
+		_portrait.texture = _portrait_override if _portrait_override else _portrait_neutral_tex
 
 
 ## points: multiplier points earned toward the next multiplier (can be
@@ -384,6 +458,8 @@ func _adopt_startup_scene() -> void:
 func _do_change_scene(path: String) -> void:
 	# Free the old scene AND anything else that was spawned into the play
 	# area (bullets, effects...), so nothing carries over between scenes.
+	# Dialogue too (releases anything still awaiting a line).
+	clear_dialogue()
 	for child in _viewport.get_children():
 		_viewport.remove_child(child)
 		child.queue_free()
@@ -573,6 +649,13 @@ func _build_hud() -> void:
 	_build_absorb_prompt()
 
 
+func _build_dialogue() -> void:
+	_dialogue = DIALOGUE_UI_SCRIPT.new()
+	_dialogue.name = "Dialogue"
+	_dialogue.shell = self
+	_ui.add_child(_dialogue)   # added last, so it draws over the play area and panels
+
+
 func _build_absorb_prompt() -> void:
 	"""Stats box, in place of the multiplier row: small looping
 	hitting-button clip on the left, "ABSORB! (K)" on the right. Hidden
@@ -740,6 +823,16 @@ func _layout() -> void:
 	var bottom := play_pos.y + PLAY_SIZE.y - HUD_MARGIN
 	_fit_hud_piece(_portrait_frame, 0.0, side_w_left, PORTRAIT_MAX_WIDTH, bottom)
 	_fit_hud_piece(_stats_box, 0.0, side_w_right, STATS_BOX_MAX_WIDTH, bottom)
+
+	# Dialogue: side box fills the left panel above the portrait; center box
+	# goes over the play area.
+	if _dialogue:
+		_dialogue.position = Vector2.ZERO
+		_dialogue.size = vis
+		var side_bottom := _portrait_frame.position.y - HUD_MARGIN
+		var side_rect := Rect2(HUD_MARGIN, HUD_MARGIN,
+			max(side_w_left - HUD_MARGIN * 2.0, 40.0), max(side_bottom - HUD_MARGIN, 20.0))
+		_dialogue.set_layout(Rect2(play_pos, PLAY_SIZE), side_rect)
 
 
 func _fit_hud_piece(piece: Control, panel_x: float, panel_w: float, max_w: float, bottom: float) -> void:

@@ -83,6 +83,28 @@ var auto_start_timer : Timer = Timer.new() #timer that auto-triggers the game st
 var is_paused = false
 var is_powerup_popup_active = false
 var is_powerup_choice_active = false
+var is_dialogue_active = false   # a center (pausing) dialogue box is up - see talk()
+
+# ===== WAVE FLOW =====
+# By default the next wave starts once every enemy of the current one is gone
+# (the "enemies" group is empty). A wave can ALSO ask for the next wave to
+# start on a timer instead, counted from when its LAST enemy spawns (i.e. the
+# largest start_delay among its spawns) - call
+# next_wave_after_last_spawn(seconds) anywhere in the wave function. Whichever
+# comes first wins: if the player clears the screen before the timer, the
+# next wave comes early. (The final wave never times out into the end of the
+# level - the level still only ends once the screen is clear.)
+#
+# Wave functions may also `await` things (talk(), say(), wait() below) - the
+# wave counts as "still running" until its function returns, so an empty
+# screen during e.g. an intro conversation doesn't skip ahead.
+var _level_time := 0.0              # seconds of unpaused gameplay so far
+var _wave_running := false          # current wave's function hasn't returned yet
+var _pending_spawns := 0            # delayed spawns not yet added to the scene (see hold_wave_for_spawn())
+var _wave_last_spawn_time := 0.0    # _level_time at which this wave's last enemy spawns
+var _next_wave_gap := -1.0          # set by next_wave_after_last_spawn(); < 0 = wait for clear only
+var _next_wave_timer: Timer = Timer.new()
+var _wave_serial := 0               # bumps every wave so a stale coroutine can tell it's been superseded
 
 # Common nodes
 @onready var enemy_anchor = $EnemyAnchor
@@ -122,6 +144,10 @@ func _ready():
 	# of only snapping into place once the popup timer fires.
 	if player and player.has_method("start"):
 		player.start()
+
+	add_child(_next_wave_timer)
+	_next_wave_timer.one_shot = true
+	_next_wave_timer.timeout.connect(_on_next_wave_timer_timeout)
 
 	add_child(auto_start_timer)
 	auto_start_timer.one_shot = true
@@ -276,6 +302,7 @@ func spawn_enemy_at_position(x, y):
 	
 	# Default position calculation
 	var pos = Vector2(x * (16 + 8) + 24, 16 * 3 + y * 40)
+	note_spawn(0.0)
 	
 	add_child(e)
 	if e.has_method("start"):
@@ -322,6 +349,7 @@ func spawn_squad(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2,
 	squad.diagonal_vx = diagonal_vx
 	squad.squad_size = squad_size
 	squad.enemy_died.connect(_on_enemy_died)
+	note_spawn(start_delay)
 	add_child(squad)
 	return squad
 
@@ -347,6 +375,7 @@ func spawn_solo(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vector2, 
 	solo.end_pos = end_pos
 	solo.start_delay = start_delay
 	solo.enemy_died.connect(_on_enemy_died)
+	note_spawn(start_delay)
 	add_child(solo)
 	return solo
 
@@ -368,6 +397,7 @@ func spawn_hive_solo(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vect
 	solo.end_pos = end_pos
 	solo.start_delay = start_delay
 	solo.enemy_died.connect(_on_enemy_died)
+	note_spawn(start_delay)
 	add_child(solo)
 	return solo
 
@@ -388,6 +418,7 @@ func spawn_hive_squad(enemy_scene: PackedScene, start_pos: Vector2, end_pos: Vec
 	squad.end_pos = end_pos
 	squad.start_delay = start_delay
 	squad.enemy_died.connect(_on_enemy_died)
+	note_spawn(start_delay)
 	add_child(squad)
 	return squad
 
@@ -416,6 +447,7 @@ func spawn_boss(boss_scene: PackedScene, spawn_pos: Vector2) -> Node:
 	if boss.has_signal("died"):
 		boss.died.connect(_on_enemy_died)
 	_active_boss = boss
+	note_spawn(0.0)
 	if boss.has_method("start"):
 		boss.start(spawn_pos)
 	return boss
@@ -475,6 +507,7 @@ func spawn_astroid(config: Dictionary) -> void:
 		a.queue_free()
 		return
 	a.launch(start_pos, end_pos, speed)
+	note_spawn(0.0)
 	if a.has_signal("died"):
 		a.died.connect(_on_enemy_died)
 
@@ -512,6 +545,7 @@ func spawn_flower(config: Dictionary) -> void:
 		f.queue_free()
 		return
 	f.launch(start_pos, overrides)
+	note_spawn(float(config.get("start_delay", 0.0)))
 	if f.has_signal("died"):
 		f.died.connect(_on_enemy_died)
 
@@ -537,6 +571,7 @@ func spawn_flower_squad(config: Dictionary) -> FlowerSquad:
 		if key != "scene" and key != "start":
 			overrides[key] = config[key]
 
+	note_spawn(float(config.get("start_delay", 0.0)))
 	var squad := FlowerSquad.new()
 	squad.name = "FlowerSquad"
 	add_child(squad)
@@ -546,15 +581,18 @@ func spawn_flower_squad(config: Dictionary) -> FlowerSquad:
 	return squad
 
 
-func _process(_delta):
-	if get_tree().get_nodes_in_group("enemies").size() == 0 and playing:
+func _process(delta):
+	_level_time += delta
+	if playing and not _wave_running and _pending_spawns == 0 \
+			and get_tree().get_nodes_in_group("enemies").size() == 0:
 		handle_wave_completion()
 
 func handle_wave_completion():
+	_next_wave_timer.stop()
 	current_wave += 1
 
 	if current_wave < max_waves:
-		spawn_enemies()
+		_run_wave()
 		wave_cleared(current_wave)  # Optional callback
 	else:
 		# Stop _process() from calling this again before the scene actually
@@ -570,6 +608,102 @@ func handle_wave_completion():
 		# look like progress reset.
 		playing = false
 		change_levels()
+
+func _run_wave() -> void:
+	"""Runs spawn_enemies() for current_wave. spawn_enemies() (or the wave
+	function it calls) may await dialogue/waits; until it returns the wave
+	counts as running, so the next wave can't start underneath it. Once it
+	returns, starts the next-wave timer if the wave asked for one (see
+	next_wave_after_last_spawn())."""
+	_wave_serial += 1
+	var my_serial := _wave_serial
+	_wave_running = true
+	_next_wave_gap = -1.0
+	_wave_last_spawn_time = _level_time
+	await spawn_enemies()
+	if my_serial != _wave_serial or not is_inside_tree():
+		return
+	_wave_running = false
+	if _next_wave_gap >= 0.0 and playing and current_wave + 1 < max_waves:
+		var wait_time: float = max(_wave_last_spawn_time - _level_time, 0.0) + _next_wave_gap
+		_next_wave_timer.start(max(wait_time, 0.01))
+
+func _on_next_wave_timer_timeout() -> void:
+	# Never time out into the end of the level - the last wave still has to
+	# be cleared (handled by _process()).
+	if playing and not _wave_running and current_wave + 1 < max_waves:
+		handle_wave_completion()
+
+## Call from inside a wave function: start the NEXT wave `seconds` after this
+## wave's last enemy spawns (its largest start_delay), even if enemies from
+## this wave are still alive. If the player clears the screen first, the next
+## wave still comes early. 0 = right as the last enemy spawns.
+func next_wave_after_last_spawn(seconds: float) -> void:
+	_next_wave_gap = max(seconds, 0.0)
+
+## Spawn helpers call this so the level knows when a wave's last enemy
+## appears (for next_wave_after_last_spawn()). `start_delay` = seconds from
+## now until this spawn actually enters. Call it yourself from any custom
+## spawn code that doesn't go through the helpers above.
+func note_spawn(start_delay: float = 0.0) -> void:
+	_wave_last_spawn_time = max(_wave_last_spawn_time, _level_time + max(start_delay, 0.0))
+
+## For spawns that don't exist in the scene yet (e.g. a drift enemy waiting
+## on a start_delay timer): hold_wave_for_spawn() before, release_wave_spawn()
+## once it's been added, so an empty screen in between doesn't count as the
+## wave being cleared.
+func hold_wave_for_spawn() -> void:
+	_pending_spawns += 1
+
+func release_wave_spawn() -> void:
+	_pending_spawns = max(_pending_spawns - 1, 0)
+
+
+# ===== DIALOGUE =====
+# Two kinds of dialogue box (drawn by GameShell - see dialogue_ui.gd):
+#
+#   say(text, options)    - side box in the left panel, above the portrait.
+#                           Does NOT pause. Several in a row queue up.
+#                           `say(...)` carries straight on; `await say(...)`
+#                           waits until that line has faded out.
+#   talk(lines, options)  - center box over the play area. PAUSES the game
+#                           until the player clicks through every line
+#                           (shoot / start to advance). Always use
+#                           `await talk(...)` so the wave waits for it.
+#
+# options (all optional, labeled like the spawn configs):
+#   "speaker"  - name shown above the text, e.g. "Frog"
+#   "portrait" - face to show in the HUD portrait while this line is up: a
+#                res:// path or Texture2D, e.g. the Player_*_Asset.png sheets
+#                (full 2048x2048 HUD sheets are cropped to the portrait window
+#                automatically). Leave out for the pilot's neutral face.
+#   "duration" - say() only: seconds the line stays up after typing out
+#                (default scales with the line's length)
+#
+# talk() lines can be one String, or an Array of Strings and/or Dictionaries
+# ({"text": ..., "speaker": ..., "portrait": ...}) - per-line keys override
+# the shared `options`. See levels/a_test.gd for a worked example.
+
+func say(text: String, options: Dictionary = {}) -> void:
+	await GameShell.say(text, options)
+
+func talk(lines, options: Dictionary = {}) -> void:
+	# Don't fight over the pause with something else that already holds it
+	# (pause menu, power-up popup, absorb freeze) - wait it out first.
+	while get_tree().paused:
+		await get_tree().process_frame
+	is_dialogue_active = true
+	get_tree().paused = true
+	await GameShell.talk(lines, options)
+	is_dialogue_active = false
+	if is_inside_tree():
+		get_tree().paused = false
+
+## Pause-aware wait for wave functions: `await wait(2.0)`. Stops counting
+## while the game is paused.
+func wait(seconds: float) -> void:
+	await get_tree().create_timer(seconds, false).timeout
+
 
 # Virtual method - called when a wave is cleared
 func wave_cleared(wave_number):
@@ -685,6 +819,8 @@ func new_game():
 	multiplier_timer.stop()
 	multiplier_drain_timer.stop()
 	current_wave = 0
+	_next_wave_timer.stop()
+	_pending_spawns = 0
 	ui.update_score(score)
 
 	# Power bubbles grant power-ups that persist for the whole level (see
@@ -695,8 +831,10 @@ func new_game():
 	if player and player.has_method("start"):
 		player.start()
 	
-	spawn_enemies()
+	# playing goes true BEFORE the first wave runs so a timed first wave can
+	# start its next-wave timer (see _run_wave()).
 	playing = true
+	_run_wave()
 	game_started()  # Optional callback
 
 # Virtual method - called when a new game starts
@@ -728,7 +866,7 @@ func _input(event):
 	if event.is_action_pressed("pause"):
 		# Only allow pausing mid-game (not on the start popup, after death,
 		# or while a power-up popup already owns the pause).
-		if playing and not is_paused and not is_powerup_popup_active and not is_powerup_choice_active:
+		if playing and not is_paused and not is_powerup_popup_active and not is_powerup_choice_active and not is_dialogue_active:
 			pause_game()
 
 func pause_game():

@@ -14,12 +14,9 @@
 # pattern later.
 extends SquadWaveLevel
 
-const ENEMY_BEE := preload("res://enemies/enemy_yellow.tscn")
-const BEE_MINIBOSS := preload("res://enemies/yellow_miniboss.tscn")
-const ASTROID_MEDIUM := preload("res://enemies/astroid_medium.tscn")
-const ASTROID_SMALL := preload("res://enemies/astroid_small.tscn")
-const FLOWER := preload("res://enemies/flower_enemy.tscn")
-const ENEMY_HIVE := preload("res://enemies/enemy_hive.tscn")
+# Enemy scenes (ENEMY_BEE, FLOWER, ...) are shared by every level - they're
+# declared once in levels/squad_wave_level.gd.
+
 
 # Wave 1 - a few astroids drifting straight down to open the level with a
 # calm, lower-pressure introduction before the bees start - nothing to shoot

@@ -34,6 +34,20 @@
 # it's a real function you can put whatever other logic you want in there too
 # - a comment, a loop, a random choice between a few layouts, anything.
 #
+# WHEN THE NEXT WAVE STARTS: by default, once every enemy of this wave is
+# gone. Call next_wave_after_last_spawn(seconds) inside a wave function to
+# ALSO start the next wave `seconds` after this wave's last enemy spawns (its
+# largest start_delay) - whichever happens first. E.g.
+#     spawn_squad_wave({..., "start_delay": 2.0})
+#     next_wave_after_last_spawn(3.0)   # next wave at 2.0 + 3.0 = 5s, or sooner if cleared
+#
+# DIALOGUE: wave functions can also show dialogue (see base_level.gd's
+# DIALOGUE section) - `say("...", {"speaker": "Frog"})` for the side box that
+# doesn't interrupt play, `await talk([...])` for the center box that pauses
+# the game - and `await wait(seconds)` to space things out. A wave whose
+# function is still awaiting something counts as still running, so the next
+# wave never starts in the middle of it. See levels/a_test.gd for examples.
+#
 # EACH spawn_*_wave() function below takes ONE labeled config Dictionary -
 # every field is named right at the call site, so a wave function reads
 # clearly without needing to check a function signature for what argument 3
@@ -198,6 +212,33 @@ const LANE_CENTER := 0.5
 const LANE_RIGHT := 0.75
 
 # ---------------------------------------------------------------------------
+# SHARED LEVEL ASSETS - every level that extends SquadWaveLevel can use these
+# names directly, without declaring them itself. Add a new enemy (or face)
+# here ONCE and every level can use it.
+# NOTE: a level must NOT re-declare any of these names (Godot errors with
+# "already declared in a parent class") - just use them.
+# ---------------------------------------------------------------------------
+
+# Enemy scenes (pass as "enemy" in a spawn_*_wave() config).
+const ENEMY_BEE := preload("res://enemies/enemy_yellow.tscn")
+const BEE_MINIBOSS := preload("res://enemies/yellow_miniboss.tscn")
+const ASTROID_MEDIUM := preload("res://enemies/astroid_medium.tscn")
+const ASTROID_SMALL := preload("res://enemies/astroid_small.tscn")
+const ENEMY_HIVE := preload("res://enemies/enemy_hive.tscn")
+const FLOWER := preload("res://enemies/flower_enemy.tscn")
+
+# Dialogue portraits (pass as "portrait" in say()/talk() - see base_level.gd's
+# DIALOGUE section). Full-size HUD face sheets are cropped to the portrait
+# window automatically. Leaving "portrait" out shows the neutral face.
+const FACE_NEUTRAL := "res://Art assets/Hud assets/Player_Neutral_Asset.png"
+const FACE_HAPPY := "res://Art assets/Hud assets/Player_Happy_Asset.png"
+const FACE_NERVOUS := "res://Art assets/Hud assets/Player_Nervous_Asset2.png"
+
+# Speaker presets - pass as say()/talk() options so lines don't have to repeat
+# the name, e.g. say("Incoming!", FROG). Add more speakers here.
+const FROG := {"speaker": "Frog"}
+
+# ---------------------------------------------------------------------------
 # DRIFT - sideways drift, in px/s, a squad member picks up once it's
 # traveling solo after its own departure loop, instead of continuing in a
 # straight line.
@@ -275,7 +316,10 @@ func spawn_enemies() -> void:
 		spawn_squad_wave({"enemy": fallback_enemy, "start_percent": LANE_CENTER})
 		return
 
-	waves[current_wave].call()
+	# `await` so a wave function that awaits dialogue (talk()/say()) or a
+	# wait() keeps the wave "running" until it's done - see base_level.gd's
+	# WAVE FLOW section. A wave function with no awaits just returns at once.
+	await waves[current_wave].call()
 
 
 func spawn_squad_wave(config: Dictionary) -> BeeSquad:
@@ -339,7 +383,17 @@ func spawn_drift_wave(config: Dictionary) -> void:
 	if start_delay <= 0.0:
 		spawn_astroid(astroid_config)
 	else:
-		get_tree().create_timer(start_delay).timeout.connect(func(): spawn_astroid(astroid_config))
+		# Not in the scene until the delay is up - hold the wave open so an
+		# empty screen in the meantime doesn't count as "wave cleared", and
+		# tell the level when it will appear (for next_wave_after_last_spawn()).
+		note_spawn(start_delay)
+		hold_wave_for_spawn()
+		get_tree().create_timer(start_delay, false).timeout.connect(_spawn_delayed_drift.bind(astroid_config))
+
+
+func _spawn_delayed_drift(astroid_config: Dictionary) -> void:
+	release_wave_spawn()
+	spawn_astroid(astroid_config)
 
 
 func spawn_hive_wave(config: Dictionary) -> void:
