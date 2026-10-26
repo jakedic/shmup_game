@@ -8,7 +8,7 @@
 [ext_resource type="Script" path="res://bullets/player_bullet_disipation_animation.gd" id="6_c3usq"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j08f7"]
-size = Vector2(16, 16)
+size = Vector2(6, 18)
 
 [sub_resource type="Animation" id="Animation_mgd2n"]
 resource_name = "Bullet_disipation"
@@ -56,6 +56,7 @@ scale = Vector2(0.2, 0.2)
 texture = ExtResource("2_wo3kc")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1604768168]
+position = Vector2(0, 1)
 shape = SubResource("RectangleShape2D_j08f7")
 
 [node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="CollisionShape2D" unique_id=1877247930]

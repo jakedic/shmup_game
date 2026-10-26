@@ -30,6 +30,7 @@ const POWER_BUBBLE_COLORS := {
 	"red": Color(1.0, 0.25, 0.25, 1.0),
 	"hive": Color(1.0, 0.6, 0.15, 1.0),
 	"flower": Color(1.0, 0.45, 0.8, 1.0),
+	"gray": Color(0.7, 0.7, 0.75, 1.0),
 }
 const DEFAULT_POWER_BUBBLE_COLOR := Color(0.75, 0.3, 1.0, 1.0)
 

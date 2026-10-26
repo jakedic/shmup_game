@@ -117,6 +117,9 @@ var level_paths = {}   # Dictionary of level paths for progression
 var spawn_pattern = null  # Function to override for custom spawn patterns
 
 func _ready():
+	# A wave in the previous level may have forced a fusion power-up - never
+	# carry that over (see force_fusion_powerup()).
+	clear_fusion_powerup()
 	game_over.hide()
 	start_button.show()
 	pause_menu.hide()
@@ -238,6 +241,18 @@ func on_player_hit_multiplier() -> void:
 
 func on_absorb_miss_multiplier() -> void:
 	_lose_multiplier_points(ABSORB_MISS_PENALTY)
+
+func on_golden_multiplier() -> void:
+	"""A golden astroid was destroyed: jump straight to MAX_SCORE_MULTIPLIER
+	(4x, absorb-ready). Never lowers it - if the player is already at 4x or
+	higher (e.g. transformed and climbing toward 8x) nothing changes."""
+	if not playing:
+		return
+	var target: float = (MAX_SCORE_MULTIPLIER - 1) * MULTIPLIER_POINTS_PER_LEVEL
+	if _total_multiplier_points() < target:
+		_set_total_multiplier_points(target)
+	start_score_multipliplier_timer()
+	_refresh_multiplier_ui()
 
 func on_ability_gained_multiplier() -> void:
 	"""Absorbing an enemy keeps the multiplier where it is, raises the cap
@@ -487,6 +502,8 @@ func spawn_astroid(config: Dictionary) -> void:
 	"end" - Vector2 that sets its direction (it keeps traveling straight
 	past this point - it doesn't stop there)
 	"speed" - how fast it travels, in pixels/second
+	"armor" - OPTIONAL - armor points (gray outline), see base_enemy.gd
+	"hold_at_y" - OPTIONAL - y (px) where it stops and waits to be killed
 	Pushes a clear error (and skips the spawn) instead of letting Godot throw
 	a raw "Invalid call" if "scene" is missing or the instantiated scene
 	doesn't actually have a launch() method - this exact call has silently
@@ -507,6 +524,10 @@ func spawn_astroid(config: Dictionary) -> void:
 		a.queue_free()
 		return
 	a.launch(start_pos, end_pos, speed)
+	if config.has("armor") and a.has_method("set_armor"):
+		a.set_armor(config["armor"])
+	if config.has("hold_at_y") and "hold_at_y" in a:
+		a.hold_at_y = config["hold_at_y"]
 	note_spawn(0.0)
 	if a.has_signal("died"):
 		a.died.connect(_on_enemy_died)
@@ -670,6 +691,11 @@ func release_wave_spawn() -> void:
 #                           until the player clicks through every line
 #                           (shoot / start to advance). Always use
 #                           `await talk(...)` so the wave waits for it.
+#   show_info(config)     - tutorial card (title, looping video clip, key
+#                           caps, text) over the middle; pauses until closed.
+#   ask(text, choices, options) - center box with options to pick from
+#                           (pauses like talk). `var c: int = await ask(...)`
+#                           gives the index of the picked option.
 #
 # options (all optional, labeled like the spawn configs):
 #   "speaker"  - name shown above the text, e.g. "Frog"
@@ -687,6 +713,220 @@ func release_wave_spawn() -> void:
 func say(text: String, options: Dictionary = {}) -> void:
 	await GameShell.say(text, options)
 
+
+# ===== FORCED FUSION POWER-UP =====
+# Call from inside a wave function: until clear_fusion_powerup(), every power
+# bubble fusion (two bubbles combining) grants exactly `powerup_id` instead of
+# a random power-up from the bubble's pool. Example (levels/a_test.gd):
+#     force_fusion_powerup("gray_penetration")
+#     ... wave ...
+#     clear_fusion_powerup()
+# Resets automatically when any level loads.
+func force_fusion_powerup(powerup_id: String) -> void:
+	PlayerPowerUps.fusion_powerup_override_id = powerup_id
+
+func clear_fusion_powerup() -> void:
+	PlayerPowerUps.fusion_powerup_override_id = ""
+
+
+# ===== BOMB RINGS =====
+# Everything for the "bombs behind armored astroid rings" encounter, so any
+# level can use it (levels/tutorial.gd wave 5, levels/a_test.gd):
+#
+#   spawn_bomb_ring(config)            - one bomb inside a ring of armored astroids
+#   bomb_rings_left()                  - true while any ring is still around
+#   await run_bomb_ring_challenge(opt) - the whole encounter: three rings plus
+#                                        golden astroid / gray bee supply drops
+#                                        until every ring is gone
+
+# Bomb: 1 health, explodes when shot for 5 damage to every enemy nearby (and
+# hurts the player if they're in the blast - see enemies/bomb_enemy.gd).
+const BOMB := preload("res://enemies/bomb.tscn")
+const BombRingFormationScript := preload("res://enemies/bomb_ring_formation.gd")
+# Default scenes for the bomb-ring encounter. Named BOMB_RING_* so they don't
+# clash with SquadWaveLevel's ASTROID_SMALL / ASTROID_GOLDEN / GRAY_BEE.
+const BOMB_RING_ASTROID := preload("res://enemies/astroid_small.tscn")
+const BOMB_RING_GOLDEN := preload("res://enemies/astroid_golden.tscn")
+const BOMB_RING_BEE := preload("res://enemies/gray_bee.tscn")
+# How far above the screen a ring starts.
+const BOMB_RING_ENTRY_MARGIN := 24.0
+# How far outside the screen supply drops start/end.
+const BOMB_RING_SUPPLY_MARGIN := 48.0
+
+# The three-ring layout run_bomb_ring_challenge() uses by default. The middle
+# ring comes in first: it has the furthest to fall, and the side rings overlap
+# it horizontally, so giving it a head start keeps them from bunching up on
+# the way down (3s at 30 px/s puts it ~90px ahead - about one ring's height).
+const DEFAULT_BOMB_RINGS := [
+	{"center_percent": 0.5, "stop_percent": 0.48},
+	{"center_percent": 0.25, "stop_percent": 0.2, "start_delay": 3.0},
+	{"center_percent": 0.75, "stop_percent": 0.2, "start_delay": 3.0},
+]
+
+
+# A bomb guarded by a tight ring of thick-outlined (2 armor) astroids. The
+# ring is packed densely enough that shots can't slip through to the bomb.
+# It slides down, stops, and then just sits there with the astroids slowly
+# orbiting the bomb until it's dealt with. Shooting the bomb (once you've
+# broken through) blows up the whole ring - 5 damage beats 2 armor.
+#   enemy          - OPTIONAL - ring astroid scene, defaults to small astroids
+#   armor          - OPTIONAL - armor on each ring astroid, default 2
+#   radius         - OPTIONAL - px from the bomb to the ring, default 36
+#   spacing        - OPTIONAL - px between ring astroid centers, default 17
+#                    (14 astroids at the default radius). Small astroids are
+#                    ~14px across, so this leaves only a 2-4px gap as they
+#                    spin. 24 (the old default) let shots slip through in
+#                    playtesting - keep it under ~18.
+#   speed          - OPTIONAL - px/s while sliding down, default 30
+#   stop_percent   - OPTIONAL - how far down the screen the bomb stops
+#                    (0.0 top - 1.0 bottom), default 0.3
+#   center_percent - OPTIONAL - where across the screen (0.0-1.0), default 0.5
+#   orbit_speed    - OPTIONAL - degrees/s the ring turns, default 20
+#   start_delay    - OPTIONAL - seconds before it starts coming in
+#   keep_moving    - OPTIONAL - true = never stops (stop_percent is ignored):
+#                    keeps falling at `speed` and despawns off the bottom.
+#                    Used to ride a bomb ring down inside spawn_astroid_ring()
+#                    (see levels/a_test.gd).
+#   start_y        - OPTIONAL - px, where the bomb's center starts (default
+#                    just above the screen). Set it to match another formation.
+func spawn_bomb_ring(config: Dictionary) -> void:
+	var start_delay: float = config.get("start_delay", 0.0)
+	if start_delay <= 0.0:
+		_spawn_bomb_ring_now(config)
+		return
+	note_spawn(start_delay)
+	hold_wave_for_spawn()
+	get_tree().create_timer(start_delay, false).timeout.connect(_spawn_delayed_bomb_ring.bind(config))
+
+
+func _spawn_delayed_bomb_ring(config: Dictionary) -> void:
+	release_wave_spawn()
+	_spawn_bomb_ring_now(config)
+
+
+func _spawn_bomb_ring_now(config: Dictionary) -> void:
+	var size: Vector2 = get_viewport_rect().size
+	var scene: PackedScene = config.get("enemy", BOMB_RING_ASTROID)
+	var radius: float = config.get("radius", 36.0)
+	var spacing: float = config.get("spacing", 17.0)
+	var armor: int = config.get("armor", 2)
+
+	var formation = BombRingFormationScript.new()
+	formation.radius = radius
+	formation.fall_speed = config.get("speed", 30.0)
+	formation.stop_y = size.y * float(config.get("stop_percent", 0.3))
+	formation.orbit_speed = deg_to_rad(config.get("orbit_speed", 20.0))
+	formation.keep_moving = config.get("keep_moving", false)
+	formation.despawn_y = size.y + radius + BOMB_RING_ENTRY_MARGIN
+	# Start fully above the screen (unless start_y says otherwise).
+	formation.center = Vector2(size.x * float(config.get("center_percent", 0.5)), float(config.get("start_y", -radius - BOMB_RING_ENTRY_MARGIN)))
+	add_child(formation)
+
+	var count := int(ceil(TAU * radius / spacing))
+	for i in count:
+		var a = scene.instantiate()
+		a.position = formation.center + Vector2.from_angle(TAU * i / count) * radius
+		a.squad_controlled = true   # the formation moves it; never launched, so no drift/despawn
+		add_child(a)
+		if a.has_method("set_armor"):
+			a.set_armor(armor)
+		if a.has_signal("died"):
+			a.died.connect(_on_enemy_died)
+		formation.astroids.append(a)
+
+	var bomb = BOMB.instantiate()
+	bomb.position = formation.center
+	add_child(bomb)
+	if bomb.has_signal("died"):
+		bomb.died.connect(_on_enemy_died)
+	formation.bomb = bomb
+	note_spawn(0.0)
+
+
+## True while any bomb ring is on screen OR still waiting on its start_delay
+## (delayed spawns are counted in _pending_spawns).
+func bomb_rings_left() -> bool:
+	return not get_tree().get_nodes_in_group("bomb_rings").is_empty() or _pending_spawns > 0
+
+
+## The full bomb-ring encounter. Spawns the rings, then - while any ring is
+## left - keeps sending a golden astroid followed by a gray bee straight down
+## the screen in random lanes. Returns once every ring is gone, so a wave
+## function can `await run_bomb_ring_challenge()` and carry on afterward.
+##
+## Ways through (normal shots do 1 damage vs. 2 armor, so they're useless):
+##   - shoot the golden astroid (4x), absorb the gray bee, fire its bubble
+##     next to a ring and pop it - the pop damage sets the bomb off
+##   - combine two bubbles: during the encounter a fusion always grants
+##     `fusion_powerup` (Penetrator Rounds by default), whose shots go
+##     through a ring astroid and hit the bomb behind it
+##   - jump onto a bomb - but the blast burns you once you land
+##
+## Every option is OPTIONAL:
+##   rings            - Array of spawn_bomb_ring() configs, default DEFAULT_BOMB_RINGS
+##   supply_interval  - seconds between golden astroids, default 11
+##   supply_bee_delay - seconds after the golden astroid that the bee follows, default 2.5
+##   lanes            - Array of 0.0-1.0 screen positions supply drops pick from
+##   golden_speed     - px/s, default 35
+##   bee_speed        - px/s, default 30
+##   fusion_powerup   - power-up id every bubble fusion grants during the
+##                      encounter, default "gray_penetration" ("" = random as usual)
+func run_bomb_ring_challenge(options: Dictionary = {}) -> void:
+	var fusion_id: String = options.get("fusion_powerup", "gray_penetration")
+	if fusion_id != "":
+		force_fusion_powerup(fusion_id)
+
+	for ring_config in options.get("rings", DEFAULT_BOMB_RINGS):
+		spawn_bomb_ring(ring_config)
+
+	var interval: float = options.get("supply_interval", 11.0)
+	var bee_delay: float = options.get("supply_bee_delay", 2.5)
+	var lanes: Array = options.get("lanes", [0.15, 0.3, 0.5, 0.7, 0.85])
+	while bomb_rings_left():
+		var gold_lane: float = lanes.pick_random()
+		_spawn_bomb_ring_supply(BOMB_RING_GOLDEN, gold_lane, options.get("golden_speed", 35.0))
+		var rings_remain: bool = await _wait_while_bomb_rings_left(bee_delay)
+		if not rings_remain:
+			break
+		var bee_lane: float = lanes.pick_random()
+		while lanes.size() > 1 and is_equal_approx(bee_lane, gold_lane):
+			bee_lane = lanes.pick_random()
+		_spawn_bomb_ring_supply(BOMB_RING_BEE, bee_lane, options.get("bee_speed", 30.0))
+		rings_remain = await _wait_while_bomb_rings_left(interval - bee_delay)
+		if not rings_remain:
+			break
+
+	if is_inside_tree() and fusion_id != "":
+		clear_fusion_powerup()
+
+
+# One enemy drifting straight down the screen at `lane` (0.0-1.0 across).
+func _spawn_bomb_ring_supply(scene: PackedScene, lane: float, speed: float) -> void:
+	var size: Vector2 = get_viewport_rect().size
+	var x: float = size.x * lane
+	spawn_astroid({
+		"scene": scene,
+		"start": Vector2(x, -BOMB_RING_SUPPLY_MARGIN),
+		"end": Vector2(x, size.y + BOMB_RING_SUPPLY_MARGIN),
+		"speed": speed,
+	})
+
+
+# Waits up to `seconds`, but stops early once the last ring is gone (so the
+# wave doesn't sit around after the final bomb). Returns true if rings are
+# still left afterward, false if they're all gone or the level was left.
+func _wait_while_bomb_rings_left(seconds: float) -> bool:
+	var remaining := seconds
+	while remaining > 0.0:
+		var step: float = minf(0.25, remaining)
+		await wait(step)
+		if not is_inside_tree():
+			return false
+		remaining -= step
+		if not bomb_rings_left():
+			return false
+	return bomb_rings_left()
+
 func talk(lines, options: Dictionary = {}) -> void:
 	# Don't fight over the pause with something else that already holds it
 	# (pause menu, power-up popup, absorb freeze) - wait it out first.
@@ -695,6 +935,41 @@ func talk(lines, options: Dictionary = {}) -> void:
 	is_dialogue_active = true
 	get_tree().paused = true
 	await GameShell.talk(lines, options)
+	is_dialogue_active = false
+	if is_inside_tree():
+		get_tree().paused = false
+
+## Center box with a question and options to pick from - pauses the game
+## like talk(). Returns the index of the option picked (0 = first):
+##     var choice: int = await ask("What'll it be?", ["Start Tutorial", "Forge Signature"], {"speaker": "Red Frog", "portrait": FACE_RED})
+##     if choice == 0: ...
+## Up/down (or left/right) moves the cursor, shoot / start picks.
+func ask(text: String, choices: Array, options: Dictionary = {}) -> int:
+	while get_tree().paused:
+		await get_tree().process_frame
+	is_dialogue_active = true
+	get_tree().paused = true
+	var picked: int = await GameShell.ask(text, choices, options)
+	is_dialogue_active = false
+	if is_inside_tree():
+		get_tree().paused = false
+	return picked
+
+## Tutorial / info card over the middle of the screen - pauses the game until
+## the player closes it (shoot / start). See info_card.gd. Example:
+##     await show_info({
+##         "title": "Movement",
+##         "video": "res://Art assets/Tutorial/movement.ogv",
+##         "keys": [["W"], ["A", "S", "D"]],
+##         "text": "Optional explanation line.",
+##     })
+## Each key cap lights up while the player holds that key.
+func show_info(config: Dictionary) -> void:
+	while get_tree().paused:
+		await get_tree().process_frame
+	is_dialogue_active = true
+	get_tree().paused = true
+	await GameShell.show_info(config)
 	is_dialogue_active = false
 	if is_inside_tree():
 		get_tree().paused = false

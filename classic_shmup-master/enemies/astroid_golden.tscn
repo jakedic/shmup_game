@@ -1,0 +1,15 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://enemies/astroid_small.tscn" id="1_gold"]
+[ext_resource type="Shader" path="res://enemies/golden.gdshader" id="2_gold"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_gold"]
+shader = ExtResource("2_gold")
+
+[node name="AstroidGolden" instance=ExtResource("1_gold")]
+max_health = 3
+score_value = 25
+grants_max_multiplier = true
+
+[node name="Sprite2D" parent="." index="0"]
+material = SubResource("ShaderMaterial_gold")

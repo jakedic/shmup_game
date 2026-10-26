@@ -10,6 +10,11 @@
 #                      stays up for a moment, then fades. Several say() calls
 #                      in a row queue up and play one after another.
 #
+#   CHOICE (ask)     - a center-box line with options listed under it. Once
+#                      the line has typed out, up/down (or left/right) moves
+#                      the cursor and shoot / start picks; ask() returns the
+#                      index of the picked option (0 = first).
+#
 #   CENTER BOX (talk) - sits over the middle of the play area with the game
 #                      dimmed behind it, and the game is PAUSED while it's up
 #                      (BaseLevel.talk() does the pausing). Text types out;
@@ -39,6 +44,8 @@ const BOX_BORDER_COLOR := Color(0.55, 0.55, 0.8)
 const NAME_COLOR := Color(1.0, 0.85, 0.3)
 const TEXT_COLOR := Color(1, 1, 1)
 const DIM_COLOR := Color(0, 0, 0, 0.45)
+const CHOICE_COLOR := Color(0.75, 0.75, 0.85)   # unselected option
+const CHOICE_FONT_SIZE := 9
 const SIDE_MAX_WIDTH := 200.0
 const SIDE_NAME_FONT_SIZE := 9
 const SIDE_TEXT_FONT_SIZE := 8
@@ -75,6 +82,10 @@ var _talk_active := false
 var _center_chars := 0.0
 var _center_grace := 0.0
 var _prompt_t := 0.0
+var _choice_box: VBoxContainer
+var _choice_labels: Array[Label] = []
+var _choice_index := 0
+var _last_choice := -1
 
 var _last_portrait = null
 
@@ -124,6 +135,20 @@ func talk(lines, options: Dictionary = {}) -> void:
 	_center_panel.visible = true
 	_show_center_line(0)
 	await talk_done
+
+
+## Center box with a question and options. Returns (as a coroutine) the index
+## of the option the player picked. Pausing is the caller's job, same as
+## talk() (BaseLevel.ask() does it).
+func ask(text: String, choices: Array, options: Dictionary = {}) -> int:
+	var line := _make_line(text, options)
+	var labels: Array = []
+	for c in choices:
+		labels.append(str(c))
+	line["choices"] = labels
+	_last_choice = -1
+	await talk([line])
+	return _last_choice
 
 
 func is_talking() -> bool:
@@ -235,7 +260,11 @@ func _process_center(delta: float) -> void:
 	# Blinking "next" arrow once the line has fully typed out.
 	var done_typing := _center_text.visible_characters == -1
 	_prompt_t += delta
-	_center_prompt.visible = done_typing and fmod(_prompt_t, 0.8) < 0.5
+	var has_choices := not _choice_labels.is_empty()
+	_center_prompt.visible = done_typing and not has_choices and fmod(_prompt_t, 0.8) < 0.5
+	if has_choices and done_typing and not _choice_box.visible:
+		_choice_box.visible = true
+		_refresh_choices()
 
 
 func _input(event: InputEvent) -> void:
@@ -243,6 +272,18 @@ func _input(event: InputEvent) -> void:
 		return
 	if not event.is_pressed() or event.is_echo():
 		return
+	# Moving the cursor between options (only once they're showing).
+	if not _choice_labels.is_empty() and _choice_box.visible:
+		var step := 0
+		if event.is_action_pressed("up") or event.is_action_pressed("left"):
+			step = -1
+		elif event.is_action_pressed("down") or event.is_action_pressed("right"):
+			step = 1
+		if step != 0:
+			get_viewport().set_input_as_handled()
+			_choice_index = wrapi(_choice_index + step, 0, _choice_labels.size())
+			_refresh_choices()
+			return
 	var advance := event.is_action_pressed("shoot") or event.is_action_pressed("start")
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		advance = true
@@ -256,6 +297,8 @@ func _input(event: InputEvent) -> void:
 		_center_text.visible_characters = -1
 		_prompt_t = 0.0
 		return
+	if not _choice_labels.is_empty():
+		_last_choice = _choice_index   # this press picks the highlighted option
 	if _talk_index + 1 < _talk_lines.size():
 		_show_center_line(_talk_index + 1)
 	else:
@@ -281,6 +324,29 @@ func _show_center_line(index: int) -> void:
 	_center_grace = INPUT_GRACE
 	_prompt_t = 0.0
 	_center_prompt.visible = false
+	_build_choices(line.get("choices", []))
+
+
+func _build_choices(choices: Array) -> void:
+	for l in _choice_labels:
+		l.queue_free()
+	_choice_labels.clear()
+	_choice_index = 0
+	_choice_box.visible = false   # shown once the question has typed out
+	for c in choices:
+		var l := _make_label(CHOICE_FONT_SIZE, CHOICE_COLOR, true)
+		_choice_box.add_child(l)
+		_choice_labels.append(l)
+		l.set_meta("choice_text", str(c))
+	_refresh_choices()
+
+
+func _refresh_choices() -> void:
+	for i in _choice_labels.size():
+		var l: Label = _choice_labels[i]
+		var selected := i == _choice_index
+		l.text = ("> " if selected else "   ") + str(l.get_meta("choice_text"))
+		l.add_theme_color_override("font_color", NAME_COLOR if selected else CHOICE_COLOR)
 
 
 func _normalize_lines(lines, options: Dictionary) -> Array:
@@ -293,6 +359,8 @@ func _normalize_lines(lines, options: Dictionary) -> Array:
 	for entry in lines:
 		if entry is String:
 			out.append(_make_line(entry, options))
+		elif entry is Dictionary and entry.has("choices") and entry.has("duration"):
+			out.append(entry)   # already a finished line (from ask())
 		elif entry is Dictionary:
 			var merged := options.duplicate()
 			merged.merge(entry, true)
@@ -311,6 +379,7 @@ func _make_line(text: String, options: Dictionary) -> Dictionary:
 		"speaker": str(options.get("speaker", "")),
 		"portrait": portrait,
 		"duration": float(options.get("duration", -1.0)),
+		"choices": [],
 	}
 
 
@@ -334,6 +403,8 @@ func _hide_side() -> void:
 
 func _hide_center() -> void:
 	_talk_index = -1
+	if _choice_box:
+		_build_choices([])
 	if _dim:
 		_dim.visible = false
 	if _center_panel:
@@ -427,6 +498,10 @@ func _build_center_box() -> void:
 	vb.add_child(_center_name)
 	_center_text = _make_label(CENTER_TEXT_FONT_SIZE, TEXT_COLOR, true)
 	vb.add_child(_center_text)
+	_choice_box = VBoxContainer.new()
+	_choice_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_choice_box.add_theme_constant_override("separation", 0)
+	vb.add_child(_choice_box)
 
 	# Little blinking "next" triangle in the bottom-right corner.
 	var row := Control.new()

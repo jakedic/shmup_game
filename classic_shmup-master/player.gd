@@ -188,6 +188,18 @@ var shield: int:
 
 var can_shoot: bool = true
 var can_absorb: bool = true
+
+# Gray-form ship tint + "about to revert" flashing - see
+# PlayerVisuals.update_form_tint().
+var gray_ship_material: ShaderMaterial = null
+var form_flash_on: bool = true
+var form_flash_elapsed: float = 0.0
+
+# Level-controlled ability locks (e.g. the tutorial unlocks these wave by
+# wave - see levels/tutorial.gd _set_abilities()). Separate from can_shoot /
+# can_dash, which are cooldown flags the player's own code flips constantly.
+var shoot_enabled: bool = true
+var jump_enabled: bool = true
 var is_absorbing: int = 0
 var current_velocity: Vector2 = Vector2.ZERO
 var time_since_last_damage: float = 0.0
@@ -315,6 +327,7 @@ func _process(delta):
 
 	process_input(delta)
 	process_shield_regen(delta)
+	PlayerVisuals.update_form_tint(self)
 
 	# Update double-tap timers
 	update_doubletap_timers(delta)
@@ -327,9 +340,11 @@ func process_input(delta):
 	"""Process all player input"""
 	handle_absorb_input()
 	handle_movement(delta)
-	handle_shoot_input(delta)
-	handle_pollen_shot_input(delta)
-	handle_dash_input()
+	if shoot_enabled:
+		handle_shoot_input(delta)
+		handle_pollen_shot_input(delta)
+	if jump_enabled:
+		handle_dash_input()
 
 func handle_movement(delta):
 	PlayerMovement.handle_movement(self, delta)
@@ -548,6 +563,9 @@ func transform_hive():
 
 func transform_flower():
 	PlayerTransformations.transform_flower(self)
+
+func transform_gray():
+	PlayerTransformations.transform_gray(self)
 
 # ===== SHIELD/HEALTH SYSTEM =====
 func set_shield(value: int):

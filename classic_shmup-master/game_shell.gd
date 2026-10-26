@@ -35,6 +35,7 @@ const BORDER_COLOR := Color(0.28, 0.28, 0.42)
 const MULTIPLIER_BAR_SCRIPT := preload("res://multiplier_bar.gd")
 const JUMP_INDICATOR_SCRIPT := preload("res://jump_indicator.gd")
 const DIALOGUE_UI_SCRIPT := preload("res://dialogue_ui.gd")
+const INFO_CARD_SCRIPT := preload("res://info_card.gd")
 
 # HUD art (Art assets/Hud assets). All sheets are 2048x2048 and drawn on the
 # same canvas. Hud_Asset.png holds two pieces that are used separately:
@@ -158,6 +159,7 @@ var _absorb_prompt_t := 0.0
 # Dialogue boxes (dialogue_ui.gd) - side box above the portrait, center box
 # over the play area. Levels use them through BaseLevel.say()/talk().
 var _dialogue: Control
+var _info_card: Control   # tutorial cards (info_card.gd) - see BaseLevel.show_info()
 # Face of whoever is talking right now (null = the pilot's neutral face).
 # Shown whenever the portrait isn't busy showing the nervous "hit" face.
 var _portrait_override: Texture2D = null
@@ -196,6 +198,49 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_update_absorb_prompt(delta)
+	_update_screen_shake(delta)
+
+
+# ---------------------------------------------------------------------------
+# Screen shake
+# ---------------------------------------------------------------------------
+# Shakes the whole window (play area, side panels, HUD) by jolting the shell's
+# root UI node around, settling back over `duration`. Called by
+# PlayerHealth.take_damage(). Runs on real time, so it still finishes if the
+# game is paused mid-shake.
+
+const SCREEN_SHAKE_DURATION := 0.25
+const SCREEN_SHAKE_STRENGTH := 3.0   # play-area pixels at the start of the shake
+
+var _shake_left := 0.0
+var _shake_duration := SCREEN_SHAKE_DURATION
+var _shake_strength := SCREEN_SHAKE_STRENGTH
+
+
+func shake_screen(duration: float = SCREEN_SHAKE_DURATION, strength: float = SCREEN_SHAKE_STRENGTH) -> void:
+	# A new hit restarts the shake; a weaker one never cuts a stronger short.
+	if _shake_left > 0.0 and strength < _shake_strength:
+		return
+	_shake_left = duration
+	_shake_duration = duration
+	_shake_strength = strength
+
+
+func _update_screen_shake(delta: float) -> void:
+	if not _ui or _shake_left <= 0.0:
+		return
+	_shake_left -= delta
+	if _shake_left <= 0.0:
+		_ui.position = Vector2.ZERO
+		return
+	# Convert play-area pixels to window pixels so it feels the same at any
+	# window size.
+	var px_scale: float = 1.0
+	if _container and PLAY_SIZE.x > 0:
+		px_scale = _container.size.x / PLAY_SIZE.x
+	var falloff: float = _shake_left / _shake_duration
+	var amount: float = _shake_strength * px_scale * falloff
+	_ui.position = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * amount
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +279,18 @@ func talk(lines, options: Dictionary = {}) -> void:
 	await _dialogue.talk(lines, options)
 
 
+## Center box with options (does NOT pause by itself - BaseLevel.ask() does).
+## Coroutine: returns the index of the option picked.
+func ask(text: String, choices: Array, options: Dictionary = {}) -> int:
+	return await _dialogue.ask(text, choices, options)
+
+
+## Tutorial card (does NOT pause by itself - BaseLevel.show_info() does).
+## Coroutine: finishes when the player closes it.
+func show_info(config: Dictionary) -> void:
+	await _info_card.show_card(config)
+
+
 func is_talking() -> bool:
 	return _dialogue != null and _dialogue.is_talking()
 
@@ -241,6 +298,8 @@ func is_talking() -> bool:
 func clear_dialogue() -> void:
 	if _dialogue:
 		_dialogue.clear_all()
+	if _info_card:
+		_info_card.clear()
 
 
 ## Turn a dialogue "portrait" value into a texture for the HUD portrait.
@@ -415,6 +474,11 @@ func multiplier_on_ability_ended() -> void:
 func multiplier_on_ability_shot_out() -> void:
 	if _current_scene and _current_scene.has_method("on_ability_shot_out_multiplier"):
 		_current_scene.on_ability_shot_out_multiplier()
+
+
+func multiplier_on_golden_kill() -> void:
+	if _current_scene and _current_scene.has_method("on_golden_multiplier"):
+		_current_scene.on_golden_multiplier()
 
 
 func multiplier_on_absorb_miss() -> void:
@@ -654,6 +718,9 @@ func _build_dialogue() -> void:
 	_dialogue.name = "Dialogue"
 	_dialogue.shell = self
 	_ui.add_child(_dialogue)   # added last, so it draws over the play area and panels
+	_info_card = INFO_CARD_SCRIPT.new()
+	_info_card.name = "InfoCard"
+	_ui.add_child(_info_card)
 
 
 func _build_absorb_prompt() -> void:
@@ -833,6 +900,10 @@ func _layout() -> void:
 		var side_rect := Rect2(HUD_MARGIN, HUD_MARGIN,
 			max(side_w_left - HUD_MARGIN * 2.0, 40.0), max(side_bottom - HUD_MARGIN, 20.0))
 		_dialogue.set_layout(Rect2(play_pos, PLAY_SIZE), side_rect)
+	if _info_card:
+		_info_card.position = Vector2.ZERO
+		_info_card.size = vis
+		_info_card.set_layout(Rect2(play_pos, PLAY_SIZE))
 
 
 func _fit_hud_piece(piece: Control, panel_x: float, panel_w: float, max_w: float, bottom: float) -> void:

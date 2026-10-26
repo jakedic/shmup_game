@@ -93,6 +93,9 @@ var default_stats: Dictionary = {
 		"damage": 1,
 		"pierce_count": 0,
 		"can_pierce": false,
+		# gray_penetration power-up: how many enemies the main shot passes
+		# through even when they survive the hit (see bullets/bullet.gd).
+		"penetration_count": 0,
 		"max_distance": 125.0,
 		"homing_enabled": false,
 		"homing_strength": 1.0,

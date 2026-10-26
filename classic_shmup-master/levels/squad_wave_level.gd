@@ -112,6 +112,13 @@
 #                              edge, at the same percent as the start.
 #   speed                    - OPTIONAL - how fast it travels, px/s. Leave it
 #                              out for DEFAULT_DRIFT_SPEED.
+#   armor                    - OPTIONAL - armor points, shown as a gray
+#                              outline (1 = thin, 2 = thick). Each point
+#                              ignores 1 damage per hit. See base_enemy.gd.
+#   stop_percent             - OPTIONAL - stop this far down the screen
+#                              (0.0 top - 1.0 bottom, e.g. 0.33 = a third of
+#                              the way) and stay there until shot or absorbed.
+#                              Only for things moving downward.
 #
 # ----- spawn_hive_wave(config) - see enemies/hive_solo.gd -----
 # One enemy creeping slowly in a straight line, stopping a third and two
@@ -226,6 +233,15 @@ const ASTROID_MEDIUM := preload("res://enemies/astroid_medium.tscn")
 const ASTROID_SMALL := preload("res://enemies/astroid_small.tscn")
 const ENEMY_HIVE := preload("res://enemies/enemy_hive.tscn")
 const FLOWER := preload("res://enemies/flower_enemy.tscn")
+# Golden astroid: destroying it puts the multiplier at 4x.
+const ASTROID_GOLDEN := preload("res://enemies/astroid_golden.tscn")
+# Greyscale enemies that just drift slowly down; absorbing one gives the gray
+# form. Spawn them with spawn_drift_wave() like an astroid.
+const GRAY_BEE := preload("res://enemies/gray_bee.tscn")
+const GRAY_HIVE := preload("res://enemies/gray_hive.tscn")
+const GRAY_FLOWER := preload("res://enemies/gray_flower.tscn")
+# Bomb (BOMB) and the bomb-ring helpers live in base_level.gd - see its
+# BOMB RINGS section.
 
 # Dialogue portraits (pass as "portrait" in say()/talk() - see base_level.gd's
 # DIALOGUE section). Full-size HUD face sheets are cropped to the portrait
@@ -233,6 +249,7 @@ const FLOWER := preload("res://enemies/flower_enemy.tscn")
 const FACE_NEUTRAL := "res://Art assets/Hud assets/Player_Neutral_Asset.png"
 const FACE_HAPPY := "res://Art assets/Hud assets/Player_Happy_Asset.png"
 const FACE_NERVOUS := "res://Art assets/Hud assets/Player_Nervous_Asset2.png"
+const FACE_RED := "res://Art assets/Hud assets/Player_Red_Asset.png"   # placeholder: neutral face tinted red
 
 # Speaker presets - pass as say()/talk() options so lines don't have to repeat
 # the name, e.g. say("Incoming!", FROG). Add more speakers here.
@@ -379,6 +396,10 @@ func spawn_drift_wave(config: Dictionary) -> void:
 		"end": end_pos,
 		"speed": config.get("speed", DEFAULT_DRIFT_SPEED),
 	}
+	if config.has("armor"):
+		astroid_config["armor"] = config["armor"]
+	if config.has("stop_percent"):
+		astroid_config["hold_at_y"] = get_viewport_rect().size.y * float(config["stop_percent"])
 	var start_delay: float = config.get("start_delay", 0.0)
 	if start_delay <= 0.0:
 		spawn_astroid(astroid_config)
@@ -394,6 +415,115 @@ func spawn_drift_wave(config: Dictionary) -> void:
 func _spawn_delayed_drift(astroid_config: Dictionary) -> void:
 	release_wave_spawn()
 	spawn_astroid(astroid_config)
+
+
+# ===== ASTROID FORMATIONS =====
+# Formations are laid out off-screen, but each astroid is only added to the
+# scene once its path reaches the screen edge. Without this, astroid_enemy.gd's
+# 64px despawn margin would delete the far-away ones on their first frame.
+# Keep this below 64.
+const FORMATION_ENTRY_MARGIN := 24.0
+
+
+# A solid wall of astroids that sweeps corner to corner across the whole
+# screen. There's no gap to dodge through, so the player has to jump it.
+#   from_corner - "top_right" or "top_left" (it heads for the opposite bottom corner)
+#   enemy       - OPTIONAL - defaults to ASTROID_SMALL
+#   speed       - OPTIONAL - px/s, default 55
+#   spacing     - OPTIONAL - px between astroids in the wall, default 18
+#   start_delay - OPTIONAL - seconds before the wall starts coming in
+func spawn_diagonal_astroid_wall(config: Dictionary) -> void:
+	var size: Vector2 = get_viewport_rect().size
+	var corner_points := {
+		"top_left": Vector2.ZERO,
+		"top_right": Vector2(size.x, 0.0),
+	}
+	var from: Vector2 = corner_points[config.get("from_corner", "top_right")]
+	var to: Vector2 = size - from   # the opposite bottom corner
+	var dir: Vector2 = (to - from).normalized()
+	var along := Vector2(-dir.y, dir.x)   # the wall's own line, at a right angle to its travel
+
+	# How wide the wall has to be to cover the whole screen as it sweeps.
+	var half_width := 0.0
+	for c: Vector2 in [Vector2.ZERO, Vector2(size.x, 0.0), Vector2(0.0, size.y), size]:
+		half_width = maxf(half_width, absf((c - from).dot(along)))
+
+	var scene: PackedScene = config.get("enemy", ASTROID_SMALL)
+	var speed: float = config.get("speed", 55.0)
+	var spacing: float = config.get("spacing", 18.0)
+	var start_delay: float = config.get("start_delay", 0.0)
+	var wall_center: Vector2 = from - dir * 40.0   # start just behind the corner
+	var count := int(ceil(half_width * 2.0 / spacing)) + 1
+	for i in count:
+		var offset: float = -half_width + i * spacing
+		_spawn_astroid_on_path(scene, wall_center + along * offset, dir * speed, start_delay)
+
+
+# A big ring of astroids that falls down the screen in one piece. It's wider
+# than the screen, so you jump over the front edge into the middle, ride it
+# down, then jump out over the back edge.
+#   enemy          - OPTIONAL - defaults to ASTROID_SMALL
+#   radius         - OPTIONAL - px, defaults to a little under half the screen width
+#   speed          - OPTIONAL - px/s, default 40 (slower = more time inside)
+#   spacing        - OPTIONAL - px between astroids around the ring, default 18
+#   center_percent - OPTIONAL - where across the screen the center is (0.0-1.0), default 0.5
+#   start_delay    - OPTIONAL - seconds before the ring starts coming in
+func spawn_astroid_ring(config: Dictionary) -> void:
+	var size: Vector2 = get_viewport_rect().size
+	var scene: PackedScene = config.get("enemy", ASTROID_SMALL)
+	var radius: float = config.get("radius", size.x * 0.5 - 10)
+	var speed: float = config.get("speed", 40.0)
+	var spacing: float = config.get("spacing", 18.0)
+	var start_delay: float = config.get("start_delay", 0.0)
+	var center_percent: float = config.get("center_percent", 0.5)
+
+	var center := Vector2(size.x * center_percent, -radius - FORMATION_ENTRY_MARGIN)
+	var velocity: Vector2 = Vector2.DOWN * speed
+	var count := int(ceil(TAU * radius / spacing))
+	for i in count:
+		var angle: float = TAU * i / count
+		_spawn_astroid_on_path(scene, center + Vector2.from_angle(angle) * radius, velocity, start_delay)
+
+
+# Spawns one astroid that is "at" `pos` right now, moving at `velocity`. It
+# isn't added to the scene until it reaches the screen edge, so the formation
+# keeps its exact shape as it slides in.
+func _spawn_astroid_on_path(scene: PackedScene, pos: Vector2, velocity: Vector2, base_delay: float) -> void:
+	var area := Rect2(Vector2.ZERO, get_viewport_rect().size).grow(FORMATION_ENTRY_MARGIN)
+	var t_enter := _time_to_enter(pos, velocity, area)
+	if t_enter < 0.0:
+		return   # this path never crosses the screen, so skip it
+	var entry_pos: Vector2 = pos + velocity * t_enter
+	var astroid_config := {"scene": scene, "start": entry_pos, "end": entry_pos + velocity, "speed": velocity.length()}
+	var delay: float = base_delay + t_enter
+	if delay <= 0.0:
+		spawn_astroid(astroid_config)
+		return
+	# Same delayed-spawn handling spawn_drift_wave() uses.
+	note_spawn(delay)
+	hold_wave_for_spawn()
+	get_tree().create_timer(delay, false).timeout.connect(_spawn_delayed_drift.bind(astroid_config))
+
+
+# Seconds until a point at `pos` moving at `velocity` first enters `area`.
+# Returns 0.0 if it's already inside, or -1.0 if it never gets there.
+func _time_to_enter(pos: Vector2, velocity: Vector2, area: Rect2) -> float:
+	var t_min := 0.0
+	var t_max := INF
+	for axis in 2:
+		var p: float = pos[axis]
+		var v: float = velocity[axis]
+		var lo: float = area.position[axis]
+		var hi: float = area.end[axis]
+		if is_zero_approx(v):
+			if p < lo or p > hi:
+				return -1.0
+		else:
+			var t1: float = (lo - p) / v
+			var t2: float = (hi - p) / v
+			t_min = maxf(t_min, minf(t1, t2))
+			t_max = minf(t_max, maxf(t1, t2))
+	return t_min if t_min <= t_max else -1.0
 
 
 func spawn_hive_wave(config: Dictionary) -> void:

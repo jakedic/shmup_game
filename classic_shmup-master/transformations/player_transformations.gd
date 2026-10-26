@@ -109,6 +109,28 @@ static func transform_flower(player: Player) -> void:
 	transform_yellow / transform_red) and swap its sprite when ready."""
 	_start_placeholder_form(player, "flower", Color(1.0, 0.45, 0.8))
 
+static func transform_gray(player: Player) -> void:
+	"""Gray form (from absorbing a gray enemy - enemies/gray_enemy.gd):
+	1.5x movement speed and 1.5x shot damage. Same ship sprite, just a gray
+	flash when it lands. Damage is rounded to a whole number when a bullet
+	is fired (PlayerShooting.configure_bullet), so 1 -> 2, 2 -> 3, 3 -> 5."""
+	if player.transformation_timer:
+		player.transformation_timer.stop()
+		player.transformation_timer.start(player.transformation_duration)
+
+	Stats.add_modifier("transform_gray", {
+		"player": {
+			"speed": {"op": "mult", "value": 1.5},
+		},
+		"bullet": {
+			"damage": {"op": "mult", "value": 1.5},
+		},
+	})
+
+	player.modulate = Color(0.6, 0.6, 0.65)
+	var timer = player.get_tree().create_timer(0.5)
+	timer.timeout.connect(func(): player.modulate = player.player_color)
+
 static func _start_placeholder_form(player: Player, form: String, flash_color: Color) -> void:
 	if player.transformation_timer:
 		player.transformation_timer.stop()

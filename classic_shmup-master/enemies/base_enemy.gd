@@ -65,6 +65,20 @@ var squad_controlled: bool = false
 # own StatusEffectHandler. See status_effects/status_effect_handler.gd.
 var status_effects: Dictionary = {}
 
+# ===== ARMOR (gray outline) =====
+# Each point of armor ignores 1 damage from every hit: armor 1 turns a 3-damage
+# shot into 2 and a 1-damage shot into nothing. Shown as a gray outline around
+# the enemy - thin for 1 armor, thicker for 2 (see ARMOR_OUTLINE_WIDTHS).
+# Set it in the scene's inspector, or from level code with set_armor() / the
+# "armor" field on spawn configs (e.g. spawn_drift_wave in squad_wave_level.gd).
+@export var armor: int = 0
+const ARMOR_OUTLINE_COLOR := Color(0.62, 0.62, 0.66, 1.0)
+# Outline thickness (play-area px) per armor level. Armor above the last entry
+# uses the last entry.
+const ARMOR_OUTLINE_WIDTHS := [0.0, 1.0, 2.0]
+const EnemyOutlineScript := preload("res://enemies/enemy_outline.gd")
+var _armor_outline = null   # EnemyOutline (untyped so its own methods resolve at runtime)
+
 @onready var screensize = get_viewport_rect().size
 
 func _ready():
@@ -78,6 +92,29 @@ func _ready():
 	# Custom ready for child classes
 	add_to_group("enemy")
 	custom_ready()
+	_refresh_armor_outline()
+
+func set_armor(value: int) -> void:
+	"""Give this enemy `value` armor (0 removes it) and update its outline."""
+	armor = max(0, value)
+	if is_inside_tree():
+		_refresh_armor_outline()
+
+func _refresh_armor_outline() -> void:
+	if armor <= 0:
+		if is_instance_valid(_armor_outline):
+			_armor_outline.queue_free()
+		_armor_outline = null
+		return
+	var w: float = ARMOR_OUTLINE_WIDTHS[min(armor, ARMOR_OUTLINE_WIDTHS.size() - 1)]
+	if not is_instance_valid(_armor_outline):
+		_armor_outline = EnemyOutlineScript.new()
+		_armor_outline.name = "ArmorOutline"
+		_armor_outline.outline_color = ARMOR_OUTLINE_COLOR
+		_armor_outline.width = w
+		add_child(_armor_outline)
+	else:
+		_armor_outline.configure(ARMOR_OUTLINE_COLOR, w)
 
 func custom_ready():
 	"""Override this in child classes for custom initialization"""
@@ -217,6 +254,16 @@ func take_damage(damage_amount: int = 1, context: Dictionary = {}) -> bool:
 
 	if is_invincible:
 		return false
+
+	# Armor soaks `armor` damage off every hit. A hit it fully absorbs does
+	# nothing at all (no health loss, no multiplier points, no red flash) -
+	# just a white blink on the outline so the shot visibly connected.
+	if armor > 0:
+		damage_amount = max(0, damage_amount - armor)
+		if damage_amount == 0:
+			if is_instance_valid(_armor_outline):
+				_armor_outline.flash()
+			return false
 
 	# Multiplier points for the damage actually dealt - overkill past the
 	# enemy's remaining health doesn't count. See base_level.gd's multiplier

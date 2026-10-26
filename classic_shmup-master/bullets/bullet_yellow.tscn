@@ -4,7 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://brhducrtrhrhj" path="res://Mini Pixel Pack 3/Projectiles/Player_beam (16 x 16).png" id="2_873ek"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j08f7"]
-size = Vector2(16, 16)
+size = Vector2(3, 10)
 
 [node name="Bullet2" type="Area2D" unique_id=1949163329]
 script = ExtResource("1_xg6su")

@@ -90,11 +90,15 @@ static func configure_bullet(bullet: Node2D) -> void:
 	if b.is_empty():
 		return
 	if bullet.has_method("set_damage"):
-		bullet.set_damage(b.damage)
+		# round(): multiplier modifiers (e.g. the gray form's 1.5x) can make
+		# damage fractional, but enemy health/armor work in whole numbers.
+		bullet.set_damage(int(round(b.damage)))
 	if bullet.has_method("set_speed"):
 		bullet.set_speed(b.speed)
 	if bullet.has_method("set_pierce_count"):
 		bullet.set_pierce_count(b.pierce_count if b.can_pierce else 0)
+	if bullet.has_method("set_penetration_count"):
+		bullet.set_penetration_count(int(b.get("penetration_count", 0)))
 	if "max_distance" in bullet:
 		bullet.max_distance = b.max_distance
 	if "homing_enabled" in bullet:

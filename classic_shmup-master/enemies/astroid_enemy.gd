@@ -60,6 +60,19 @@ class_name AstroidEnemy
 # Current straight-line velocity (px/s) and spin (deg/s). Set by launch(),
 # start(), or _spawn_fragment() below - custom_process() just applies
 # whatever is here every frame.
+# ===== GOLDEN ASTROID =====
+# When true, destroying this astroid instantly puts the player's score
+# multiplier at 4x (never lowers it - see BaseLevel.on_golden_multiplier()).
+# Set on enemies/astroid_golden.tscn.
+@export var grants_max_multiplier: bool = false
+
+# ===== HOLD POSITION =====
+# If >= 0, a downward-moving astroid stops dead once it reaches this y (px)
+# and stays there (still spinning) until it's shot or absorbed. Set from level
+# code via spawn_drift_wave's "stop_percent" field. -1 = never stops.
+var hold_at_y: float = -1.0
+var _is_held: bool = false
+
 var travel_velocity: Vector2 = Vector2.ZERO
 var rotation_speed_deg: float = 0.0
 var _is_traveling: bool = false
@@ -106,6 +119,10 @@ func custom_process(delta: float):
 		return
 	position += travel_velocity * delta
 	rotation += deg_to_rad(rotation_speed_deg) * delta
+	if hold_at_y >= 0.0 and not _is_held and travel_velocity.y > 0.0 and position.y >= hold_at_y:
+		position.y = hold_at_y
+		travel_velocity = Vector2.ZERO
+		_is_held = true
 
 func handle_boundaries():
 	"""Override base_enemy.gd's version, which resets a diving enemy once it
@@ -121,6 +138,8 @@ func handle_boundaries():
 		queue_free()
 
 func custom_die():
+	if grants_max_multiplier:
+		GameShell.multiplier_on_golden_kill()
 	if not split_scene:
 		return
 	for i in range(split_count):

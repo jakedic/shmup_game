@@ -29,6 +29,7 @@ static func take_damage(player: Player, damage_amount: int = 1) -> void:
 
 	# Visual feedback
 	flash_damage(player)
+	GameShell.shake_screen()
 
 	# Getting hit drops the score multiplier one step (see base_level.gd).
 	GameShell.multiplier_on_player_hit()

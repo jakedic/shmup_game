@@ -141,6 +141,7 @@ const POWERUPS_BY_ENEMY_TYPE: Dictionary = {
 # entry in POWERUPS_BY_ENEMY_TYPE so its popups get their own color.
 const ENEMY_TYPE_ACCENT_COLORS: Dictionary = {
 	"yellow": Color(1.0, 0.85882353, 0.2),
+	"gray": Color(0.65, 0.67, 0.72),
 }
 
 # Fallback accent color for a power-up whose enemy type isn't in
@@ -211,7 +212,26 @@ const GRAY_POWERUPS: Array[Dictionary] = [
 			},
 		},
 	},
+	{
+		"id": "gray_penetration",
+		"name": "Penetrator Rounds",
+		"description": "The player's main shot damages the first enemy it hits, then passes through it to hit one more, for the rest of the run.",
+		"stats": {
+			"bullet": {
+				# "set", not "add" - penetration stays at 1 even if picked twice.
+				"penetration_count": {"op": "set", "value": 1},
+			},
+		},
+	},
 ]
+
+# Level override for power-bubble fusions. While set to a power-up id, EVERY
+# fusion (two bubbles combining) grants exactly that power-up instead of a
+# random one from the bubble's pool. Levels set it for a specific wave via
+# BaseLevel.force_fusion_powerup() / clear_fusion_powerup() - e.g.
+# levels/a_test.gd's bomb wave forces gray_penetration. BaseLevel._ready()
+# clears it, so it never leaks into another level.
+static var fusion_powerup_override_id: String = ""
 
 # Accent color for gray power-ups (PowerupChoicePopup border/header) - kept
 # separate from ENEMY_TYPE_ACCENT_COLORS since gray power-ups aren't keyed by
@@ -236,6 +256,11 @@ static func get_powerups_for_enemy_type(enemy_type: String) -> Array:
 	requires_pollination_source), or an empty array if that enemy type has
 	no power-ups defined yet. Use get_available_powerups_for_enemy_type()
 	when picking what a bubble can actually grant right now."""
+	# Gray-form bubbles (from absorbing a gray enemy) grant gray power-ups.
+	# Handled here rather than by adding "gray" to POWERUPS_BY_ENEMY_TYPE,
+	# so gray power-ups still never show up in the shop.
+	if enemy_type == "gray":
+		return GRAY_POWERUPS
 	return POWERUPS_BY_ENEMY_TYPE.get(enemy_type, [])
 
 
@@ -311,6 +336,13 @@ static func apply_random_powerup(player: Player, enemy_type: String) -> Dictiona
 	Stats.add_powerup() (persists for the rest of the level). Returns the
 	chosen power-up dict, or an empty dict if enemy_type has no eligible
 	power-ups right now."""
+	if fusion_powerup_override_id != "":
+		var forced := get_powerup_by_id(fusion_powerup_override_id)
+		if not forced.is_empty():
+			Stats.add_powerup(forced.get("id", ""), forced.get("stats", {}))
+			return forced
+		push_warning("fusion_powerup_override_id '%s' isn't a real power-up id - falling back to random" % fusion_powerup_override_id)
+
 	var pool: Array = get_available_powerups_for_enemy_type(enemy_type)
 	if pool.is_empty():
 		return {}

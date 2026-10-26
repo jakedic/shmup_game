@@ -1,0 +1,19 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://enemies/flower_enemy.tscn" id="1_base"]
+[ext_resource type="Script" path="res://enemies/gray_enemy.gd" id="2_gray"]
+[ext_resource type="Shader" path="res://enemies/grayscale.gdshader" id="3_gray"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_gray"]
+shader = ExtResource("3_gray")
+
+[node name="GrayFlower" instance=ExtResource("1_base")]
+script = ExtResource("2_gray")
+max_health = 2
+score_value = 10
+default_travel_speed = 20.0
+rotation_speed_min_deg = 0.0
+rotation_speed_max_deg = 0.0
+
+[node name="Sprite2D" parent="." index="0"]
+material = SubResource("ShaderMaterial_gray")

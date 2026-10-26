@@ -15,6 +15,11 @@ static var bullet_vs_bullet_collision_enabled: bool = false
 @export var speed: float = -250
 @export var damage: int = 1
 @export var pierce_count: int = 0  # 0 means no piercing
+# Penetration (gray_penetration power-up): unlike pierce_count, which only
+# lets a bullet carry on after KILLING an enemy, penetration lets it carry on
+# through an enemy that SURVIVED the hit (armored ones included). Each enemy
+# it goes through uses one up. 0 = normal bullet.
+@export var penetration_count: int = 0
 @export var max_distance: float = 1000.0  # Max distance before bullet expires
 @export var bounce_count: int = 0  # How many times bullet bounces off screen edges
 @export var split_on_death: bool = false  # Split into smaller bullets when destroyed
@@ -63,6 +68,7 @@ var _target = null
 var distance_traveled: float = 0.0
 var spawn_position: Vector2
 var current_pierce: int = 0
+var current_penetration: int = 0
 var current_bounce: int = 0
 var time_alive: float = 0.0
 var is_homing_active: bool = false
@@ -274,26 +280,23 @@ func handle_enemy_collision(area: Area2D):
 		if is_first_hit:
 			_release_pollen_cone(hit_position, area)
 		
-		# Destroy bullet if no piercing at all
-		if pierce_count == 0:
-			queue_free()
-			return
-		
 		# A status that blocks pierce consumption (e.g. pollinated) means
 		# this hit is free: damage already applied above, but the bullet
 		# keeps its full remaining pierce budget and keeps going, whether
 		# or not the enemy died from it.
-		if blocks_pierce:
+		if pierce_count > 0 and blocks_pierce:
 			return
 		
-		# Handle piercing
-		if enemy_died:
-			# Enemy died, bullet can continue piercing
+		var keep_going := false
+		# Piercing: carry on past an enemy this bullet killed.
+		if pierce_count > 0 and enemy_died:
 			current_pierce += 1
-			if current_pierce >= pierce_count:
-				queue_free()
-		else:
-			# Enemy survived with health remaining, destroy bullet
+			keep_going = current_pierce < pierce_count
+		# Penetration: carry on past an enemy regardless of whether it died.
+		if not keep_going and current_penetration < penetration_count:
+			current_penetration += 1
+			keep_going = true
+		if not keep_going:
 			queue_free()
 
 func handle_enemy_bullet_collision(area: Area2D):
@@ -454,6 +457,10 @@ func set_bullet_color(color: Color):
 func set_pierce_count(count: int):
 	"""Change pierce count"""
 	pierce_count = count
+
+func set_penetration_count(count: int):
+	"""Change how many enemies this bullet can pass through (see penetration_count)"""
+	penetration_count = count
 
 func set_bounce_count(count: int):
 	"""Change bounce count"""
