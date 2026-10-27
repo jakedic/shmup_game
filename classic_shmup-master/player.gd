@@ -26,6 +26,8 @@ signal died
 signal player_shot(bullet: Node2D)
 signal player_absorbed(enemy_type: int)
 signal player_healed(amount: int)
+# Emitted instead of dying when prevent_death is on (see set_shield()).
+signal death_prevented
 
 # ===== CUSTOMIZABLE PROPERTIES =====
 @export var player_name: String = "Player"
@@ -204,6 +206,9 @@ var is_absorbing: int = 0
 var current_velocity: Vector2 = Vector2.ZERO
 var time_since_last_damage: float = 0.0
 var is_alive: bool = true
+# When true, running out of shield emits death_prevented instead of dying.
+# Levels turn this on to handle "death" themselves (levels/tutorial.gd).
+var prevent_death: bool = false
 var score_multiplier: int = 1
 
 @onready var screensize = get_viewport_rect().size
@@ -580,7 +585,10 @@ func set_shield(value: int):
 	shield_changed.emit(max_shield, shield)
 
 	if shield <= 0 and is_alive:
-		die()
+		if prevent_death:
+			death_prevented.emit()
+		else:
+			die()
 
 func take_damage(damage_amount: int = 1):
 	"""Take damage from enemies or hazards"""

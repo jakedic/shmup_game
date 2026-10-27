@@ -497,4 +497,24 @@ func _ready() -> void:
 	}
 	waves = [_wave_intro, _wave_1, _wave_2, _wave_3, _wave_4, _wave_5, _wave_6, _wave_7]
 	fallback_enemy = FLOWER
-	super._ready()   # sets max_waves = waves.size(), so the level ends after _wave_6
+	super._ready()   # sets max_waves = waves.size(), so the level ends after the last wave
+	# No dying in the tutorial - Red Frog makes a crack and the health refills.
+	if player:
+		player.prevent_death = true
+		player.death_prevented.connect(_on_player_out_of_health)
+
+
+var _refilling_health := false
+
+func _on_player_out_of_health() -> void:
+	if _refilling_health:
+		return
+	_refilling_health = true
+	say("So you're actually supposed to avoid the giant boulders hurdling towards you.", RED_FROG)
+	# Short beat at empty so the line lands, then fill back up. The hit that
+	# emptied the bar already started the 1s hit invincibility, so nothing
+	# can land in between.
+	await wait(0.6)
+	if is_instance_valid(player):
+		player.heal(player.max_shield)
+	_refilling_health = false
