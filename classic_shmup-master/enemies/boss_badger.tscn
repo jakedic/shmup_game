@@ -1,0 +1,109 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://enemies/boss_badger.gd" id="1_bb"]
+[ext_resource type="Script" path="res://enemies/boss_part.gd" id="2_bp"]
+[ext_resource type="Texture2D" path="res://Art assets/Player assets and transformations/Boss_Badger.png" id="3_head"]
+[ext_resource type="Texture2D" path="res://Art assets/Player assets and transformations/Boss_Badger_Left_Arm.png" id="4_larm"]
+[ext_resource type="Texture2D" path="res://Art assets/Player assets and transformations/Boss_Badger_Right_Arm.png" id="5_rarm"]
+
+[node name="BossBadger" type="Node2D"]
+script = ExtResource("1_bb")
+
+[node name="Head" type="Area2D" parent="." groups=["enemies"]]
+collision_layer = 3
+collision_mask = 3
+script = ExtResource("2_bp")
+enemy_name = "Badger Head"
+max_health = 75
+score_value = 200
+can_dive = false
+follow_anchor_enabled = false
+can_shoot = false
+health_bar_offset = Vector2(0, -38)
+health_bar_width = 35.0
+
+[node name="Sprite2D" type="Sprite2D" parent="Head"]
+texture_filter = 5
+scale = Vector2(0.105, 0.105)
+texture = ExtResource("3_head")
+region_enabled = true
+region_rect = Rect2(644, 837, 760, 680)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Head"]
+polygon = PackedVector2Array(35.81, -1.04, 6.15, 31.94, -6.24, 31.94, -35.91, -1.32, -26.17, -25.70, 1.89, -30.15, 26.56, -25.33)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Head"]
+
+[node name="MoveTimer" type="Timer" parent="Head"]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="Head"]
+one_shot = true
+
+[node name="LeftArm" type="Area2D" parent="." groups=["enemies"]]
+position = Vector2(50, 25)
+collision_layer = 3
+collision_mask = 3
+script = ExtResource("2_bp")
+enemy_name = "Badger Left Arm"
+max_health = 50
+score_value = 75
+can_dive = false
+follow_anchor_enabled = false
+can_shoot = false
+health_bar_offset = Vector2(0, 24)
+health_bar_width = 21.0
+
+[node name="Sprite2D" type="Sprite2D" parent="LeftArm"]
+rotation = -0.1567
+texture_filter = 5
+scale = Vector2(0.105, 0.105)
+texture = ExtResource("4_larm")
+region_enabled = true
+region_rect = Rect2(905, 1083, 217, 412)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="LeftArm"]
+rotation = -0.1567
+polygon = PackedVector2Array(3.16, -18.23, 9.40, -7.46, 6.19, 11.72, 1.84, 17.58, -5.53, 18.52, -9.40, 13.70, -4.40, -6.71)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="LeftArm"]
+
+[node name="MoveTimer" type="Timer" parent="LeftArm"]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="LeftArm"]
+one_shot = true
+
+[node name="RightArm" type="Area2D" parent="." groups=["enemies"]]
+position = Vector2(-50, 25)
+collision_layer = 3
+collision_mask = 3
+script = ExtResource("2_bp")
+enemy_name = "Badger Right Arm"
+max_health = 50
+score_value = 75
+can_dive = false
+follow_anchor_enabled = false
+can_shoot = false
+health_bar_offset = Vector2(0, 24)
+health_bar_width = 21.0
+
+[node name="Sprite2D" type="Sprite2D" parent="RightArm"]
+rotation = -2.2691
+texture_filter = 5
+scale = Vector2(0.105, 0.105)
+texture = ExtResource("5_rarm")
+region_enabled = true
+region_rect = Rect2(794, 1078, 380, 364)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="RightArm"]
+rotation = -2.2691
+polygon = PackedVector2Array(15.97, 15.12, -14.27, 3.78, -17.01, -8.22, -6.80, -15.60, 13.42, 2.08)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="RightArm"]
+
+[node name="MoveTimer" type="Timer" parent="RightArm"]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="RightArm"]
+one_shot = true

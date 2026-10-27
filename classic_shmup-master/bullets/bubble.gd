@@ -224,12 +224,20 @@ func _process(delta: float):
 
 func _bounce_off_walls() -> void:
 	"""Reflect direction off the left/right/top screen edges. Never called
-	for the bottom edge - see _process()."""
-	if position.x <= 0:
-		position.x = 0
+	for the bottom edge - see _process(). In a boss arena (levels/
+	boss_arena.gd) the side walls' inner edges count as the edges instead."""
+	var min_x := 0.0
+	var max_x: float = screensize.x
+	var arena = get_tree().get_first_node_in_group("arena_bounds")
+	if arena and arena.has_method("get_inner_x_limits"):
+		var limits: Vector2 = arena.get_inner_x_limits()
+		min_x = limits.x
+		max_x = limits.y
+	if position.x <= min_x:
+		position.x = min_x
 		direction.x = abs(direction.x)
-	elif position.x >= screensize.x:
-		position.x = screensize.x
+	elif position.x >= max_x:
+		position.x = max_x
 		direction.x = -abs(direction.x)
 
 	if position.y <= 0:

@@ -122,7 +122,7 @@ var default_stats: Dictionary = {
 		"pollen_cone_angle_degrees": 70.0,
 	},
 	"bubble": {
-		"speed": 100.0,
+		"speed": 70.0,   # was 100 (-30%)
 		"damage": 1,
 		"travel_distance": 50.0,
 		"lifetime": 3600.0,  # 1 hour - effectively never times out; bubbles only pop when shot

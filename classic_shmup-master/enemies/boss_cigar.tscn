@@ -1,0 +1,28 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://enemies/boss_cigar.gd" id="1_cigar"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_cigar"]
+size = Vector2(18, 6)
+
+[node name="BossCigar" type="Area2D" groups=["enemies"]]
+collision_layer = 3
+collision_mask = 3
+script = ExtResource("1_cigar")
+enemy_name = "Cigar"
+max_health = 3
+score_value = 15
+can_dive = false
+follow_anchor_enabled = false
+can_shoot = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_cigar")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+
+[node name="MoveTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="."]
+one_shot = true

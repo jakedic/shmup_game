@@ -72,6 +72,7 @@ var current_penetration: int = 0
 var current_bounce: int = 0
 var time_alive: float = 0.0
 var is_homing_active: bool = false
+var _retarget_timer: float = 0.0
 # How many enemies this bullet has hit so far (regardless of whether they
 # died), used by status_effect_skip_first_hit to tell "the first enemy shot"
 # apart from anything hit afterward while piercing.
@@ -157,9 +158,17 @@ func _process(delta: float):
 		on_max_distance_reached()
 		return
 	
-	# Handle homing behavior
-	if is_homing_active and _target and is_instance_valid(_target):
-		update_homing(delta)
+	# Handle homing behavior. With no target set, a homing bullet picks the
+	# nearest living enemy ahead of it (re-checked a few times a second).
+	if is_homing_active:
+		if not _is_valid_homing_target(_target):
+			_target = null
+			_retarget_timer -= delta
+			if _retarget_timer <= 0.0:
+				_retarget_timer = 0.15
+				_target = _find_nearest_enemy_ahead()
+		if _target:
+			update_homing(delta)
 	
 	# Handle bouncing
 	if bounce_count > 0:
@@ -167,6 +176,27 @@ func _process(delta: float):
 	
 	# Custom per-frame logic for child classes
 	custom_process(delta)
+
+func _is_valid_homing_target(t) -> bool:
+	return t != null and is_instance_valid(t) and not t.is_queued_for_deletion() \
+			and not ("is_alive" in t and not t.is_alive)
+
+
+func _find_nearest_enemy_ahead() -> Node2D:
+	var best: Node2D = null
+	var best_dist := INF
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node2D) or not _is_valid_homing_target(e):
+			continue
+		var to_e: Vector2 = e.global_position - global_position
+		if to_e.dot(direction) <= 0.0:
+			continue   # behind the bullet - don't turn around for it
+		var d := to_e.length()
+		if d < best_dist:
+			best_dist = d
+			best = e
+	return best
+
 
 func update_homing(delta: float):
 	"""Update homing direction toward target"""

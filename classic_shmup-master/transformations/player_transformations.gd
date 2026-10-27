@@ -109,22 +109,40 @@ static func transform_flower(player: Player) -> void:
 	transform_yellow / transform_red) and swap its sprite when ready."""
 	_start_placeholder_form(player, "flower", Color(1.0, 0.45, 0.8))
 
+# How strongly the cigar version of the gray form's shots curve toward the
+# nearest enemy (see bullets/bullet.gd update_homing()). Low = light homing.
+const GRAY_HOMING_STRENGTH := 3.0
+
 static func transform_gray(player: Player) -> void:
 	"""Gray form (from absorbing a gray enemy - enemies/gray_enemy.gd):
 	1.5x movement speed and 1.5x shot damage. Same ship sprite, just a gray
 	flash when it lands. Damage is rounded to a whole number when a bullet
-	is fired (PlayerShooting.configure_bullet), so 1 -> 2, 2 -> 3, 3 -> 5."""
+	is fired (PlayerShooting.configure_bullet), so 1 -> 2, 2 -> 3, 3 -> 5.
+
+	Absorbing the badger boss's cigar (enemies/boss_cigar.gd) gives the same
+	form, plus shots that lightly home in on the nearest enemy ahead. The
+	cigar flags that by setting the "gray_homing_next" meta on the player
+	just before the absorb lands."""
 	if player.transformation_timer:
 		player.transformation_timer.stop()
 		player.transformation_timer.start(player.transformation_duration)
+
+	var homing: bool = player.get_meta("gray_homing_next", false)
+	if player.has_meta("gray_homing_next"):
+		player.remove_meta("gray_homing_next")
+
+	var bullet_mods := {
+		"damage": {"op": "mult", "value": 1.5},
+	}
+	if homing:
+		bullet_mods["homing_enabled"] = {"op": "set", "value": true}
+		bullet_mods["homing_strength"] = {"op": "set", "value": GRAY_HOMING_STRENGTH}
 
 	Stats.add_modifier("transform_gray", {
 		"player": {
 			"speed": {"op": "mult", "value": 1.5},
 		},
-		"bullet": {
-			"damage": {"op": "mult", "value": 1.5},
-		},
+		"bullet": bullet_mods,
 	})
 
 	player.modulate = Color(0.6, 0.6, 0.65)
