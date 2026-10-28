@@ -16,11 +16,14 @@
 #       the player's height, pause, then slam together in the middle. Where
 #       they meet, a shockwave ring bursts out and expands off screen - jump
 #       over it! (enemies/boss_shockwave.gd).
-#   Belt punch (only one arm left) - same ride down the belt, but instead of
-#       meeting in the middle the lone arm punches straight across into the
-#       OTHER belt. That belt sprays a 3-wall honey volley back across the
-#       screen (the hive enemy's walls) and releases two bees that fly out of
-#       it across to the far side.
+#   Belt punch (only one arm left, replaces the clap) - same ride down the
+#       belt, but the lone arm flies straight across and punches the OTHER
+#       belt. A shockwave bursts out from where it hits, and one bee flies
+#       out of that belt across to the far side.
+#   Belt shake - alternates with the clap/punch. The arms grab the belts and
+#       shake them; each shaken belt throws off 2 bees (flying across the
+#       screen) and a row of honey walls (the hive enemy's walls). With one
+#       arm left, only that arm's belt gets shaken - so half as much.
 #   Laser sweep (only the head left) - every sweep_interval seconds the head
 #       moves to the left edge, charges, then fires both eye lasers
 #       continuously while gliding to the right edge. Jump over the beams!
@@ -116,10 +119,17 @@ signal defeated   # head is down and every part has finished dying
 
 # ===== BELT PUNCH (one arm left) =====
 @export var punch_dig_in: float = 14.0           # how far past the belt's edge the arm's center stops, px (bigger = punches deeper)
-@export var honey_wall_spread_deg: float = 30.0  # angle of the outer two honey walls (same as the hive's)
-@export var punch_bee_count: int = 2
-@export var punch_bee_spacing: float = 36.0      # px apart (vertically) the bees come out of the belt
-@export var punch_bee_stagger: float = 0.4       # seconds between each bee setting off
+@export var punch_bee_count: int = 1
+
+# ===== BELT SHAKE (arms) =====
+# Alternates with the clap/punch: clap, shake, clap, shake...
+@export var shake_grab_drop: float = 55.0        # how far below the head the arms grab the belts, px
+@export var shake_time: float = 1.3              # seconds of shaking before things fly off
+@export var shake_strength: float = 2.5          # how hard the arms + belts rattle, px
+@export var shake_bees_per_belt: int = 2         # 4 total with both arms, 2 with one
+@export var shake_walls_per_belt: int = 3        # honey walls thrown off each shaken belt
+@export var shake_wall_angle_deg: float = 12.0   # walls angle slightly down/up so they're not all flat
+@export var belt_bee_stagger: float = 0.35       # seconds between bees leaving the same belt
 
 # ===== LASER SWEEP (only the head left) =====
 @export var sweep_first_delay: float = 2.0       # seconds after the last arm dies
@@ -140,7 +150,7 @@ signal defeated   # head is down and every part has finished dying
 @onready var right_arm: BossPartScript = $RightArm
 
 enum BadgerEyeState { READY, CHARGING, FIRING, COOLDOWN }
-enum BadgerClapPhase { IDLE, TO_BELT, RIDE, WINDUP, CLAP, RETURN }
+enum BadgerClapPhase { IDLE, TO_BELT, RIDE, WINDUP, CLAP, RETURN, SHAKE_GRAB, SHAKE }
 enum BadgerSweepPhase { IDLE, TO_START, CHARGE, FIRE, BACK }
 
 var _home := Vector2.ZERO
@@ -164,6 +174,7 @@ var _laser_shapes: Array[CollisionShape2D] = []
 var _clap_phase: BadgerClapPhase = BadgerClapPhase.IDLE
 var _clap_timer := 0.0
 var _clap_y := 0.0
+var _next_move_is_shake := false   # arm moves alternate: clap/punch, then shake
 var _arm_side := {}      # arm -> -1 (rides the left belt) or 1 (right belt)
 var _arm_rest_rot := {}  # arm -> its resting art rotation (jet pointing up)
 var _arm_turn := {}      # arm -> 0 (resting, jet up) .. 1 (turned sideways, jet pointing out)
@@ -471,7 +482,41 @@ func _process_clap(delta: float) -> void:
 		BadgerClapPhase.IDLE:
 			_clap_timer -= delta
 			if _clap_timer <= 0.0:
-				_clap_phase = BadgerClapPhase.TO_BELT
+				if _next_move_is_shake:
+					_clap_y = clampf(global_position.y + shake_grab_drop, 40.0, _screen.y - 40.0)
+					_clap_phase = BadgerClapPhase.SHAKE_GRAB
+				else:
+					_clap_phase = BadgerClapPhase.TO_BELT
+				_next_move_is_shake = not _next_move_is_shake
+
+		BadgerClapPhase.SHAKE_GRAB:
+			# Fly out and grab the belts, claws turned toward them.
+			var all_there := true
+			for arm in arms:
+				var target := Vector2(_belt_x(_arm_side[arm]), _clap_y)
+				if not _move_arm(arm, target, arm_to_belt_speed * delta):
+					all_there = false
+				_set_arm_turn(arm, move_toward(float(_arm_turn[arm]), -1.0, delta / maxf(arm_turn_time, 0.01)))
+			if all_there:
+				for arm in arms:
+					_set_arm_turn(arm, -1.0)
+				var arena = _get_arena()
+				if arena and arena.has_method("shake_side"):
+					for arm in arms:
+						arena.shake_side(_arm_side[arm], shake_time, shake_strength)
+				_clap_phase = BadgerClapPhase.SHAKE
+				_clap_timer = shake_time
+
+		BadgerClapPhase.SHAKE:
+			_clap_timer -= delta
+			for arm in arms:
+				arm.global_position = Vector2(_belt_x(_arm_side[arm]), _clap_y) \
+						+ Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake_strength
+			if _clap_timer <= 0.0:
+				for arm in arms:
+					_shake_off_belt(_arm_side[arm])
+				GameShell.shake_screen(0.3, 2.5)
+				_clap_phase = BadgerClapPhase.RETURN
 
 		BadgerClapPhase.TO_BELT:
 			# Fly sideways out onto the belts, staying at the same height.
@@ -549,7 +594,7 @@ func _process_clap(delta: float) -> void:
 				if not _move_arm(arm, home, arm_return_speed * delta):
 					all_home = false
 				# Turn back upright (jet pointing up) on the way home.
-				_set_arm_turn(arm, maxf(float(_arm_turn[arm]) - delta / maxf(arm_turn_time, 0.01), 0.0))
+				_set_arm_turn(arm, move_toward(float(_arm_turn[arm]), 0.0, delta / maxf(arm_turn_time, 0.01)))
 			if all_home:
 				for arm in arms:
 					arm.position = _arm_rest[arm]
@@ -608,30 +653,49 @@ func _belt_edge_x(side: int) -> float:
 
 
 func _belt_burst(side: int, y: float) -> void:
-	"""The lone arm just punched the belt on `side` at height y: the belt
-	sprays a 3-wall honey volley back across the screen (same walls and
-	spread as the hive enemy) and lets out bees that fly across to the far
-	side."""
-	GameShell.shake_screen(0.3, 3.0)
+	"""The lone arm just punched the belt on `side` at height y: a shockwave
+	bursts out from the impact (jump it, same as the clap's) and a bee flies
+	out of the belt across to the far side."""
+	var hit_point := Vector2(_belt_edge_x(side), y)
+	_release_shockwave(hit_point)
+	var arena = _get_arena()
+	if arena and arena.has_method("shake_side"):
+		arena.shake_side(side, 0.3, 2.0)
+	for i in punch_bee_count:
+		_spawn_belt_bee(side, y + randf_range(-20.0, 20.0), i * belt_bee_stagger)
+
+
+func _shake_off_belt(side: int) -> void:
+	"""A shaken belt throws off shake_walls_per_belt honey walls (spread down
+	its length, flying across the screen) and shake_bees_per_belt bees."""
 	var edge := _belt_edge_x(side)
-	var out := Vector2(-side, 0)   # away from the belt that was hit
-	var spread := deg_to_rad(honey_wall_spread_deg)
-	for dir in [out.rotated(spread), out, out.rotated(-spread)]:
+	var out := Vector2(-side, 0)   # away from the belt
+	var tilt := deg_to_rad(shake_wall_angle_deg)
+	var n := maxi(shake_walls_per_belt, 1)
+	for i in n:
+		# Spread down the belt; the two belts are offset half a step so their
+		# walls don't line up and collide in the middle.
+		var step := (_screen.y - 80.0) / n
+		var y: float = 40.0 + step * (i + (0.25 if side < 0 else 0.75))
+		var dir := out.rotated(randf_range(-tilt, tilt))
 		var wall := WALL_SCENE.instantiate()
 		GameShell.game_root().add_child(wall)
 		wall.start(Vector2(edge, y), dir)
+	for i in shake_bees_per_belt:
+		_spawn_belt_bee(side, randf_range(50.0, _screen.y * 0.6), i * belt_bee_stagger)
 
-	# Bees come out of the belt (spawned through the level so they score and
-	# count as enemies like any other) and fly across off the far side.
+
+func _spawn_belt_bee(side: int, y: float, delay: float) -> void:
+	"""One bee comes out of the belt on `side` at height y and flies across
+	(roughly - it weaves) to just off the far side of the screen. Spawned
+	through the level so it scores and counts as an enemy like any other."""
 	var level = get_parent()
 	if level == null or not level.has_method("spawn_solo"):
 		return
-	var belt_x := _belt_x(side)
+	var start_y := clampf(y, 30.0, _screen.y - 30.0)
+	var end_y := clampf(start_y + randf_range(-30.0, 30.0), 20.0, _screen.y - 20.0)
 	var far_x: float = _screen.x + 40.0 if side < 0 else -40.0
-	for i in punch_bee_count:
-		var offset: float = (i - (punch_bee_count - 1) * 0.5) * punch_bee_spacing
-		var bee_y: float = clampf(y + offset, 30.0, _screen.y - 30.0)
-		level.spawn_solo(BEE_SCENE, Vector2(belt_x, bee_y), Vector2(far_x, bee_y), i * punch_bee_stagger)
+	level.spawn_solo(BEE_SCENE, Vector2(_belt_x(side), start_y), Vector2(far_x, end_y), delay)
 
 
 func _speed_up_belts() -> void:

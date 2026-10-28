@@ -329,8 +329,13 @@ func spawn_enemy_at_position(x, y):
 		e.died.connect(_on_enemy_died)
 
 func _on_enemy_died(value):
-	score += value * score_multiplier
-	ui.update_score(score)
+	var gained: int = value * score_multiplier
+	score += gained
+	# Sparkly dust flies from the enemy to the HUD score and the displayed
+	# score climbs as it lands (GameShell / score_dust.gd). `score` itself is
+	# already final here. Falls back to a plain update if there's no HUD.
+	if not GameShell.score_dust(gained, score):
+		ui.update_score(score)
 	camera.add_trauma(0.5)
 	# Kill bonus on top of the damage points already earned through
 	# BaseEnemy.take_damage(). Also refreshes the HUD and the player's copy.

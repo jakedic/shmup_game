@@ -34,6 +34,28 @@ func start(_pos: Vector2) -> void:
 	pass
 
 
+# ===== HIT FLASH =====
+# BaseEnemy's flash_damage() remembers the CURRENT color, turns red, then
+# restores the remembered color after flash_duration. If a second hit lands
+# before that, the "remembered" color is already red - so it restores to red
+# and the part stays red for good. Boss parts get hit fast enough for that to
+# happen, so they use a simple countdown instead: every hit restarts it, and
+# when it runs out the part always goes back to its normal color.
+var _flash_left := 0.0
+
+
+func flash_damage():
+	modulate = flash_color
+	_flash_left = flash_duration
+
+
+func custom_process(delta: float):
+	if _flash_left > 0.0:
+		_flash_left -= delta
+		if _flash_left <= 0.0:
+			modulate = enemy_color
+
+
 func handle_boundaries():
 	# The parent boss handles where the part is - never reset it.
 	pass

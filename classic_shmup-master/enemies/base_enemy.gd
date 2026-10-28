@@ -410,8 +410,11 @@ func explode():
 	current_speed = 0
 	set_deferred("monitorable", false)
 	
-	# Emit died signal with score value
+	# Emit died signal with score value. The kill position is noted first so
+	# the level can send score dust from here to the HUD (GameShell.score_dust).
+	GameShell.note_kill_position(get_global_transform_with_canvas().origin)
 	died.emit(score_value)
+	GameShell.clear_kill_position()
 	
 	# Custom explosion
 	custom_explode()

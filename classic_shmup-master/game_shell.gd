@@ -36,6 +36,13 @@ const MULTIPLIER_BAR_SCRIPT := preload("res://multiplier_bar.gd")
 const JUMP_INDICATOR_SCRIPT := preload("res://jump_indicator.gd")
 const DIALOGUE_UI_SCRIPT := preload("res://dialogue_ui.gd")
 const INFO_CARD_SCRIPT := preload("res://info_card.gd")
+const SCORE_DUST_SCRIPT := preload("res://score_dust.gd")
+
+# Score pop when a mote of score dust lands (see score_dust.gd).
+const SCORE_PULSE_SCALE := 1.12       # x the normal digit scale
+const SCORE_PULSE_TIME := 0.14
+const SCORE_PULSE_COLOR := Color(1.0, 0.85, 0.35)
+const SCORE_DUST_TARGET_X := 0.8      # aim this far along the digits (low digits)
 
 # HUD art (Art assets/Hud assets). All sheets are 2048x2048 and drawn on the
 # same canvas. Hud_Asset.png holds two pieces that are used separately:
@@ -166,6 +173,13 @@ var _portrait_override: Texture2D = null
 var _portrait_hit_active := false
 var _portrait_cache := {}
 
+# Score dust (score_dust.gd): the displayed score lags the real score while
+# dust is flying to the counter. _score_target is the real total.
+var _score_dust: Node2D
+var _score_target := 0
+var _score_pulse_tween: Tween = null
+var _kill_pos := Vector2.INF   # play-area position of the enemy dying right now
+
 
 func _ready() -> void:
 	# The shell itself (and the container that forwards input into the game)
@@ -182,6 +196,7 @@ func _ready() -> void:
 	_build_panels()
 	_build_game_viewport()
 	_build_hud()
+	_build_score_dust()   # over the play area + panels, under dialogue
 	_build_dialogue()
 	_set_hud_visible(false)
 
@@ -357,11 +372,95 @@ func hud_detach() -> void:
 	if _hud_users == 0:
 		_set_hud_visible(false)
 		set_multiplier_timer(null)
+		if _score_dust:
+			_score_dust.clear()
 
 
 func update_score(value) -> void:
+	# Hard set (level start / reset): drop any dust still flying.
+	_score_target = int(value)
+	if _score_dust:
+		_score_dust.clear()
 	if _score_counter:
 		_score_counter.display_digits(value)
+
+
+# --- Score dust ---
+# BaseEnemy.explode() brackets its `died` signal with note_kill_position() /
+# clear_kill_position(), and BaseLevel._on_enemy_died() (which runs inside
+# that signal) calls score_dust(). That way every kill - including ones
+# relayed through squads / solos / boss parts - knows where it happened
+# without changing any of the died signals.
+
+func note_kill_position(play_pos: Vector2) -> void:
+	_kill_pos = play_pos
+
+
+func clear_kill_position() -> void:
+	_kill_pos = Vector2.INF
+
+
+## Award `gained` points with sparkly dust flying from the dying enemy to the
+## score counter; the counter climbs to `new_total` as the dust lands.
+## Returns false (and does nothing) when there's no kill position or no HUD,
+## in which case the caller should just update the score directly.
+func score_dust(gained: int, new_total: int) -> bool:
+	if _kill_pos == Vector2.INF or _hud_users == 0 or not _score_dust or not _score_counter:
+		return false
+	_score_target = new_total
+	_score_dust.burst(_play_to_dust_space(_kill_pos), gained)
+	_refresh_dust_score()
+	return true
+
+
+func _build_score_dust() -> void:
+	_score_dust = SCORE_DUST_SCRIPT.new()
+	_score_dust.name = "ScoreDust"
+	_score_dust.target_provider = _score_dust_target
+	_score_dust.mote_arrived.connect(_on_score_dust_arrived)
+	_ui.add_child(_score_dust)
+
+
+func _play_to_dust_space(play_pos: Vector2) -> Vector2:
+	# Play-area logical units -> container local (render pixels) -> global
+	# canvas -> the dust layer's local space.
+	var render_scale := Vector2(_viewport.size) / PLAY_SIZE
+	var global_pos: Vector2 = _container.get_global_transform() * (play_pos * render_scale)
+	return _score_dust.to_local(global_pos)
+
+
+func _score_dust_target() -> Vector2:
+	var r: Rect2 = _score_counter.get_global_rect()
+	var p := Vector2(r.position.x + r.size.x * SCORE_DUST_TARGET_X, r.position.y + r.size.y * 0.5)
+	return _score_dust.to_local(p)
+
+
+func _refresh_dust_score() -> void:
+	if _score_counter:
+		_score_counter.display_digits(max(_score_target - _score_dust.points_in_flight(), 0))
+
+
+func _on_score_dust_arrived(_points: int) -> void:
+	_refresh_dust_score()
+	_pulse_score()
+
+
+func _pulse_score() -> void:
+	if not _score_counter:
+		return
+	if _score_pulse_tween and _score_pulse_tween.is_valid():
+		_score_pulse_tween.kill()
+	# Scale from the digits' centre. Moving the pivot of an already-scaled
+	# Control shifts it, so offset position to keep the resting spot the same.
+	var pivot: Vector2 = _score_counter.size * 0.5
+	_score_counter.pivot_offset = pivot
+	_score_counter.position = SCORE_DIGITS_POS - pivot * (1.0 - SCORE_DIGITS_SCALE)
+	_score_counter.scale = Vector2.ONE * SCORE_DIGITS_SCALE * SCORE_PULSE_SCALE
+	_score_counter.modulate = SCORE_PULSE_COLOR
+	_score_pulse_tween = create_tween().set_parallel(true)
+	_score_pulse_tween.tween_property(_score_counter, "scale", Vector2.ONE * SCORE_DIGITS_SCALE, SCORE_PULSE_TIME) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_score_pulse_tween.tween_property(_score_counter, "modulate", Color.WHITE, SCORE_PULSE_TIME * 1.5)
 
 
 func update_shield(max_value, value) -> void:

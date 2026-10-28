@@ -54,6 +54,9 @@ var _tile_counts: Array[int] = []
 # 0 = belts fully up off the top of the screen, 1 = all the way down (normal).
 var _drop := 1.0
 var _drop_tween: Tween
+# Rattle per belt (index 0 = left, 1 = right): seconds left and strength (px).
+var _shake_left: Array[float] = [0.0, 0.0]
+var _shake_strength: Array[float] = [0.0, 0.0]
 
 
 func _ready() -> void:
@@ -126,8 +129,18 @@ func _build_side(tex: Texture2D, region: Rect2, left_x: float, is_left: bool) ->
 	_hurt_shapes.append(shape)
 
 
+## Rattle one belt side to side: side -1 = left belt, 1 = right belt. Used
+## by the badger boss when it grabs and shakes the belts.
+func shake_side(side: int, seconds: float, strength: float = 2.5) -> void:
+	var i := 0 if side < 0 else 1
+	_shake_left[i] = maxf(_shake_left[i], seconds)
+	_shake_strength[i] = strength
+
+
 func _process(delta: float) -> void:
 	_scroll += scroll_speed * delta
+	for i in 2:
+		_shake_left[i] = maxf(_shake_left[i] - delta, 0.0)
 	_update_belts()
 
 
@@ -140,6 +153,8 @@ func _update_belts() -> void:
 		# Entrance: shift the whole strip up by however much hasn't dropped yet.
 		y -= full_h * (1.0 - _drop)
 		_tile_rows[i].position.y = y
+		# Shaken belts jitter sideways (the hurtbox doesn't move with it).
+		_tile_rows[i].position.x = randf_range(-1.0, 1.0) * _shake_strength[i] if _shake_left[i] > 0.0 else 0.0
 		# Hurtbox covers only the part of the belt that's on screen so far.
 		var bottom: float = minf(y + full_h, _screen.y + 32.0)
 		var shape := _hurt_shapes[i]
