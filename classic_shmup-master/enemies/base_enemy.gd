@@ -418,13 +418,42 @@ func explode():
 	
 	# Custom explosion
 	custom_explode()
-	
-	# Wait for animation if exists
+
+	# New animated explosion (enemies/anim/enemy_explosion_frames.tres). It's
+	# its own node in the game world, so the enemy can go away right now.
+	if death_explosion:
+		if not is_queued_for_deletion():  # explode() can be hit twice in one frame
+			_spawn_death_explosion()
+		visible = false
+		queue_free()
+		return
+
+	# Old fallback: the per-scene "explode" AnimationPlayer animation.
 	if $AnimationPlayer.has_animation("explode"):
 		$AnimationPlayer.play("explode")
 		await $AnimationPlayer.animation_finished
 	
 	queue_free()
+
+# ===== DEATH EXPLOSION =====
+const OneShotAnim := preload("res://effects/one_shot_anim.gd")
+const EXPLOSION_FRAMES := preload("res://enemies/anim/enemy_explosion_frames.tres")
+## Size (texture px) of the explosion's final ring in the sprite sheet.
+const EXPLOSION_SHEET_DIAMETER := 200.0
+## Play the animated explosion when this enemy dies (off = old behavior).
+@export var death_explosion: bool = true
+## Final ring size in play-area px. 0 = auto from the hitbox size.
+@export var explosion_diameter: float = 0.0
+
+func _spawn_death_explosion() -> void:
+	var d := explosion_diameter
+	if d <= 0.0:
+		d = 26.0
+		var cs := get_node_or_null("CollisionShape2D") as CollisionShape2D
+		if cs and cs.shape:
+			var r := cs.shape.get_rect().size * cs.global_scale.abs()
+			d = clampf(maxf(r.x, r.y) * 1.6, 22.0, 64.0)
+	OneShotAnim.spawn(EXPLOSION_FRAMES, &"explode", global_position, d / EXPLOSION_SHEET_DIAMETER)
 
 func custom_explode():
 	"""Override this for custom explosion effects"""

@@ -25,6 +25,74 @@ static func update_sprite(player: Player) -> void:
 		if ship is Sprite2D:
 			ship.hframes = 3
 			ship.texture = player.default_sprite_texture
+	update_ship_anim(player, 0.0)
+
+# ===== ANIMATED SHIP (default form) =====
+# Ship/Anim (AnimatedSprite2D, player/anim/player_ship_frames.tres) draws the
+# frog in its default form with the idle / left / right animations. The Ship
+# Sprite2D underneath keeps doing everything it always did (form textures,
+# jump scale, spin, recoil, gray tint via use_parent_material) - while the
+# default texture is on it, its own art is just hidden (self_modulate) and
+# Anim shows instead. Any form that swaps Ship's texture automatically hides
+# Anim again, so the form sprites need no changes.
+
+static func update_ship_anim(player: Player, x_dir: float) -> void:
+	var ship := player.get_node_or_null("Ship") as Sprite2D
+	if ship == null:
+		return
+	var anim := ship.get_node_or_null("Anim") as AnimatedSprite2D
+	if anim == null:
+		return
+	var use_anim: bool = ship.texture == player.default_sprite_texture
+	anim.visible = use_anim
+	ship.self_modulate.a = 0.0 if use_anim else 1.0
+	if not use_anim:
+		return
+	var want: StringName = &"idle"
+	if x_dir > 0:
+		want = &"right"
+	elif x_dir < 0:
+		want = &"left"
+	if anim.animation != want:
+		# Same frame count in all three, so carry the frame over and the
+		# hand-glow cycle doesn't restart on every direction change.
+		var f := anim.frame
+		var prog := anim.frame_progress
+		anim.play(want)
+		anim.set_frame_and_progress(f, prog)
+	elif not anim.is_playing():
+		anim.play(want)
+
+static func mirror_ship(ship: Sprite2D, dst: Sprite2D) -> Vector2:
+	"""Copy what the ship is currently showing onto `dst` (used by the jump
+	shadow and the absorb-ready outline). Returns the extra scale to apply
+	on top of the Ship's own scale (Anim's scale when it's the one drawing)."""
+	var anim := ship.get_node_or_null("Anim") as AnimatedSprite2D
+	if anim and anim.visible and anim.sprite_frames and anim.sprite_frames.has_animation(anim.animation):
+		var tex := anim.sprite_frames.get_frame_texture(anim.animation, anim.frame)
+		if dst.texture != tex:
+			dst.texture = tex
+		dst.hframes = 1
+		dst.vframes = 1
+		dst.frame = 0
+		dst.region_enabled = false
+		dst.centered = anim.centered
+		dst.offset = anim.offset
+		dst.flip_h = anim.flip_h
+		dst.flip_v = anim.flip_v
+		return anim.scale
+	if dst.texture != ship.texture:
+		dst.texture = ship.texture
+	dst.hframes = ship.hframes
+	dst.vframes = ship.vframes
+	dst.frame = ship.frame
+	dst.region_enabled = ship.region_enabled
+	dst.region_rect = ship.region_rect
+	dst.centered = ship.centered
+	dst.offset = ship.offset
+	dst.flip_h = ship.flip_h
+	dst.flip_v = ship.flip_v
+	return Vector2.ONE
 
 static func animate_recoil(player: Player) -> void:
 	"""Play the ship recoil animation when shooting"""

@@ -31,6 +31,7 @@ var _pulse_t := 0.0
 
 
 func custom_ready():
+	death_explosion = false  # the bomb draws its own blast
 	can_shoot = false
 	can_dive = false
 	follow_anchor_enabled = false

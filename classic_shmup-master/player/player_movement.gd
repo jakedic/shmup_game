@@ -93,6 +93,7 @@ static func handle_movement(player: Player, delta: float) -> void:
 		# Special dash animation
 		player.get_node("Ship").frame = 1  # Forward frame during dash
 		player.get_node("Ship/Boosters").animation = "forward"
+		PlayerVisuals.update_ship_anim(player, 0.0)
 
 	# Apply movement
 	player.position += player.current_velocity * delta
@@ -106,6 +107,7 @@ static func can_player_dash(player: Player) -> bool:
 
 static func update_movement_animation(player: Player, x_input: float) -> void:
 	"""Update ship animation based on movement direction"""
+	PlayerVisuals.update_ship_anim(player, x_input)
 	if x_input > 0:
 		player.get_node("Ship").frame = 2
 		player.get_node("Ship/Boosters").animation = "right"

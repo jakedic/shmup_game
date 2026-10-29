@@ -402,8 +402,16 @@ func _clear_shockwave_charge() -> void:
 		remove_child(outline)
 		outline.queue_free()
 
+const OneShotAnim := preload("res://effects/one_shot_anim.gd")
+const POP_FRAMES := preload("res://player/anim/bubble_pop_frames.tres")
+## Bubble diameter (texture px) in the first frame of the pop sheet, and the
+## diameter of the bubble art inside Bubble_asset.png's region.
+const POP_SHEET_BUBBLE_DIAMETER := 105.5
+const BUBBLE_ART_DIAMETER := 415.0
+
 func pop_bubble():
 	"""Create a pop effect when bubble expires"""
+	_play_pop_animation()
 	# Optional: Add pop particles
 	if has_node("PopParticles"):
 		$PopParticles.emitting = true
@@ -746,3 +754,13 @@ func flash_white():
 
 func explode_or_disappear():
 	queue_free()
+
+func _play_pop_animation() -> void:
+	"""Bubble-popping animation (player/anim/bubble_pop_frames.tres), sized
+	to match this bubble on screen and carrying its tint."""
+	var spr := get_node_or_null("Sprite2D") as Node2D
+	var on_screen := BUBBLE_ART_DIAMETER * (spr.global_scale.x if spr else 0.0571)
+	var tint := modulate
+	if spr:
+		tint *= spr.modulate * spr.self_modulate
+	OneShotAnim.spawn(POP_FRAMES, &"pop", global_position, on_screen / POP_SHEET_BUBBLE_DIAMETER, tint)

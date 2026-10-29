@@ -20,14 +20,9 @@ class_name BeeEnemy
 @export var facing_min_speed: float = 1.0  # below this speed (px/s), keep last facing instead of jittering
 
 # ===== SPRITE FRAMES =====
-# The art sheet has 3 frames: tilt-left, straight, tilt-right. Only the
-# straight frame is actually used right now - while diving, the body
-# rotation (below) alone conveys turning (frame-swapping was tried there
-# and looked too clunky stacked on top of the rotation), and the idle
-# animation is a gentle rotation rock rather than a frame swap (see
-# idle_rock in enemy_yellow.tscn). Kept as named constants/frame=STRAIGHT
-# resets below so it's easy to bring frame-swapping back in either spot
-# later if wanted.
+# The bee is now an AnimatedSprite2D (enemies/anim/bee_frames.tres) driven by
+# enemies/anim/bee_sprite.gd: "idle" flying straight, "left"/"right" while
+# the body is turning. The old 3-frame sheet constants below are unused now.
 const FRAME_TILT_LEFT: int = 0
 const FRAME_STRAIGHT: int = 1
 const FRAME_TILT_RIGHT: int = 2
@@ -94,8 +89,6 @@ func custom_start(pos: Vector2):
 	dive_time = 0.0
 	dive_mode = "zigzag"
 	rotation = 0.0
-	if is_instance_valid($Sprite2D):
-		$Sprite2D.frame = FRAME_STRAIGHT
 	_start_idle_rock()
 
 func custom_dive():
@@ -128,7 +121,6 @@ func _stop_idle_rock():
 		$AnimationPlayer.stop()
 	if is_instance_valid($Sprite2D):
 		$Sprite2D.rotation = PI
-		$Sprite2D.frame = FRAME_STRAIGHT
 
 func custom_process(delta: float):
 	"""Called every frame after base_enemy already applied the vertical
@@ -256,8 +248,6 @@ func _charge_and_fire():
 	if is_diving:
 		charge_time += dive_shot_extra_pause
 		rotation = 0
-		if is_instance_valid($Sprite2D):
-			$Sprite2D.frame = FRAME_STRAIGHT  # face forward while frozen for the shot
 		charge_freeze_pos = position  # freeze the dive in place while charging
 		current_speed = 0
 

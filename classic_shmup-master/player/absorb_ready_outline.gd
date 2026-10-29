@@ -78,17 +78,10 @@ func _process(delta: float) -> void:
 
 
 func _sync() -> void:
-	if texture != _target.texture:
-		texture = _target.texture
-	hframes = _target.hframes
-	vframes = _target.vframes
-	frame = _target.frame
-	region_enabled = _target.region_enabled
-	region_rect = _target.region_rect
-	centered = _target.centered
-	offset = _target.offset
-	flip_h = _target.flip_h
-	flip_v = _target.flip_v
+	# Mirrors the animated frog's current frame in the default form.
+	var extra: Vector2 = PlayerVisuals.mirror_ship(_target, self)
 	rotation = _target.rotation
-	scale = _target.scale
+	scale = _target.scale * extra
 	position = _target.position
+	# Keep the border the same on-screen thickness whatever texture it hugs.
+	_mat.set_shader_parameter("width", outline_width / maxf(extra.x, 0.001))

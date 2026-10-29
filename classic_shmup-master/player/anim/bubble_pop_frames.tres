@@ -1,0 +1,137 @@
+[gd_resource type="SpriteFrames" format=3]
+
+[ext_resource type="Texture2D" path="res://player/anim/bubble_pop_sheet.png" id="1_sheet"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_0"]
+atlas = ExtResource("1_sheet")
+region = Rect2(0, 0, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_1"]
+atlas = ExtResource("1_sheet")
+region = Rect2(217, 0, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_2"]
+atlas = ExtResource("1_sheet")
+region = Rect2(434, 0, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_3"]
+atlas = ExtResource("1_sheet")
+region = Rect2(651, 0, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_4"]
+atlas = ExtResource("1_sheet")
+region = Rect2(868, 0, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_5"]
+atlas = ExtResource("1_sheet")
+region = Rect2(1085, 0, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_6"]
+atlas = ExtResource("1_sheet")
+region = Rect2(0, 217, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_7"]
+atlas = ExtResource("1_sheet")
+region = Rect2(217, 217, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_8"]
+atlas = ExtResource("1_sheet")
+region = Rect2(434, 217, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_9"]
+atlas = ExtResource("1_sheet")
+region = Rect2(651, 217, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_10"]
+atlas = ExtResource("1_sheet")
+region = Rect2(868, 217, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_11"]
+atlas = ExtResource("1_sheet")
+region = Rect2(1085, 217, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_12"]
+atlas = ExtResource("1_sheet")
+region = Rect2(0, 434, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_13"]
+atlas = ExtResource("1_sheet")
+region = Rect2(217, 434, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_14"]
+atlas = ExtResource("1_sheet")
+region = Rect2(434, 434, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_15"]
+atlas = ExtResource("1_sheet")
+region = Rect2(651, 434, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_16"]
+atlas = ExtResource("1_sheet")
+region = Rect2(868, 434, 217, 217)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pop_17"]
+atlas = ExtResource("1_sheet")
+region = Rect2(1085, 434, 217, 217)
+
+[resource]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_3")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_4")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_5")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_6")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_7")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_8")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_9")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_10")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_11")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_12")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_13")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_14")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_15")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_16")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_pop_17")
+}],
+"loop": false,
+"name": &"pop",
+"speed": 30.0
+}]

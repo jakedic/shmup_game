@@ -13,6 +13,7 @@
 [ext_resource type="Texture2D" uid="uid://2aa2aerwlxgm" path="res://Art assets/Player assets and transformations/Player_topdown_placeholder_transformation_sprite.png" id="6_b26j0"]
 [ext_resource type="Script" path="res://player/player_shadow.gd" id="7_shadow"]
 [ext_resource type="Script" path="res://player/absorb_ready_outline.gd" id="8_outline"]
+[ext_resource type="SpriteFrames" path="res://player/anim/player_ship_frames.tres" id="9_shipanim"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_rbfoc"]
 atlas = ExtResource("2_6cdot")
@@ -110,6 +111,13 @@ position = Vector2(-130, -9.469696)
 sprite_frames = SubResource("SpriteFrames_p6f8n")
 animation = &"forward"
 autoplay = "forward"
+
+[node name="Anim" type="AnimatedSprite2D" parent="Ship"]
+use_parent_material = true
+scale = Vector2(1.1, 1.41)
+sprite_frames = ExtResource("9_shipanim")
+animation = &"idle"
+autoplay = "idle"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1354655136]
 position = Vector2(-5.9604633e-07, -14.999998)

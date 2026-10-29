@@ -267,6 +267,15 @@ func _set_hittable(on: bool) -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	# The head can be removed WITHOUT dying - e.g. when the player dies, the
+	# level deletes everything in the "enemies" group (base_level.gd's
+	# _on_player_died()), which takes the head and arms but not this root
+	# node. Nothing is left to run, so tidy up and go.
+	# (A normal head kill sets _is_defeated first and is handled below.)
+	if not _is_defeated and (not is_instance_valid(head) or head.is_queued_for_deletion()):
+		_restore_belts()
+		queue_free()
+		return
 	if _is_defeated:
 		if get_parts().is_empty():
 			_restore_belts()

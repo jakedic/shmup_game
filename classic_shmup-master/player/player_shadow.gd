@@ -74,17 +74,8 @@ func _sync() -> void:
 
 	# Copy whatever the ship is currently showing (form swaps change
 	# texture/hframes, movement changes frame, dash changes rotation).
-	if texture != _target.texture:
-		texture = _target.texture
-	hframes = _target.hframes
-	vframes = _target.vframes
-	frame = _target.frame
-	region_enabled = _target.region_enabled
-	region_rect = _target.region_rect
-	centered = _target.centered
-	offset = _target.offset
-	flip_h = _target.flip_h
-	flip_v = _target.flip_v
+	# (or, in the default form, the animated frog's current frame).
+	var extra: Vector2 = PlayerVisuals.mirror_ship(_target, self)
 
 	rotation = _target.rotation
 
@@ -97,7 +88,7 @@ func _sync() -> void:
 		h = p.jump_height
 		if p.ship_base_scale != Vector2.ZERO:
 			base_scale = p.ship_base_scale
-	scale = base_scale * size_factor * lerpf(1.0, jump_size_mult, h)
+	scale = base_scale * extra * size_factor * lerpf(1.0, jump_size_mult, h)
 	position = _target.position + shadow_offset * lerpf(1.0, jump_offset_mult, h)
 	if _mat:
 		var c := shadow_color
