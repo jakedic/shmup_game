@@ -1,6 +1,7 @@
 # base_level.gd
 class_name BaseLevel
 extends Node2D
+const TestOptions := preload("res://test_options.gd")   # Test menu switches (see test_options.gd)
 
 # How many choices the end-of-level popup offers at once (see
 # _offer_run_powerup_choice()). If the player earned at least this many
@@ -224,6 +225,13 @@ func _set_total_multiplier_points(total: float) -> void:
 	score_multiplier = 1
 	multiplier_points = 0.0
 	_apply_multiplier_points(max(total, 0.0))
+	_apply_multiplier_floor()
+
+func _apply_multiplier_floor() -> void:
+	"""Test menu's "Always 4x multiplier" (TestOptions): never below 4x."""
+	if TestOptions.is_on(TestOptions.ALWAYS_MAX_MULTIPLIER) and score_multiplier < MAX_SCORE_MULTIPLIER:
+		score_multiplier = MAX_SCORE_MULTIPLIER
+		multiplier_points = 0.0
 
 func _lose_multiplier_points(points: float) -> void:
 	"""Take points off the running total, dropping levels as needed. Leaves
@@ -339,7 +347,11 @@ func _on_enemy_died(value):
 	camera.add_trauma(0.5)
 	# Kill bonus on top of the damage points already earned through
 	# BaseEnemy.take_damage(). Also refreshes the HUD and the player's copy.
-	add_multiplier_points(POINTS_PER_KILL)
+	# (x4 with the Test menu's "Kills charge multiplier x4" - TestOptions.)
+	var kill_points := POINTS_PER_KILL
+	if TestOptions.is_on(TestOptions.KILL_POINTS_X4):
+		kill_points *= 4.0
+	add_multiplier_points(kill_points)
 
 # ===== SQUAD HELPER =====
 # Shared by any level that wants squad-based enemies (groups that fly down
@@ -1116,6 +1128,7 @@ func new_game():
 	playing = true
 	_run_wave()
 	game_started()  # Optional callback
+	_refresh_multiplier_ui()   # shows 4x straight away with "Always 4x multiplier"
 
 # Virtual method - called when a new game starts
 func game_started():
@@ -1206,6 +1219,7 @@ func timeout_multiplier_timer():
 # Pushes the current multiplier + progress toward the next one to the HUD
 # (the side-panel multiplier bar - see game_shell.gd / multiplier_bar.gd).
 func _refresh_multiplier_ui() -> void:
+	_apply_multiplier_floor()
 	ui.update_score_multiplier(score_multiplier)
 	if ui.has_method("update_multiplier_progress"):
 		ui.update_multiplier_progress(multiplier_points, MULTIPLIER_POINTS_PER_LEVEL, score_multiplier >= _max_multiplier())

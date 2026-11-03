@@ -1,5 +1,10 @@
 extends Bullet
 class_name Bubble
+const TestOptions := preload("res://test_options.gd")   # Test menu switches (see test_options.gd)
+
+# Emitted every time this bubble paddle-bounces off the player, with how many
+# times THIS bubble has bounced off them so far (levels/tutorial.gd uses it).
+signal bounced_off_player(total_bounces: int)
 
 @export var bubble_scene: PackedScene  # The bubble projectile scene
 # Safety net only - the bubble now moves and bounces continuously (see
@@ -51,6 +56,7 @@ const PLAYER_BOUNCE_SPEED_MULTIPLIER_CAP := 1.75
 # since it spawns almost right on top of the player's own collision shape.
 const PLAYER_COLLISION_ARM_DISTANCE := 32.0
 
+var player_bounces: int = 0  # paddle-bounces off the player so far (see bounced_off_player)
 var base_speed: float = 0.0  # speed at spawn; caps how fast a paddle-bounce can make the bubble go
 var _player_collision_armed: bool = false
 
@@ -70,6 +76,15 @@ const BUBBLE_ATTRACTION_PULL_SPEED := 160.0  # direct extra pull toward the near
 # shockwave hit refreshes it back to the full count.
 const SHOCKWAVE_CHARGE_DAMAGE := 1
 const SHOCKWAVE_CHARGE_TOUCHES := 3
+# Test menu "Shot: powers up" (TestOptions): each bullet that hits the bubble
+# adds ONE charge - damage for one enemy hit / bounce off an enemy - stacking
+# up to SHOT_CHARGE_MAX. Bouncing off the ship doesn't use them up. The outline shows one ring per stored charge.
+const SHOT_CHARGE_MAX := 3
+# Test menu "Jump: bubble sends shockwave": after a short delay the bubble
+# sends out this many landing-style rings, one after another.
+const BUBBLE_SHOCKWAVE_COUNT := 3
+const BUBBLE_SHOCKWAVE_FIRST_DELAY := 0.15   # seconds before the first ring
+const BUBBLE_SHOCKWAVE_GAP := 0.3            # seconds between rings
 const SHOCKWAVE_CHARGE_SPEED_MULT := 1.12
 const SHOCKWAVE_OUTLINE_COLOR := Color(0.3, 0.7, 1.0, 1.0)
 var is_shockwave_charged: bool = false
@@ -78,6 +93,10 @@ var _charge_touches_left: int = 0  # player touches left before the charge ends
 # SHOCKWAVE_TOUCH_GRACE of that doesn't clear it - covers landing right next
 # to the bubble, where the ship's touch and the shockwave arrive together.
 var _charged_at: float = -1.0
+# Damage "source" the charge's hits are tagged with: "bubble_charged" when a
+# jump charged it, "bubble_shot_charged" when a shot did (TestOptions).
+var _charge_source: String = "bubble_charged"
+var _shot_charged: bool = false   # current charge came from bullets (stacks, one bounce each)
 const SHOCKWAVE_TOUCH_GRACE := 0.25
 
 # Solo bubbles show the enemy type they carry as a small tinted circle
@@ -120,6 +139,8 @@ class ChargeOutline extends Node2D:
 	## solo bubble, power-bubble glow, white hit flash) doesn't recolor it.
 	var color: Color = Color(0.3, 0.7, 1.0, 1.0)
 	var radius: float = 12.5
+	var rings: int = 1          # stacked shot charges show one ring each
+	const RING_GAP := 3.0
 	var _t: float = 0.0
 
 	func _ready() -> void:
@@ -132,7 +153,33 @@ class ChargeOutline extends Node2D:
 	func _draw() -> void:
 		# Gentle pulse so it reads as "energized" rather than a static border.
 		var a: float = 0.65 + 0.35 * sin(_t * 10.0)
-		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 32, Color(1, 1, 1, a), 2.0)
+		for i in maxi(rings, 1):
+			draw_arc(Vector2.ZERO, radius + i * RING_GAP, 0.0, TAU, 32, Color(1, 1, 1, a * (1.0 - i * 0.2)), 2.0 if i == 0 else 1.5)
+
+class ShockwaveBurst extends Node2D:
+	## Sends out BUBBLE_SHOCKWAVE_COUNT landing-style rings from a bubble, one
+	## after another (Test menu "Jump: bubble sends shockwave"). Its own node
+	## so the rings keep coming even if the bubble pops - they come from
+	## wherever the bubble was last.
+	var bubble_ref: WeakRef
+	var _t: float = 0.0
+	var _sent: int = 0
+
+	func _process(delta: float) -> void:
+		var b = bubble_ref.get_ref() if bubble_ref else null
+		if is_instance_valid(b) and not b.is_queued_for_deletion():
+			global_position = b.global_position
+		_t += delta
+		var next_at: float = Bubble.BUBBLE_SHOCKWAVE_FIRST_DELAY + _sent * Bubble.BUBBLE_SHOCKWAVE_GAP
+		if _t >= next_at:
+			var wave := LandingShockwave.new()
+			wave.from_bubble = true
+			wave.damage_source = "bubble_shockwave"
+			get_parent().add_child(wave)
+			wave.global_position = global_position
+			_sent += 1
+			if _sent >= Bubble.BUBBLE_SHOCKWAVE_COUNT:
+				queue_free()
 
 func _ready():
 	# Connect to area entered signal
@@ -177,6 +224,8 @@ func _remove_type_core() -> void:
 func custom_start():
 	"""Initialize bubble behavior"""
 	time_elapsed = 0.0
+	# Test menu's bubble Speed slider (5 = normal, 0 = still, 10 = double).
+	speed *= TestOptions.bubble_speed_scale()
 	base_speed = speed
 	_player_collision_armed = false
 
@@ -320,10 +369,14 @@ func _bounce_off_player(player: Node2D) -> void:
 	ending the charge on the last one - unless the charge was applied a
 	moment ago (the touch and the landing shockwave arrived together), in
 	which case the touch doesn't count."""
-	if is_shockwave_charged and time_elapsed - _charged_at > SHOCKWAVE_TOUCH_GRACE:
+	# (Shot charges aren't used up by the ship - only by enemies, see
+	# _use_shot_charge().)
+	if is_shockwave_charged and not _shot_charged and time_elapsed - _charged_at > SHOCKWAVE_TOUCH_GRACE:
 		_charge_touches_left -= 1
 		if _charge_touches_left <= 0:
 			_clear_shockwave_charge()
+		else:
+			_refresh_charge_outline()
 
 	var half_extents := _get_player_half_extents(player)
 	# clamp() returns Variant in GDScript even with all-float arguments, so
@@ -357,26 +410,137 @@ func _bounce_off_player(player: Node2D) -> void:
 	# Multiplier points for keeping the bubble in play (POINTS_PER_BUBBLE_BOUNCE).
 	GameShell.multiplier_on_bubble_bounce()
 
-func on_shockwave_hit(center: Vector2) -> void:
-	"""Called by LandingShockwave when its ring reaches this bubble. Bounces
-	off the ring like off a wall (reflect if heading into it; if already
-	heading away it just keeps going), then charges the bubble."""
-	var normal: Vector2 = global_position - center
+	player_bounces += 1
+	bounced_off_player.emit(player_bounces)
+
+func _on_shot(bullet: Area2D) -> void:
+	"""A player bullet hit this bubble. What happens is set by the Test
+	menu (TestOptions) - any mix of:
+	  explodes (normal) - pops in a big explosion (pop_bubble())
+	  powers up         - each bullet adds one charge (damage for one enemy
+	                      hit / bounce), stacking up to SHOT_CHARGE_MAX
+	  bounces           - gets knocked away from the bullet
+	  passes through    - the bullet isn't used up: it does any of the above
+	                      and keeps going to hit whatever is behind
+	With none of the first three on, shots just pass through the bubble."""
+	var explodes := TestOptions.is_on(TestOptions.BUBBLE_SHOT_EXPLODES)
+	var charges := TestOptions.is_on(TestOptions.BUBBLE_SHOT_CHARGES)
+	var bounces := TestOptions.is_on(TestOptions.BUBBLE_SHOT_BOUNCES)
+	if not (explodes or charges or bounces):
+		return
+	if not TestOptions.is_on(TestOptions.BUBBLE_SHOT_PASSES):
+		bullet.queue_free()
+	if explodes:
+		# Multiplier points for shooting it (POINTS_PER_BUBBLE_SHOT_POP) -
+		# the explosion's damage earns its own damage points on top.
+		GameShell.multiplier_on_bubble_shot_pop()
+		pop_bubble()
+		queue_free()
+		return
+	if bounces:
+		_bounce_off_bullet(bullet)
+		GameShell.multiplier_on_bubble_bounce()
+	if charges:
+		_become_shockwave_charged("bubble_shot_charged")
+	flash_white()
+
+func _bounce_off_bullet(bullet: Node2D) -> void:
+	"""Knocked straight away from where the bullet hit (bullets come up from
+	below, so this mostly sends it back up), like a ball hit by a ball."""
+	var away: Vector2 = global_position - bullet.global_position
+	if away.length() < 0.01:
+		away = Vector2.UP
+	direction = away.normalized()
+	global_position += direction * 2.0
+
+func _bounce_away_from(point: Vector2) -> void:
+	"""Reflect off something at `point` like off a wall: if heading into it,
+	bounce; if already heading away, keep going."""
+	var normal: Vector2 = global_position - point
 	if normal.length() < 0.01:
-		normal = Vector2.UP
+		normal = -direction if direction.length() > 0.01 else Vector2.UP
 	normal = normal.normalized()
 	if direction.dot(normal) < 0.0:
 		direction = direction.bounce(normal).normalized()
 	global_position += normal * 2.0
-	flash_white()
-	_become_shockwave_charged()
 
-func _become_shockwave_charged() -> void:
-	# Re-hit while already charged: refresh the grace timer and the touch
-	# count back to the full SHOCKWAVE_CHARGE_TOUCHES.
-	_charged_at = time_elapsed
-	_charge_touches_left = SHOCKWAVE_CHARGE_TOUCHES
-	if is_shockwave_charged:
+func on_shockwave_hit(center: Vector2) -> void:
+	"""Called by LandingShockwave when the player's jump-landing ring reaches
+	this bubble ("jumping on it"). What happens is set by the Test menu
+	(TestOptions) - any mix of:
+	  shockwave         - the bubble sends out its own landing-style ring
+	  regain power      - pops, and the player gets the bubble's
+	                      transformation back (a power bubble gives its
+	                      power-up instead). Only if the player is in their
+	                      normal form and the bubble is carrying something.
+	  pops + explodes   - pops in a big explosion (like shooting it)
+	  powers up (normal)- bounces off the ring and becomes charged
+	If it doesn't pop, it always bounces off the ring."""
+	if TestOptions.is_on(TestOptions.BUBBLE_JUMP_SHOCKWAVE):
+		_send_shockwave()
+
+	var regained := false
+	if TestOptions.is_on(TestOptions.BUBBLE_JUMP_REGAINS):
+		regained = _give_power_to_player()
+	if TestOptions.is_on(TestOptions.BUBBLE_JUMP_EXPLODES):
+		pop_bubble("bubble_jump_pop")
+		queue_free()
+		return
+	if regained:
+		_play_pop_animation()   # just the pop - no explosion
+		queue_free()
+		return
+
+	_bounce_away_from(center)
+	flash_white()
+	if TestOptions.is_on(TestOptions.BUBBLE_JUMP_CHARGES):
+		_become_shockwave_charged("bubble_charged")
+
+func _send_shockwave() -> void:
+	"""BUBBLE_SHOCKWAVE_COUNT of the player's landing rings (player/
+	landing_shockwave.gd) coming out of the bubble one after another, after
+	a short delay - see ShockwaveBurst. The rings don't touch bubbles
+	themselves, so two bubbles can't set each other off forever."""
+	var parent := get_parent()
+	if parent == null:
+		return
+	var burst := ShockwaveBurst.new()
+	burst.bubble_ref = weakref(self)
+	parent.add_child(burst)
+	burst.global_position = global_position
+
+func _give_power_to_player() -> bool:
+	"""Hand this bubble's power back to the player: a solo bubble's
+	transformation, or a power bubble's power-up. Returns false (and does
+	nothing) if there's nothing to give or the player is already
+	transformed."""
+	var player = get_tree().get_first_node_in_group("player")
+	if not (player is Player) or not player.is_alive:
+		return false
+	if is_power_bubble:
+		apply_powerup_to_player(player)
+		return true
+	if absorbed_enemy_type == "" or player.current_form != 'default':
+		return false
+	PlayerAbsorption.absorb_complete(player, absorbed_enemy_type)
+	return true
+
+func _become_shockwave_charged(source: String = "bubble_charged") -> void:
+	_charge_source = source
+	var was_charged := is_shockwave_charged
+	if source == "bubble_shot_charged":
+		# Each bullet adds one charge = one enemy hit, up to SHOT_CHARGE_MAX
+		# (see _use_shot_charge()). The ship doesn't use them up.
+		_charge_touches_left = mini(_charge_touches_left + 1, SHOT_CHARGE_MAX) if was_charged else 1
+		_shot_charged = true
+	else:
+		# Jump charge. Re-hit while already charged: refresh the grace timer
+		# and the touch count back to the full SHOCKWAVE_CHARGE_TOUCHES.
+		_charged_at = time_elapsed
+		_charge_touches_left = maxi(_charge_touches_left, SHOCKWAVE_CHARGE_TOUCHES)
+		_shot_charged = false
+	if was_charged:
+		_refresh_charge_outline()
 		return
 	is_shockwave_charged = true
 	speed *= SHOCKWAVE_CHARGE_SPEED_MULT
@@ -387,6 +551,22 @@ func _become_shockwave_charged() -> void:
 	outline.name = "ChargeOutline"
 	outline.color = SHOCKWAVE_OUTLINE_COLOR
 	add_child(outline)
+	_refresh_charge_outline()
+
+func _use_shot_charge() -> void:
+	"""A shot-charged bubble hit (and bounced off, with "Bounces off
+	enemies") an enemy: that uses up one of its stacked charges."""
+	_charge_touches_left -= 1
+	if _charge_touches_left <= 0:
+		_clear_shockwave_charge()
+	else:
+		_refresh_charge_outline()
+
+func _refresh_charge_outline() -> void:
+	"""One ring per stored shot charge; a jump charge is a single ring."""
+	var outline := get_node_or_null("ChargeOutline")
+	if outline:
+		outline.rings = _charge_touches_left if _shot_charged else 1
 
 func _clear_shockwave_charge() -> void:
 	"""Back to a normal bubble: no outline, no enemy damage, speed boost
@@ -395,6 +575,7 @@ func _clear_shockwave_charge() -> void:
 		return
 	is_shockwave_charged = false
 	_charge_touches_left = 0
+	_shot_charged = false
 	speed /= SHOCKWAVE_CHARGE_SPEED_MULT
 	base_speed /= SHOCKWAVE_CHARGE_SPEED_MULT
 	var outline := get_node_or_null("ChargeOutline")
@@ -409,8 +590,10 @@ const POP_FRAMES := preload("res://player/anim/bubble_pop_frames.tres")
 const POP_SHEET_BUBBLE_DIAMETER := 105.5
 const BUBBLE_ART_DIAMETER := 415.0
 
-func pop_bubble():
-	"""Create a pop effect when bubble expires"""
+func pop_bubble(damage_source: String = "bubble_pop"):
+	"""Pop with a big explosion that damages every enemy nearby.
+	damage_source tags those hits (see BaseEnemy.death_context) - "bubble_pop"
+	when shot, "bubble_jump_pop" when jumped on."""
 	_play_pop_animation()
 	# Optional: Add pop particles
 	if has_node("PopParticles"):
@@ -421,9 +604,9 @@ func pop_bubble():
 	#     $PopSound.play()
 	
 	# Optional: Add a small area damage effect when bubble pops
-	create_pop_damage()
+	create_pop_damage(damage_source)
 
-func create_pop_damage():
+func create_pop_damage(damage_source: String = "bubble_pop"):
 	"""Create explosion damage (or, with the yellow_bubble_pollen_pop
 	power-up active, guaranteed pollination instead of damage) using a
 	simple timer approach"""
@@ -460,7 +643,7 @@ func create_pop_damage():
 	var damage_amount = damage * 3
 	for enemy in enemies_in_range:
 		if enemy.has_method("take_damage"):
-			enemy.take_damage(damage_amount)
+			enemy.take_damage(damage_amount, {"source": damage_source})
 		elif enemy.has_method("explode"):
 			enemy.explode()
 	
@@ -567,26 +750,19 @@ func _on_area_entered(area: Area2D):
 	# effect on the bubble itself, and enemy bullets are still ignored.
 	if area.is_in_group("enemies") or area.is_in_group("enemy"):
 		if is_shockwave_charged and area.has_method("take_damage"):
-			area.take_damage(SHOCKWAVE_CHARGE_DAMAGE)
+			area.take_damage(SHOCKWAVE_CHARGE_DAMAGE, {"source": _charge_source})
+			if _shot_charged:
+				_use_shot_charge()
+		# Test option: bounce off enemies like off the stage walls.
+		if TestOptions.is_on(TestOptions.BUBBLE_ENEMY_BOUNCE):
+			_bounce_away_from(area.global_position)
 		return
 	if area.is_in_group("enemy_bullet"):
 		return
 
 	# NEW: Check if hit by player's bullet
 	if area.is_in_group("player_bullet") or area.is_in_group("player_projectile"):
-		
-		# Remove the player bullet
-		area.queue_free()
-		
-		# Multiplier points for shooting it (POINTS_PER_BUBBLE_SHOT_POP) -
-		# the explosion's damage below earns its own damage points on top.
-		GameShell.multiplier_on_bubble_shot_pop()
-
-		# Create explosion damage
-		pop_bubble()
-		
-		# Remove the bubble
-		queue_free()
+		_on_shot(area)
 		return
 func _try_merge_with_bubble(other: Bubble) -> void:
 	"""Two overlapping bubbles fuse into one power bubble. Both bubbles get

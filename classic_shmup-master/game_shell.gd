@@ -36,6 +36,7 @@ const MULTIPLIER_BAR_SCRIPT := preload("res://multiplier_bar.gd")
 const JUMP_INDICATOR_SCRIPT := preload("res://jump_indicator.gd")
 const DIALOGUE_UI_SCRIPT := preload("res://dialogue_ui.gd")
 const INFO_CARD_SCRIPT := preload("res://info_card.gd")
+const TUTORIAL_PANEL_SCRIPT := preload("res://tutorial_panel.gd")
 const SCORE_DUST_SCRIPT := preload("res://score_dust.gd")
 
 # Score pop when a mote of score dust lands (see score_dust.gd).
@@ -167,6 +168,9 @@ var _absorb_prompt_t := 0.0
 # over the play area. Levels use them through BaseLevel.say()/talk().
 var _dialogue: Control
 var _info_card: Control   # tutorial cards (info_card.gd) - see BaseLevel.show_info()
+# Instructions + challenge checkbox at the top of the right panel
+# (tutorial_panel.gd) - see set_tutorial_panel() and levels/tutorial.gd.
+var _tutorial_panel: Control
 # Face of whoever is talking right now (null = the pilot's neutral face).
 # Shown whenever the portrait isn't busy showing the nervous "hit" face.
 var _portrait_override: Texture2D = null
@@ -315,6 +319,27 @@ func clear_dialogue() -> void:
 		_dialogue.clear_all()
 	if _info_card:
 		_info_card.clear()
+
+
+# --- Tutorial panel (top of the right side panel - see tutorial_panel.gd) ---
+
+## Show instructions + a challenge with a checkbox. `state` is
+## 0 = in progress (empty box), 1 = done (green check), 2 = failed (red X). challenge "" = no
+## challenge row; progress "" = no "(3/10)" after it. Cleared on scene change.
+func set_tutorial_panel(title: String, text: String, challenge: String = "", progress: String = "", state: int = 0) -> void:
+	if _tutorial_panel:
+		_tutorial_panel.set_content(title, text, challenge, progress, state)
+
+
+## Fade the tutorial panel in (call after set_tutorial_panel()).
+func fade_in_tutorial_panel() -> void:
+	if _tutorial_panel:
+		_tutorial_panel.fade_in()
+
+
+func clear_tutorial_panel() -> void:
+	if _tutorial_panel:
+		_tutorial_panel.clear()
 
 
 ## Turn a dialogue "portrait" value into a texture for the HUD portrait.
@@ -623,6 +648,7 @@ func _do_change_scene(path: String) -> void:
 	# area (bullets, effects...), so nothing carries over between scenes.
 	# Dialogue too (releases anything still awaiting a line).
 	clear_dialogue()
+	clear_tutorial_panel()
 	for child in _viewport.get_children():
 		_viewport.remove_child(child)
 		child.queue_free()
@@ -813,6 +839,10 @@ func _build_hud() -> void:
 
 
 func _build_dialogue() -> void:
+	# Under the dialogue boxes / info cards, so their dimming covers it too.
+	_tutorial_panel = TUTORIAL_PANEL_SCRIPT.new()
+	_tutorial_panel.name = "TutorialPanel"
+	_ui.add_child(_tutorial_panel)
 	_dialogue = DIALOGUE_UI_SCRIPT.new()
 	_dialogue.name = "Dialogue"
 	_dialogue.shell = self
@@ -1003,6 +1033,14 @@ func _layout() -> void:
 		_info_card.position = Vector2.ZERO
 		_info_card.size = vis
 		_info_card.set_layout(Rect2(play_pos, PLAY_SIZE))
+	# Tutorial panel: top of the right panel, above the stats box.
+	if _tutorial_panel:
+		_tutorial_panel.position = Vector2.ZERO
+		_tutorial_panel.size = vis
+		var right_x := play_pos.x + PLAY_SIZE.x
+		var panel_bottom := _stats_box.position.y - HUD_MARGIN
+		_tutorial_panel.set_layout(Rect2(right_x + HUD_MARGIN, play_pos.y + HUD_MARGIN,
+			max(side_w_right - HUD_MARGIN * 2.0, 40.0), max(panel_bottom - play_pos.y - HUD_MARGIN, 20.0)))
 
 
 func _fit_hud_piece(piece: Control, panel_x: float, panel_w: float, max_w: float, bottom: float) -> void:

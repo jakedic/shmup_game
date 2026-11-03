@@ -202,6 +202,9 @@ var form_flash_elapsed: float = 0.0
 # can_dash, which are cooldown flags the player's own code flips constantly.
 var shoot_enabled: bool = true
 var jump_enabled: bool = true
+# Off = K does nothing (no absorb beam, no bubble) and the absorb-ready
+# white border + side-HUD prompt stay hidden (PlayerAbsorption.is_absorb_ready()).
+var absorb_enabled: bool = true
 var is_absorbing: int = 0
 var current_velocity: Vector2 = Vector2.ZERO
 var time_since_last_damage: float = 0.0
@@ -343,7 +346,8 @@ func _process(delta):
 
 func process_input(delta):
 	"""Process all player input"""
-	handle_absorb_input()
+	if absorb_enabled:
+		handle_absorb_input()
 	handle_movement(delta)
 	if shoot_enabled:
 		handle_shoot_input(delta)

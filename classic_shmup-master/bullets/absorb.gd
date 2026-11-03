@@ -72,6 +72,7 @@ func _on_area_entered(area):
 
 # bullet_boomerang.gd
 extends Area2D
+const TestOptions := preload("res://test_options.gd")   # Test menu switches (see test_options.gd)
 
 var speed = 300
 var direction = Vector2.UP
@@ -221,7 +222,11 @@ func _exit_tree():
 
 func _on_area_entered(area):
 	if area.is_in_group("enemies") and not has_hit_enemy:
-		if not area.has_method("get_enemy_type"):
+		# Test option (TestOptions.ABSORB_ASTROIDS): plain astroids can be
+		# absorbed too, and give the gray form.
+		var absorb_astroid: bool = area is AstroidEnemy and not area.has_method("get_enemy_type") \
+			and TestOptions.is_on(TestOptions.ABSORB_ASTROIDS)
+		if not area.has_method("get_enemy_type") and not absorb_astroid:
 			# This enemy has no absorbable type (e.g. enemies/yellow_miniboss.gd's
 			# BeeMiniboss, which extends BaseEnemy directly and never defines
 			# get_enemy_type()). Previously this fell through to
@@ -233,7 +238,7 @@ func _on_area_entered(area):
 			# power is granted.
 			return
 		# Grab the type first - die() can free/alter the enemy.
-		hit_enemy_type = area.get_enemy_type()
+		hit_enemy_type = "gray" if absorb_astroid else area.get_enemy_type()
 		has_hit_enemy = true
 		returning = true
 		# Kill the enemy outright. explode() alone only played the animation:

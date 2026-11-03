@@ -14,7 +14,7 @@ static func is_absorb_ready(player: Player) -> bool:
 	multiplier, off cooldown, untransformed, not already absorbing). Drives
 	the flashing white border around the ship (absorb_ready_outline.gd)
 	and the "hit the button" prompt in the side HUD (game_shell.gd)."""
-	return is_instance_valid(player) and player.is_alive and player.can_absorb \
+	return is_instance_valid(player) and player.is_alive and player.absorb_enabled and player.can_absorb \
 		and not player.currently_absorbing and player.current_form == 'default' \
 		and player.score_multiplier >= ABSORB_REQUIRED_MULTIPLIER
 

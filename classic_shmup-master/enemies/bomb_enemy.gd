@@ -67,7 +67,8 @@ func _blast() -> void:
 		if "is_alive" in e and not e.is_alive:
 			continue
 		if e.global_position.distance_to(center) <= blast_radius and e.has_method("take_damage"):
-			e.take_damage(blast_damage)
+			# A bomb set off by this blast remembers what set off THIS one.
+			e.take_damage(blast_damage, {"source": "bomb_blast", "chained_from": death_context})
 
 	var fx := BlastFx.new()
 	fx.radius = blast_radius

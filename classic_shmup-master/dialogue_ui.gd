@@ -18,8 +18,10 @@
 #   CENTER BOX (talk) - sits over the middle of the play area with the game
 #                      dimmed behind it, and the game is PAUSED while it's up
 #                      (BaseLevel.talk() does the pausing). Text types out;
-#                      pressing shoot / start finishes the line, pressing again
-#                      goes to the next line, or closes the box after the last.
+#                      pressing SPACE (or shoot / start) finishes the line,
+#                      pressing again goes to the next line, or closes the box
+#                      after the last. A blinking "Press SPACE to continue"
+#                      line under the text shows once the line has typed out.
 #
 # Both show an optional speaker name above the text, and while a line is up
 # the HUD portrait (bottom left) swaps to that line's "portrait" (if it has
@@ -52,6 +54,9 @@ const SIDE_TEXT_FONT_SIZE := 8
 const CENTER_MARGIN := 10.0          # gap between the center box and the play-area edges
 const CENTER_NAME_FONT_SIZE := 10
 const CENTER_TEXT_FONT_SIZE := 9
+const PROMPT_FONT_SIZE := 7          # "Press SPACE to continue" (same size as the info cards')
+const PROMPT_TEXT := "Press SPACE to continue"
+const PROMPT_CHOICE_TEXT := "Press SPACE to select"
 
 var shell: Node = null   # GameShell - set by it; used for the portrait swap
 
@@ -75,7 +80,7 @@ var _dim: ColorRect
 var _center_panel: PanelContainer
 var _center_name: Label
 var _center_text: Label
-var _center_prompt: Control
+var _center_prompt: Label
 var _talk_lines: Array = []
 var _talk_index := -1
 var _talk_active := false
@@ -257,11 +262,15 @@ func _process_center(delta: float) -> void:
 			_center_text.visible_characters = -1
 		else:
 			_center_text.visible_characters = int(_center_chars)
-	# Blinking "next" arrow once the line has fully typed out.
+	# Blinking "Press SPACE to continue" once the line has fully typed out.
+	# Faded via alpha (not hidden) so the box doesn't change size.
 	var done_typing := _center_text.visible_characters == -1
 	_prompt_t += delta
 	var has_choices := not _choice_labels.is_empty()
-	_center_prompt.visible = done_typing and not has_choices and fmod(_prompt_t, 0.8) < 0.5
+	if not done_typing:
+		_center_prompt.modulate.a = 0.0
+	else:
+		_center_prompt.modulate.a = 1.0 if fmod(_prompt_t, 1.0) < 0.65 else 0.35
 	if has_choices and done_typing and not _choice_box.visible:
 		_choice_box.visible = true
 		_refresh_choices()
@@ -285,6 +294,9 @@ func _input(event: InputEvent) -> void:
 			_refresh_choices()
 			return
 	var advance := event.is_action_pressed("shoot") or event.is_action_pressed("start")
+	# SPACE always advances, whatever the shoot binding is.
+	if event is InputEventKey and (event.physical_keycode == KEY_SPACE or event.keycode == KEY_SPACE):
+		advance = true
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		advance = true
 	if not advance:
@@ -323,8 +335,9 @@ func _show_center_line(index: int) -> void:
 	_center_chars = 0.0
 	_center_grace = INPUT_GRACE
 	_prompt_t = 0.0
-	_center_prompt.visible = false
+	_center_prompt.modulate.a = 0.0
 	_build_choices(line.get("choices", []))
+	_center_prompt.text = PROMPT_CHOICE_TEXT if not _choice_labels.is_empty() else PROMPT_TEXT
 
 
 func _build_choices(choices: Array) -> void:
@@ -503,19 +516,9 @@ func _build_center_box() -> void:
 	_choice_box.add_theme_constant_override("separation", 0)
 	vb.add_child(_choice_box)
 
-	# Little blinking "next" triangle in the bottom-right corner.
-	var row := Control.new()
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.custom_minimum_size = Vector2(0, 5)
-	vb.add_child(row)
-	_center_prompt = Control.new()
-	_center_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_center_prompt.set_anchors_preset(Control.PRESET_FULL_RECT)
-	row.add_child(_center_prompt)
-	_center_prompt.draw.connect(_draw_prompt)
-
-
-func _draw_prompt() -> void:
-	var x := _center_prompt.size.x - 2.0
-	_center_prompt.draw_colored_polygon(PackedVector2Array([
-		Vector2(x - 6, 0), Vector2(x, 0), Vector2(x - 3, 4)]), NAME_COLOR)
+	# Blinking "Press SPACE to continue" line under the text.
+	_center_prompt = _make_label(PROMPT_FONT_SIZE, BOX_BORDER_COLOR, false)
+	_center_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_center_prompt.text = PROMPT_TEXT
+	_center_prompt.modulate.a = 0.0
+	vb.add_child(_center_prompt)

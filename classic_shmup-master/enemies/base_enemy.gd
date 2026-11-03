@@ -64,6 +64,10 @@ var squad_controlled: bool = false
 # any future status condition actually does, that's all in each status's
 # own StatusEffectHandler. See status_effects/status_effect_handler.gd.
 var status_effects: Dictionary = {}
+# The `context` this enemy died with (see take_damage()/die()) - e.g.
+# {"source": "bubble_pop"}. Set just before `died` is emitted, so a
+# listener can tell HOW it was killed (levels/tutorial.gd's bomb challenges).
+var death_context: Dictionary = {}
 
 # ===== ARMOR (gray outline) =====
 # Each point of armor ignores 1 damage from every hit: armor 1 turns a 3-damage
@@ -331,6 +335,7 @@ func die(context: Dictionary = {}):
 		return
 	
 	is_alive = false
+	death_context = context
 	
 	# Stop all timers
 	$MoveTimer.stop()

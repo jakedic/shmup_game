@@ -294,7 +294,7 @@ func handle_enemy_collision(area: Area2D):
 		# Damage the enemy
 		var enemy_died = false
 		if area.has_method("take_damage"):
-			enemy_died = await area.take_damage(damage)
+			enemy_died = await area.take_damage(damage, {"source": "bullet", "penetrating": penetration_count > 0})
 		elif area.has_method("explode"):
 			area.explode()
 			enemy_died = true
@@ -372,7 +372,7 @@ func handle_enemy_body_collision(body: Node2D):
 	
 	var enemy_died = false
 	if body.has_method("take_damage"):
-		enemy_died = body.take_damage(damage)
+		enemy_died = body.take_damage(damage, {"source": "bullet", "penetrating": penetration_count > 0})
 	
 	if not enemy_died:
 		_maybe_inflict_status_effect(body)

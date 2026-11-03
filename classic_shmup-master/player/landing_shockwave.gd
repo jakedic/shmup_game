@@ -17,6 +17,12 @@ var duration: float = 0.35
 ## Extra reach so the ring counts as touching an enemy's edge, not just its center.
 var hit_padding: float = 6.0
 var ring_color: Color = Color(0.75, 0.9, 1.0, 0.9)
+## True for a ring a bubble sent out (Bubble._send_shockwave(), a Test menu
+## option) - those don't touch bubbles, so bubbles can't set each other off
+## in an endless loop.
+var from_bubble: bool = false
+## What the ring's hits are tagged with (see BaseEnemy.death_context).
+var damage_source: String = "jump_landing"
 
 var _t: float = 0.0
 var _radius: float = 0.0
@@ -48,6 +54,8 @@ func _hit_enemies_in_range() -> void:
 func _hit_bubbles_in_range() -> void:
 	"""The player's own bubbles get knocked away by the ring and become
 	"shockwave charged" (see Bubble.on_shockwave_hit())."""
+	if from_bubble:
+		return
 	for b in get_tree().get_nodes_in_group("bubble"):
 		if not is_instance_valid(b) or b.is_queued_for_deletion() or _hit_bubbles.has(b):
 			continue
@@ -68,7 +76,7 @@ func hit(target: Node) -> void:
 		return
 	_hit.append(target)
 	if target.has_method("take_damage"):
-		target.take_damage(damage)
+		target.take_damage(damage, {"source": damage_source})
 	elif target.has_method("explode"):
 		target.explode()
 
