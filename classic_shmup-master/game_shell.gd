@@ -38,6 +38,7 @@ const DIALOGUE_UI_SCRIPT := preload("res://dialogue_ui.gd")
 const INFO_CARD_SCRIPT := preload("res://info_card.gd")
 const TUTORIAL_PANEL_SCRIPT := preload("res://tutorial_panel.gd")
 const SCORE_DUST_SCRIPT := preload("res://score_dust.gd")
+const POWERUP_HUD_SCRIPT := preload("res://powerup_hud.gd")
 
 # Score pop when a mote of score dust lands (see score_dust.gd).
 const SCORE_PULSE_SCALE := 1.12       # x the normal digit scale
@@ -171,6 +172,8 @@ var _info_card: Control   # tutorial cards (info_card.gd) - see BaseLevel.show_i
 # Instructions + challenge checkbox at the top of the right panel
 # (tutorial_panel.gd) - see set_tutorial_panel() and levels/tutorial.gd.
 var _tutorial_panel: Control
+var _powerup_hud: Control   # left panel, above the portrait: one square per power-up (powerup_hud.gd)
+const POWERUP_HUD_ROWS := 4  # rows of power-up squares kept free above the portrait
 # Face of whoever is talking right now (null = the pilot's neutral face).
 # Shown whenever the portrait isn't busy showing the nervous "hit" face.
 var _portrait_override: Texture2D = null
@@ -200,6 +203,7 @@ func _ready() -> void:
 	_build_panels()
 	_build_game_viewport()
 	_build_hud()
+	_build_powerup_hud()
 	_build_score_dust()   # over the play area + panels, under dialogue
 	_build_dialogue()
 	_set_hud_visible(false)
@@ -844,6 +848,29 @@ func _build_hud() -> void:
 	_build_absorb_prompt()
 
 
+func _build_powerup_hud() -> void:
+	_powerup_hud = POWERUP_HUD_SCRIPT.new()
+	_powerup_hud.name = "PowerupHud"
+	_ui.add_child(_powerup_hud)
+
+
+## Keyboard browsing of the power-up squares from the pause menu (see
+## pause_menu_keys.gd / powerup_hud.gd). begin() returns false if the player
+## has no power-ups; move() returns false when moving off the right-hand end
+## (back to the pause menu).
+func powerup_browse_begin() -> bool:
+	return _powerup_hud != null and _powerup_hud.browse_begin()
+
+
+func powerup_browse_move(dir: Vector2i) -> bool:
+	return _powerup_hud != null and _powerup_hud.browse_move(dir)
+
+
+func powerup_browse_end() -> void:
+	if _powerup_hud:
+		_powerup_hud.browse_end()
+
+
 func _build_dialogue() -> void:
 	# Under the dialogue boxes / info cards, so their dimming covers it too.
 	_tutorial_panel = TUTORIAL_PANEL_SCRIPT.new()
@@ -986,6 +1013,8 @@ func _set_hud_visible(v: bool) -> void:
 		_portrait_frame.visible = v
 	if _stats_box:
 		_stats_box.visible = v
+	if _powerup_hud:
+		_powerup_hud.visible = v
 
 
 func _layout() -> void:
@@ -1026,12 +1055,25 @@ func _layout() -> void:
 	_fit_hud_piece(_portrait_frame, 0.0, side_w_left, PORTRAIT_MAX_WIDTH, bottom)
 	_fit_hud_piece(_stats_box, 0.0, side_w_right, STATS_BOX_MAX_WIDTH, bottom)
 
-	# Dialogue: side box fills the left panel above the portrait; center box
-	# goes over the play area.
+	# Power-up squares (powerup_hud.gd): a strip right above the portrait,
+	# lined up with its left edge and as wide as it. Room for
+	# POWERUP_HUD_ROWS rows is always kept free, so the side dialogue box
+	# never covers them.
+	var portrait_w: float = _portrait_frame.size.x * _portrait_frame.scale.x
+	var powerup_strip_h: float = POWERUP_HUD_SCRIPT.height_for_rows(POWERUP_HUD_ROWS)
+	var powerup_strip_bottom: float = _portrait_frame.position.y - HUD_MARGIN
+	if _powerup_hud:
+		_powerup_hud.position = Vector2.ZERO
+		_powerup_hud.size = vis
+		_powerup_hud.set_layout(Rect2(_portrait_frame.position.x, powerup_strip_bottom - powerup_strip_h,
+			portrait_w, powerup_strip_h))
+
+	# Dialogue: side box fills the left panel above the power-up squares;
+	# center box goes over the play area.
 	if _dialogue:
 		_dialogue.position = Vector2.ZERO
 		_dialogue.size = vis
-		var side_bottom := _portrait_frame.position.y - HUD_MARGIN
+		var side_bottom := powerup_strip_bottom - powerup_strip_h - HUD_MARGIN
 		var side_rect := Rect2(HUD_MARGIN, HUD_MARGIN,
 			max(side_w_left - HUD_MARGIN * 2.0, 40.0), max(side_bottom - HUD_MARGIN, 20.0))
 		_dialogue.set_layout(Rect2(play_pos, PLAY_SIZE), side_rect)

@@ -287,9 +287,18 @@ func _sync_player_stats():
 	speed = s.speed
 	acceleration = s.acceleration
 	deceleration = s.deceleration
-	max_shield = s.max_shield
-	if shield > max_shield:
-		shield = max_shield  # never top the player back up just from a stat change
+	# int(): health multipliers (Reinforced Hull x1.5 etc.) can make it
+	# fractional. If max health goes UP mid-level (a health power-up), the
+	# extra is added to current health too, so the bar fills by that much
+	# rather than showing an empty gap. If it goes down, clamp.
+	var old_max_shield := max_shield
+	max_shield = int(round(s.max_shield))
+	if old_max_shield > 0 and max_shield > old_max_shield and is_alive:
+		shield = shield + (max_shield - old_max_shield)
+	elif shield > max_shield:
+		shield = max_shield
+	else:
+		shield_changed.emit(max_shield, shield)   # HUD bar picks up the new max
 	shield_regen_rate = s.shield_regen_rate
 	shield_regen_delay = s.shield_regen_delay
 	shoot_cooldown = max(0.05, s.shoot_cooldown)

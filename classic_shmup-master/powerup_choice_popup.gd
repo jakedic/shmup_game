@@ -1,4 +1,5 @@
 extends Control
+const MenuKeys := preload("res://menu_keys.gd")   # shared menu keys: WASD/arrows + J/Space/Enter
 
 ## Shown once per level - after the last wave is cleared, when the run is
 ## being driven by the overworld (see GameProgress) - offering the player a
@@ -52,6 +53,8 @@ var _default_bg_color: Color = Color.BLACK
 # The power-up dicts currently on display, index-matched to `cards`.
 var _offered: Array = []
 
+var _opened_msec := 0   # when show_choices() opened it - see MenuKeys.too_soon()
+
 # Which card is currently highlighted via keyboard Left/Right.
 var cursor_index: int = 0
 
@@ -64,6 +67,17 @@ func _ready() -> void:
 		_card_panel_styles.append(panel_style)
 	if not _card_panel_styles.is_empty():
 		_default_bg_color = _card_panel_styles[0].bg_color
+	# Level line per card ("LV 2/3 - Speed x1.75") for leveled power-ups,
+	# added in code so no level scene needs editing. Hidden otherwise.
+	for card in cards:
+		var vbox: Node = card.get_node("Margin/VBoxContainer")
+		var level_label := Label.new()
+		level_label.name = "LevelLabel"
+		level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		level_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		level_label.add_theme_font_size_override("font_size", 8)
+		vbox.add_child(level_label)
+		vbox.move_child(level_label, 1)   # right under the name
 
 
 func show_choices(powerups: Array) -> void:
@@ -84,6 +98,14 @@ func show_choices(powerups: Array) -> void:
 			_card_names.append(powerup.get("name", "Power-Up").to_upper())
 			var description_label: Label = card.get_node("Margin/VBoxContainer/DescriptionLabel")
 			description_label.text = powerup.get("description", "")
+			# display_level = the level picking this card gives you (see
+			# BaseLevel._offer_run_powerup_choice()).
+			var level_label: Label = card.get_node("Margin/VBoxContainer/LevelLabel")
+			var badge := PlayerPowerUps.level_badge_text(powerup.get("display_level", 0), powerup.get("max_level", 1))
+			var summary: String = powerup.get("level_summary", "")
+			level_label.visible = badge != ""
+			level_label.text = badge if summary == "" else "%s\n%s" % [badge, summary]
+			level_label.add_theme_color_override("font_color", PlayerPowerUps.level_color(powerup.get("display_level", 0)))
 			card.show()
 		else:
 			_card_accents.append(Color.WHITE)
@@ -91,6 +113,7 @@ func show_choices(powerups: Array) -> void:
 			card.hide()
 
 	_update_selection_highlight()
+	_opened_msec = Time.get_ticks_msec()
 	show()
 	_play_pop_in()
 
@@ -106,11 +129,14 @@ func _update_selection_highlight() -> void:
 		var card: PanelContainer = cards[i]
 		var style: StyleBoxFlat = _card_panel_styles[i]
 		var accent: Color = _card_accents[i]
+		# Border = level color (blue/red/gold) for leveled power-ups.
+		var level: int = _offered[i].get("display_level", 0)
+		var border: Color = PlayerPowerUps.level_color(level) if level > 0 else accent
 		var name_label: Label = card.get_node("Margin/VBoxContainer/NameLabel")
 		var is_selected := i == cursor_index
 
 		if is_selected:
-			style.border_color = accent.lightened(0.5)
+			style.border_color = border.lightened(0.3)
 			style.bg_color = accent.darkened(0.6)
 			style.border_width_left = 4
 			style.border_width_top = 4
@@ -120,7 +146,7 @@ func _update_selection_highlight() -> void:
 			name_label.text = "> %s <" % _card_names[i]
 			name_label.add_theme_color_override("font_color", accent.lightened(0.5))
 		else:
-			style.border_color = accent
+			style.border_color = border
 			style.bg_color = _default_bg_color
 			style.border_width_left = 2
 			style.border_width_top = 2
@@ -159,8 +185,12 @@ func _input(event: InputEvent) -> void:
 			_update_selection_highlight()
 			get_viewport().set_input_as_handled()
 
-	if event.is_action_pressed("start"):
+	if MenuKeys.is_confirm(event):
 		get_viewport().set_input_as_handled()
+		# Ignore select for a moment after opening - the player was probably
+		# still firing when the level ended.
+		if MenuKeys.too_soon(_opened_msec, 700):
+			return
 		_choose(cursor_index)
 
 

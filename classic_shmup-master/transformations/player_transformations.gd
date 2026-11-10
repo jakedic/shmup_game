@@ -110,8 +110,9 @@ static func transform_flower(player: Player) -> void:
 	_start_placeholder_form(player, "flower", Color(1.0, 0.45, 0.8))
 
 # How strongly the cigar version of the gray form's shots curve toward the
-# nearest enemy (see bullets/bullet.gd update_homing()). Low = light homing.
-const GRAY_HOMING_STRENGTH := 3.0
+# nearest enemy - max turn rate in radians/second (see bullets/bullet.gd
+# update_homing()). Same as the Seeker Rounds power-up at level 1.
+const GRAY_HOMING_STRENGTH := 1.2
 
 static func transform_gray(player: Player) -> void:
 	"""Gray form (from absorbing a gray enemy - enemies/gray_enemy.gd):

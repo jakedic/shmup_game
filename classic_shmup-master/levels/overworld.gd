@@ -1,4 +1,5 @@
 extends Control
+const MenuKeys := preload("res://menu_keys.gd")   # shared menu keys: WASD/arrows + J/Space/Enter
 
 # Space-themed overworld map. Draws the planet graph tracked by
 # GameProgress (autoload) and lets the player pick a path with
@@ -57,6 +58,9 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+var _opened_msec := Time.get_ticks_msec()   # see MenuKeys.too_soon()
+
+
 func _input(event: InputEvent) -> void:
 	if showing_victory:
 		return
@@ -67,7 +71,7 @@ func _input(event: InputEvent) -> void:
 		elif event.is_action_pressed("left"):
 			cursor_index = (cursor_index - 1 + available.size()) % available.size()
 
-	if event.is_action_pressed("start") and available.size() > 0:
+	if MenuKeys.is_confirm(event) and available.size() > 0 and not MenuKeys.too_soon(_opened_msec):
 		var chosen_id: int = available[cursor_index]
 		set_process(false)
 		GameProgress.select_and_play(chosen_id)

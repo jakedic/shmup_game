@@ -1,4 +1,5 @@
 extends Control
+const MenuKeys := preload("res://menu_keys.gd")   # shared menu keys: WASD/arrows + J/Space/Enter
 
 ## Space-themed shop screen, reached by landing on the overworld's shop layer
 ## (see GameProgress.SHOP_LAYER_INDEX / is_shop_node()). Offers 3 random
@@ -68,6 +69,9 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+var _opened_msec := Time.get_ticks_msec()   # see MenuKeys.too_soon()
+
+
 func _input(event: InputEvent) -> void:
 	if cursor_row == 0 and offered.size() > 1:
 		if event.is_action_pressed("right"):
@@ -80,7 +84,7 @@ func _input(event: InputEvent) -> void:
 	elif event.is_action_pressed("up") and cursor_row == 1 and not offered.is_empty():
 		cursor_row = 0
 
-	if event.is_action_pressed("start"):
+	if MenuKeys.is_confirm(event) and not MenuKeys.too_soon(_opened_msec):
 		_activate_cursor()
 
 
@@ -97,7 +101,7 @@ func _try_purchase(index: int) -> void:
 	if not Stats.spend_currency(ABILITY_COST):
 		return  # can't afford it - no-op
 	var powerup: Dictionary = offered[index]
-	Stats.choose_run_powerup(powerup.get("id", ""), powerup.get("stats", {}))
+	PlayerPowerUps.grant_for_run(powerup.get("id", ""))
 	purchased[index] = true
 
 
@@ -157,6 +161,14 @@ func _draw_card(index: int, font: Font) -> void:
 
 	_draw_wrapped_text(font, name_text, x + 6, CARD_TOP + 16, CARD_WIDTH - 12, 8, text_color)
 	_draw_wrapped_text(font, desc_text, x + 6, CARD_TOP + 40, CARD_WIDTH - 12, 7, Color(0.82, 0.84, 0.9))
+
+	# Leveled power-ups: show the level buying it gives you (see
+	# PlayerPowerUps "POWER-UP LEVELS").
+	if PlayerPowerUps.is_leveled(powerup):
+		var pid: String = powerup.get("id", "")
+		var shown_level: int = Stats.get_run_powerup_level(pid) + (0 if is_bought else 1)
+		var badge := PlayerPowerUps.level_badge_text(shown_level, PlayerPowerUps.get_max_level(powerup))
+		draw_string(font, Vector2(x + 6, CARD_TOP + CARD_HEIGHT - 20), badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 7, PlayerPowerUps.level_color(shown_level))
 
 	var status_text := "OWNED" if is_bought else "%d G" % ABILITY_COST
 	var status_color := Color(0.4, 0.85, 0.55) if is_bought else (Color(1.0, 0.85, 0.35) if can_afford else Color(0.8, 0.4, 0.4))

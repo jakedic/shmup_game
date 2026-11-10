@@ -16,6 +16,11 @@ const HIT_INVINCIBILITY_DURATION := 1.0
 const HIT_BLINK_INTERVAL := 0.07     # seconds per half-blink
 const HIT_BLINK_ALPHA := 0.25        # how see-through the ship gets on the "off" beat
 
+# Armor (gray Plating power-up, Stats "player"/"armor") can never take a hit
+# below this much damage - otherwise armor 1 would make the player immune to
+# every 1-damage enemy bullet.
+const ARMOR_MIN_DAMAGE := 1
+
 static func take_damage(player: Player, damage_amount: int = 1) -> void:
 	"""Take damage from enemies or hazards"""
 	if not player.is_alive:
@@ -23,6 +28,10 @@ static func take_damage(player: Player, damage_amount: int = 1) -> void:
 	# Still blinking from the last hit - ignore.
 	if player.is_hit_invincible:
 		return
+
+	var armor: int = int(Stats.get_stat("player", "armor"))
+	if armor > 0:
+		damage_amount = maxi(damage_amount - armor, mini(damage_amount, ARMOR_MIN_DAMAGE))
 
 	player.shield -= damage_amount
 	player.time_since_last_damage = 0.0

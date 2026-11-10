@@ -2,6 +2,9 @@
 class_name BaseLevel
 extends Node2D
 const TestOptions := preload("res://test_options.gd")   # Test menu switches (see test_options.gd)
+const TEST_POWERUP_PICKER_SCRIPT := preload("res://test_powerup_picker.gd")
+const MenuKeys := preload("res://menu_keys.gd")   # shared menu keys: WASD/arrows + J/Space/Enter
+const PAUSE_MENU_KEYS_SCRIPT := preload("res://pause_menu_keys.gd")
 
 # How many choices the end-of-level popup offers at once (see
 # _offer_run_powerup_choice()). If the player earned at least this many
@@ -128,6 +131,13 @@ func _ready():
 	powerup_popup.continue_pressed.connect(_on_powerup_popup_continue_pressed)
 	powerup_choice_popup.hide()
 	powerup_choice_popup.powerup_chosen.connect(_on_run_powerup_chosen)
+	if TestOptions.launched_from_test_menu:
+		_add_test_powerup_button()
+	# Keyboard controls for the pause menu (buttons + browsing the power-up
+	# squares) - see pause_menu_keys.gd.
+	var pause_keys := PAUSE_MENU_KEYS_SCRIPT.new()
+	pause_keys.name = "PauseMenuKeys"
+	pause_menu.add_child(pause_keys)
 	Stats.powerup_collected.connect(_on_powerup_collected)
 	setup_enemy_anchor_animation()
 	initialize_level()
@@ -337,7 +347,11 @@ func spawn_enemy_at_position(x, y):
 		e.died.connect(_on_enemy_died)
 
 func _on_enemy_died(value):
-	var gained: int = value * score_multiplier
+	# Gray Bounty Hunter power-up (Stats "player"/"kill_score_mult") scales
+	# every kill's points. Fractions are carried over to later kills so the
+	# average is exact (see PlayerPowerUps.whole_damage()).
+	var gained: int = PlayerPowerUps.whole_damage("kill_score",
+		float(value * score_multiplier) * float(Stats.get_stat("player", "kill_score_mult")))
 	score += gained
 	# Sparkly dust flies from the enemy to the HUD score and the displayed
 	# score climbs as it lands (GameShell / score_dust.gd). `score` itself is
@@ -1056,6 +1070,15 @@ func _offer_run_powerup_choice() -> void:
 		if not gray_powerup.is_empty():
 			offered_powerups.append(gray_powerup)
 
+	# Tag each card with the level picking it gives you (run level + 1) so
+	# the cards can show e.g. "LV 2/3" (see PlayerPowerUps.with_level_info()).
+	var labeled: Array = []
+	for powerup: Dictionary in offered_powerups:
+		var pid: String = powerup.get("id", "")
+		var next_level: int = mini(Stats.get_run_powerup_level(pid) + 1, PlayerPowerUps.get_max_level(powerup))
+		labeled.append(PlayerPowerUps.with_level_info(powerup, next_level))
+	offered_powerups = labeled
+
 	if offered_powerups.is_empty():
 		# Only possible if the player earned nothing AND GRAY_POWERUPS is
 		# somehow empty - nothing to offer, so skip straight to reporting
@@ -1081,7 +1104,7 @@ func _unique_collected_powerup_ids() -> Array:
 	return unique_ids
 
 func _on_run_powerup_chosen(powerup: Dictionary) -> void:
-	Stats.choose_run_powerup(powerup.get("id", ""), powerup.get("stats", {}))
+	PlayerPowerUps.grant_for_run(powerup.get("id", ""))
 	is_powerup_choice_active = false
 	# Unpause the tree BEFORE switching scenes (see _on_quit_pressed() for
 	# why - loading the overworld while still paused would leave it unable
@@ -1151,7 +1174,7 @@ func _on_auto_start_timeout():
 
 func _input(event):
 	# Use the action you created in Input Map
-	if event.is_action_pressed("start"):
+	if MenuKeys.is_confirm(event):
 		# Only start if we're at the start screen
 		if start_button.visible and not playing:
 			_on_start_pressed()
@@ -1179,23 +1202,94 @@ func resume_game():
 func _on_continue_pressed():
 	resume_game()
 
+# ===== TEST MODE: give power-ups from the pause menu =====
+# Only when the level was launched from the Test menu
+# (TestOptions.launched_from_test_menu). Adds a "Test: Power-ups" button to
+# the pause menu that opens test_powerup_picker.gd; GIVE grants every ticked
+# power-up for the rest of the level and shows their info popups one after
+# another (see show_powerup_popup()'s queue).
+var _test_powerup_picker: Control = null
+
+func _add_test_powerup_button() -> void:
+	var vbox := pause_menu.get_node_or_null("CenterContainer/VBoxContainer")
+	if vbox == null:
+		return
+	var button := Button.new()
+	button.name = "TestPowerupsButton"
+	button.text = "Test: Power-ups"
+	button.pressed.connect(_open_test_powerup_picker)
+	vbox.add_child(button)
+	var quit_button := vbox.get_node_or_null("QuitButton")
+	if quit_button:
+		vbox.move_child(button, quit_button.get_index())
+
+	_test_powerup_picker = TEST_POWERUP_PICKER_SCRIPT.new()
+	_test_powerup_picker.name = "TestPowerupPicker"
+	pause_menu.get_parent().add_child(_test_powerup_picker)
+	_test_powerup_picker.give_requested.connect(_on_test_powerups_given)
+	_test_powerup_picker.back_requested.connect(_on_test_powerup_picker_back)
+
+func _open_test_powerup_picker() -> void:
+	pause_menu.hide()
+	_test_powerup_picker.open()
+
+func _on_test_powerup_picker_back() -> void:
+	pause_menu.show()
+
+func _on_test_powerups_given(picks: Array) -> void:
+	"""picks: [{"id": ..., "level": ..., "remove": bool}] from the picker -
+	level is the exact level to set (0 for power-ups without levels);
+	remove = take it away completely (no popup)."""
+	if picks.is_empty():
+		pause_menu.show()
+		return
+	# Leave the pause menu but keep the tree paused - the power-up popups
+	# take over the pause and unpause once the last one is dismissed.
+	is_paused = false
+	for pick: Dictionary in picks:
+		if pick.get("remove", false):
+			PlayerPowerUps.remove_for_test(pick["id"])
+		else:
+			PlayerPowerUps.set_level_for_test(pick["id"], pick["level"])
+	# Only removals = no popups to dismiss, so go back to the pause menu
+	# (where the squares on the left now show what's left).
+	if not is_powerup_popup_active:
+		is_paused = true
+		pause_menu.show()
+
 func _on_powerup_collected(powerup_id: String) -> void:
-	# Stats.add_powerup() already applied the power-up's stat changes by the
-	# time this fires - this just looks up its name/description for display
-	# and pauses the game until the player acknowledges it.
+	# Stats already applied the power-up's stat changes by the time this
+	# fires - this just looks up its name/description (and, for a leveled
+	# power-up, the level it just reached) for display and pauses the game
+	# until the player acknowledges it. Captured NOW, not when the popup
+	# opens, so several pickups queued back-to-back each show their own level.
 	var powerup: Dictionary = PlayerPowerUps.get_powerup_by_id(powerup_id)
+	var shown := PlayerPowerUps.with_level_info(powerup, Stats.get_powerup_level(powerup_id))
 	var accent_color: Color = PlayerPowerUps.get_accent_color_for_powerup_id(powerup_id)
-	show_powerup_popup(powerup, accent_color)
+	show_powerup_popup(shown, accent_color)
+
+# Popups waiting their turn. Several power-ups granted at once (e.g. the
+# test pause menu's GIVE) show one after another, each dismissed in turn.
+var _powerup_popup_queue: Array = []   # of {"powerup": Dictionary, "accent": Color}
 
 func show_powerup_popup(powerup: Dictionary, accent_color: Color = PlayerPowerUps.DEFAULT_ACCENT_COLOR) -> void:
 	# Same pattern as pause_game() - get_tree().paused = true halts
 	# gameplay's _process/_physics_process, while the popup (process_mode
 	# "Always", set in the level scene) keeps working so it can be dismissed.
+	_powerup_popup_queue.append({"powerup": powerup, "accent": accent_color})
 	is_powerup_popup_active = true
 	get_tree().paused = true
-	powerup_popup.show_powerup(powerup, accent_color)
+	if not powerup_popup.visible:
+		_show_next_powerup_popup()
+
+func _show_next_powerup_popup() -> void:
+	var next: Dictionary = _powerup_popup_queue.pop_front()
+	powerup_popup.show_powerup(next["powerup"], next["accent"])
 
 func _on_powerup_popup_continue_pressed() -> void:
+	if not _powerup_popup_queue.is_empty():
+		_show_next_powerup_popup()
+		return
 	is_powerup_popup_active = false
 	powerup_popup.hide()
 	get_tree().paused = false
@@ -1206,6 +1300,7 @@ func _on_quit_pressed():
 	is_paused = false
 	is_powerup_popup_active = false
 	is_powerup_choice_active = false
+	_powerup_popup_queue.clear()
 	get_tree().paused = false
 	playing = false
 	GameShell.change_scene("res://levels/title_screen.tscn")

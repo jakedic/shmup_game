@@ -82,6 +82,23 @@ static func create_bullet(bullet_type: PackedScene) -> Node2D:
 		return null
 	return bullet_type.instantiate()
 
+# Leftover fraction of a damage point carried from shot to shot - see
+# _whole_damage_for_next_shot().
+static var _damage_carry: float = 0.0
+
+static func _whole_damage_for_next_shot(damage: float) -> int:
+	"""Enemy health is whole numbers, but multipliers (Sharpened Rounds x1.5 /
+	x1.75, the gray form's x1.5) make damage fractional. Rounding would turn
+	1.5, 1.75 and 2 all into 2. Instead each shot does the whole part, and the
+	fraction builds up until it adds an extra point to a shot - so the
+	average is exact: x1.5 -> 1,2,1,2...  x1.75 -> 1,2,2,2...  x2 -> 2,2,2."""
+	var whole := floori(damage)
+	_damage_carry += damage - whole
+	if _damage_carry >= 0.999:
+		_damage_carry -= 1.0
+		whole += 1
+	return whole
+
 static func configure_bullet(bullet: Node2D) -> void:
 	"""Apply the player's current bullet stats (from Stats) to a freshly
 	spawned bullet, overriding whatever the bullet scene's script set as
@@ -90,9 +107,7 @@ static func configure_bullet(bullet: Node2D) -> void:
 	if b.is_empty():
 		return
 	if bullet.has_method("set_damage"):
-		# round(): multiplier modifiers (e.g. the gray form's 1.5x) can make
-		# damage fractional, but enemy health/armor work in whole numbers.
-		bullet.set_damage(int(round(b.damage)))
+		bullet.set_damage(_whole_damage_for_next_shot(float(b.damage)))
 	if bullet.has_method("set_speed"):
 		bullet.set_speed(b.speed)
 	if bullet.has_method("set_pierce_count"):
@@ -105,6 +120,8 @@ static func configure_bullet(bullet: Node2D) -> void:
 		bullet.homing_enabled = b.homing_enabled
 	if "homing_strength" in bullet:
 		bullet.homing_strength = b.homing_strength
+	if "face_direction" in bullet:
+		bullet.face_direction = true   # point the shot along its path (matters for homing)
 	# Status-effect infliction for the primary shot (see bullets/bullet.gd) -
 	# off by default, only set by power-ups like yellow_piercing_pollen.
 	if "status_effect_name" in bullet:

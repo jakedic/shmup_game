@@ -13,6 +13,12 @@
 #                              clear_run_modifiers() whenever a run starts or
 #                              resets (see GameProgress.start_new_run() /
 #                              reset_run()) - i.e. they go away on a loss.
+#   leveled power-ups       -> power-ups with LEVELS (see "POWER-UP LEVELS"
+#                              in player/player_powerups.gd). Not stacked
+#                              copies: each id has a level, and only that
+#                              level's stats apply. Level = run levels +
+#                              this level's pickups, capped at the max. See
+#                              get_powerup_level() / add_leveled_powerup().
 #   level_modifiers         -> named, stackable changes that persist for the
 #                              current level only (every power-up earned this
 #                              level, whether or not it's later chosen to
@@ -22,8 +28,8 @@
 #   active_modifiers        -> named, stackable, TEMPORARY changes (absorb/transform)
 #   current_stats           -> resolved cache that gameplay code actually reads
 #
-# current = default, then progression, then run modifiers, then level
-# modifiers, then each active modifier, applied in the order each was added.
+# current = default, then progression, then run modifiers, then leveled
+# power-ups, then level modifiers, then each active modifier, applied in the order each was added.
 # Removing a modifier just erases its entry and recomputes — no manual "undo
 # the math" step required anywhere.
 extends Node
@@ -31,6 +37,9 @@ extends Node
 signal stats_changed(category: String)
 signal powerup_collected(powerup_id: String)
 signal currency_changed(new_amount: int)
+# Fired whenever any leveled power-up's level changes (gained, or cleared at
+# the start of a level/run). The side-panel power-up list listens to this.
+signal powerup_levels_changed
 
 const CATEGORIES = ["player", "bullet", "bubble", "pollen", "pollen_puff"]
 
@@ -87,6 +96,18 @@ var default_stats: Dictionary = {
 		# player/player_powerups.gd + player/player_pollen_shot.gd) - off
 		# unless granted by a power bubble this level.
 		"has_pollen_shot": false,
+		# Damage the dash-jump landing shockwave deals to each enemy it
+		# touches (player/landing_shockwave.gd), and how far it reaches in
+		# play-area px. Raised by the gray Heavy Landing / Wide Impact
+		# power-ups.
+		"jump_damage": 3.0,
+		"jump_shockwave_radius": 30.0,
+		# Flat damage taken off every hit the player takes (gray Plating
+		# power-up). A hit always does at least PlayerHealth.ARMOR_MIN_DAMAGE.
+		"armor": 0,
+		# Multiplier on the score each kill is worth (on top of the score
+		# multiplier). Raised by the gray Bounty Hunter power-up.
+		"kill_score_mult": 1.0,
 	},
 	"bullet": {
 		"speed": 250.0,
@@ -98,7 +119,7 @@ var default_stats: Dictionary = {
 		"penetration_count": 0,
 		"max_distance": 125.0,
 		"homing_enabled": false,
-		"homing_strength": 1.0,
+		"homing_strength": 1.2,   # max turn rate, radians/second (see bullets/bullet.gd update_homing())
 		# Status-effect infliction for the player's PRIMARY shot (see
 		# bullets/bullet.gd - same generic status_effect_name/status_effect_chance
 		# plumbing the pollen shot uses). Empty/0 by default - normal bullets
@@ -136,6 +157,18 @@ var default_stats: Dictionary = {
 		# in front of them - see the gray_bubble_behind power-up and
 		# player_absorption.gd's launch_bubble().
 		"launch_behind": false,
+		# Damage a charged bubble (blue outline - landing-shockwave or shot
+		# charged) deals to each enemy it passes through. Was the constant
+		# SHOCKWAVE_CHARGE_DAMAGE in bubble.gd; raised by gray Charged Shell.
+		"charged_damage": 1.0,
+		# Multiplier on the explosion when you jump on a bubble and pop it
+		# (bubble.gd JUMP_POP_DAMAGE_MULT x bubble damage = 5 normally).
+		# Raised by gray Pop Blast.
+		"jump_pop_damage_mult": 1.0,
+		# Most shot charges a bubble can hold (each bullet that hits it adds
+		# one - see bubble.gd on_shockwave_hit()). Raised by the gray
+		# Capacitor power-up. Was the constant SHOT_CHARGE_MAX.
+		"shot_charge_max": 3,
 	},
 	# Weak, slow, wiggling secondary-fire bullets fired in pairs from the
 	# left/right of the ship while "has_pollen_shot" is active (see
@@ -227,6 +260,118 @@ func clear_currency() -> void:
 	currency = 0
 	currency_changed.emit(currency)
 
+# ===== LEVELED POWER-UPS (see player/player_powerups.gd "POWER-UP LEVELS") =====
+# power-up id -> how many levels the player keeps for the RUN (end-of-level
+# choice, shop, Test menu). Wiped by clear_run_modifiers().
+var leveled_run_levels: Dictionary = {}
+# power-up id -> how many levels the player picked up THIS LEVEL (power
+# bubbles, the test pause menu). Wiped by clear_level_modifiers().
+var leveled_level_levels: Dictionary = {}
+
+
+func get_run_powerup_level(powerup_id: String) -> int:
+	"""Levels of this power-up kept for the run (ignores this level's
+	pickups), capped at its max level."""
+	return mini(int(leveled_run_levels.get(powerup_id, 0)), PlayerPowerUps.get_max_level_for_id(powerup_id))
+
+
+func get_powerup_level(powerup_id: String) -> int:
+	"""The level of this power-up that's active right now: run levels plus
+	this level's pickups, capped at its max level. 0 = don't have it."""
+	var total := int(leveled_run_levels.get(powerup_id, 0)) + int(leveled_level_levels.get(powerup_id, 0))
+	return mini(total, PlayerPowerUps.get_max_level_for_id(powerup_id))
+
+
+func add_leveled_powerup(powerup_id: String, for_run: bool) -> void:
+	"""Raise a leveled power-up by one level - for the rest of the run
+	(for_run = true) or just this level. Use PlayerPowerUps.grant_for_run()
+	/ grant_for_level() rather than calling this directly.
+
+	A this-level pickup also logs the id in collected_powerups (so it's
+	offered at the end of the level) and emits powerup_collected (which pops
+	up the info screen) - even when already at max level, so the player
+	still sees "MAX"."""
+	var max_level := PlayerPowerUps.get_max_level_for_id(powerup_id)
+	if for_run:
+		leveled_run_levels[powerup_id] = mini(int(leveled_run_levels.get(powerup_id, 0)) + 1, max_level)
+		chosen_run_powerups.append(powerup_id)
+	else:
+		if get_powerup_level(powerup_id) < max_level:
+			leveled_level_levels[powerup_id] = int(leveled_level_levels.get(powerup_id, 0)) + 1
+			collected_powerups.append(powerup_id)
+	recompute_all()
+	powerup_levels_changed.emit()
+	if not for_run:
+		powerup_collected.emit(powerup_id)
+
+
+func set_leveled_powerup_level(powerup_id: String, level: int) -> void:
+	"""TEST TOOL (the pause menu's Test: Power-ups picker): put a leveled
+	power-up at exactly `level` (1..max) right now, up or down, instead of
+	+1. Uses this level's pickups to make up the difference over the run
+	level (lowering the run level if it's above `level`). Pops up the info
+	screen like a normal pickup. Use PlayerPowerUps.set_level_for_test()."""
+	var max_level := PlayerPowerUps.get_max_level_for_id(powerup_id)
+	level = clampi(level, 1, max_level)
+	var run_level := int(leveled_run_levels.get(powerup_id, 0))
+	if run_level > level:
+		leveled_run_levels[powerup_id] = level
+		run_level = level
+	leveled_level_levels[powerup_id] = level - run_level
+	if not collected_powerups.has(powerup_id):
+		collected_powerups.append(powerup_id)
+	recompute_all()
+	powerup_levels_changed.emit()
+	powerup_collected.emit(powerup_id)
+
+
+func remove_powerup_completely(powerup_id: String) -> void:
+	"""TEST TOOL (Test: Power-ups picker, SET = NONE / REMOVE): take a
+	power-up away entirely - its level (run and this level) for leveled
+	power-ups, every stacked copy (run and this level) for plain ones. Use
+	PlayerPowerUps.remove_for_test()."""
+	leveled_run_levels.erase(powerup_id)
+	leveled_level_levels.erase(powerup_id)
+	for mod_name in level_modifiers.keys():
+		if String(mod_name).begins_with("powerup_%s_" % powerup_id):
+			level_modifiers.erase(mod_name)
+	for mod_name in run_modifiers.keys():
+		if String(mod_name).begins_with("run_powerup_%s_" % powerup_id):
+			run_modifiers.erase(mod_name)
+	while collected_powerups.has(powerup_id):
+		collected_powerups.erase(powerup_id)
+	while chosen_run_powerups.has(powerup_id):
+		chosen_run_powerups.erase(powerup_id)
+	recompute_all()
+	powerup_levels_changed.emit()
+
+
+func count_powerup_copies(powerup_id: String) -> int:
+	"""How many stacked copies of a plain (non-leveled) power-up the player
+	has right now, run + this level. Used by the test picker's HAVE column."""
+	var n := 0
+	for mod_name in level_modifiers:
+		if String(mod_name).begins_with("powerup_%s_" % powerup_id):
+			n += 1
+	for mod_name in run_modifiers:
+		if String(mod_name).begins_with("run_powerup_%s_" % powerup_id):
+			n += 1
+	return n
+
+
+func _apply_leveled_powerups(category: String, result: Dictionary) -> void:
+	var ids := {}
+	for id in leveled_run_levels:
+		ids[id] = true
+	for id in leveled_level_levels:
+		ids[id] = true
+	for id in ids:
+		var level_stats: Dictionary = PlayerPowerUps.get_level_stats(id, get_powerup_level(id))
+		var mods: Dictionary = level_stats.get(category, {})
+		for key in mods:
+			result[key] = _apply_op(result.get(key), mods[key])
+
+
 # ===== TIER 4: LEVEL MODIFIERS (persist for the current level, stackable, named) =====
 # Same shape as active_modifiers below, but these are NOT tied to a
 # transformation's lifetime - they stick around (e.g. power-bubble power-ups)
@@ -270,6 +415,9 @@ func recompute(category: String):
 		var run_mods: Dictionary = run_modifiers[mod_name].get(category, {})
 		for key in run_mods:
 			result[key] = _apply_op(result.get(key), run_mods[key])
+
+	# Leveled power-ups (one entry per id at its current level) next.
+	_apply_leveled_powerups(category, result)
 
 	# Level modifiers (power-ups picked up this level) apply next, in
 	# insertion order, then active modifiers (transformations etc.) on top -
@@ -351,8 +499,14 @@ func clear_run_modifiers():
 			affected_categories[category] = true
 	run_modifiers.clear()
 	chosen_run_powerups.clear()
-	for category in affected_categories:
-		recompute(category)
+	var had_leveled := not leveled_run_levels.is_empty()
+	leveled_run_levels.clear()
+	if had_leveled:
+		recompute_all()
+		powerup_levels_changed.emit()
+	else:
+		for category in affected_categories:
+			recompute(category)
 
 func choose_run_powerup(powerup_id: String, modifiers: Dictionary):
 	"""Called when the player picks a power-up (from PowerupChoicePopup, at
@@ -391,8 +545,14 @@ func clear_level_modifiers():
 			affected_categories[category] = true
 	level_modifiers.clear()
 	collected_powerups.clear()
-	for category in affected_categories:
-		recompute(category)
+	var had_leveled := not leveled_level_levels.is_empty()
+	leveled_level_levels.clear()
+	if had_leveled:
+		recompute_all()
+		powerup_levels_changed.emit()
+	else:
+		for category in affected_categories:
+			recompute(category)
 
 func add_powerup(powerup_id: String, modifiers: Dictionary):
 	"""Convenience wrapper around add_level_modifier() for power-ups granted

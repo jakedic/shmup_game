@@ -51,7 +51,19 @@ static var bullet_vs_bullet_collision_enabled: bool = false
 
 # Homing properties
 @export var homing_enabled: bool = false
-@export var homing_strength: float = 1.0
+# Max turn rate while homing, in radians per second (see update_homing()).
+# 1.2 = ~70 degrees/second. Capped turning (instead of snapping toward the
+# target) keeps shots on smooth arcs - they can't circle an enemy.
+@export var homing_strength: float = 1.2
+# A homing shot only locks onto enemies within this angle of where it's
+# heading, and lets go (flies straight) once the target is more than
+# HOMING_RELEASE_ANGLE off - i.e. it went past it.
+const HOMING_LOCK_ANGLE := deg_to_rad(60.0)
+const HOMING_RELEASE_ANGLE := deg_to_rad(90.0)
+# When true, the bullet's node is rotated to point along its direction of
+# travel every frame (the sprite is drawn pointing up). Set for the player's
+# main shot by PlayerShooting.configure_bullet().
+var face_direction: bool = false
 @export var homing_start_delay: float = 0.0  # Delay before homing starts
 
 # Visual/effect properties
@@ -115,6 +127,8 @@ func start(pos: Vector2, dir: Vector2 = Vector2.UP):
 	position = pos
 	spawn_position = pos
 	direction = dir.normalized() if dir.length() > 0 else Vector2.UP
+	if face_direction:
+		rotation = direction.angle() + PI / 2.0
 	
 	# Start homing delay timer if needed
 	if homing_enabled and homing_start_delay > 0:
@@ -138,6 +152,9 @@ func _process(delta: float):
 	"""Process bullet movement and behavior each frame"""
 	time_alive += delta
 	
+	if face_direction:
+		rotation = direction.angle() + PI / 2.0   # sprite points up = Vector2.UP
+
 	# Calculate movement
 	var movement = direction * speed * delta
 	
@@ -189,8 +206,8 @@ func _find_nearest_enemy_ahead() -> Node2D:
 		if not (e is Node2D) or not _is_valid_homing_target(e):
 			continue
 		var to_e: Vector2 = e.global_position - global_position
-		if to_e.dot(direction) <= 0.0:
-			continue   # behind the bullet - don't turn around for it
+		if absf(direction.angle_to(to_e)) > HOMING_LOCK_ANGLE:
+			continue   # too far off to the side (or behind) - don't swing round for it
 		var d := to_e.length()
 		if d < best_dist:
 			best_dist = d
@@ -199,9 +216,20 @@ func _find_nearest_enemy_ahead() -> Node2D:
 
 
 func update_homing(delta: float):
-	"""Update homing direction toward target"""
-	var target_dir = (_target.global_position - global_position).normalized()
-	direction = direction.lerp(target_dir, homing_strength * delta).normalized()
+	"""Turn toward the target at most homing_strength radians per second.
+	If the target has ended up more than HOMING_RELEASE_ANGLE off our heading
+	(we flew past it), let go for good and keep flying straight - that's what
+	stops shots from orbiting an enemy."""
+	var to_target: Vector2 = _target.global_position - global_position
+	var off := direction.angle_to(to_target)
+	if absf(off) > HOMING_RELEASE_ANGLE:
+		_target = null
+		is_homing_active = false
+		return
+	var max_turn := homing_strength * delta
+	direction = direction.rotated(clampf(off, -max_turn, max_turn)).normalized()
+	if face_direction:
+		rotation = direction.angle() + PI / 2.0
 
 func check_bounce():
 	"""Handle bullet bouncing off screen edges"""

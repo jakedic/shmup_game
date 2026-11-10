@@ -323,6 +323,11 @@ static func _spawn_landing_shockwave(player: Player) -> void:
 	if parent == null:
 		return
 	var wave := LandingShockwave.new()
+	# Damage / size come from Stats (gray Heavy Landing / Wide Impact
+	# power-ups). Fractional damage is averaged over jumps - see
+	# PlayerPowerUps.whole_damage().
+	wave.damage = PlayerPowerUps.whole_damage("jump_landing", float(Stats.get_stat("player", "jump_damage")))
+	wave.max_radius = float(Stats.get_stat("player", "jump_shockwave_radius"))
 	parent.add_child(wave)
 	wave.global_position = player.global_position
 	for area in player.get_overlapping_areas():

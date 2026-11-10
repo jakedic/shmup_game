@@ -33,6 +33,12 @@ const ABSORB_ASTROIDS := "absorb_astroids"             # the absorb beam works o
 # --- Sliders (numbers, not on/off) ---
 const BUBBLE_SPEED := "bubble_speed"   # 0-10; 5 = the bubble's base speed, 0 = doesn't move, 10 = double (default is 6 = 120%)
 
+# True while playing a level launched from the Test menu's LAUNCH (set in
+# levels/test_menu.gd, cleared when the title screen loads). Turns on
+# test-only extras in the level, like the pause menu's "Test: Power-ups"
+# button (see BaseLevel._add_test_powerup_button()).
+static var launched_from_test_menu := false
+
 # Defaults (changed 2026-11-09): shot = powers up + bullet passes through;
 # jump = pops + explodes (no longer regains its power); bounces off enemies;
 # speed 6.

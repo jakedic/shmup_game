@@ -149,79 +149,216 @@ const ENEMY_TYPE_ACCENT_COLORS: Dictionary = {
 const DEFAULT_ACCENT_COLOR := Color(0.54901961, 0.85098039, 1.0)
 
 
+## ===== POWER-UP LEVELS =====
+##
+## A power-up can have LEVELS. Instead of a single "stats" dict, a leveled
+## power-up has a "levels" array - one entry per level, level 1 first:
+##
+##     "levels": [
+##         {"summary": "Speed x1.5",  "stats": { ...level 1 stat changes... }},
+##         {"summary": "Speed x1.75", "stats": { ...level 2 stat changes... }},
+##         {"summary": "Speed x2",    "stats": { ...level 3 stat changes... }},
+##     ],
+##
+## Getting the same power-up again moves it up one level (up to the last
+## entry). Each level's "stats" REPLACE the previous level's (they are not
+## stacked on top), so write each level as the full effect at that level -
+## e.g. speed x1.75 at level 2, not "another x1.17". "summary" is the short
+## line shown on popups/cards/the HUD for that level.
+##
+## Levels are tracked by Stats (see stats.gd - get_powerup_level()): levels
+## earned this level (power bubbles) sit on top of levels kept for the run
+## (end-of-level choice / shop / test menu), capped at the last level.
+##
+## To make any power-up leveled - including the yellow ones below - just
+## swap its "stats" for a "levels" array. Power-ups that still use plain
+## "stats" keep the old behavior (each pickup stacks another copy).
+
 ## ===== GRAY POWER-UPS =====
 ##
 ## A second, separate pool from POWERUPS_BY_ENEMY_TYPE - plain, dependable
-## power-ups (more damage, more speed, more health) that are NEVER granted
-## by a power bubble and NEVER offered in the shop. Instead, exactly one
-## random gray power-up is added to the end-of-level choice popup whenever
-## the player earned fewer than BaseLevel.MAX_POWERUP_CHOICES power-ups that
-## level (including zero) - see BaseLevel._offer_run_powerup_choice() /
-## get_random_gray_powerup() below. Picking one works exactly like picking
-## an earned power-up there: it becomes a run modifier via
-## Stats.choose_run_powerup(), persisting for the rest of the run (not just
-## the level it was offered on).
+## power-ups (more damage, more speed, more health, penetration) that are
+## NEVER offered in the shop. Granted by gray-form power bubbles, and exactly
+## one random gray power-up is added to the end-of-level choice popup
+## whenever the player earned fewer than BaseLevel.MAX_POWERUP_CHOICES
+## power-ups that level (including zero) - see
+## BaseLevel._offer_run_powerup_choice() / get_random_gray_powerup() below.
+## All four have 3 levels.
+# How fast a Seeker Rounds (gray_homing) shot can turn toward its target at
+# level 1, in radians per second (bullets/bullet.gd update_homing()). 1.2
+# (~70 deg/s) bends a shot into an enemy ~30px off its line over 100px of
+# travel; levels 2/3 are x1.3 / x1.6 (~45px / ~60px). Turning is capped and
+# shots let go of a target they've passed, so they never circle it.
+const HOMING_BASE_STRENGTH := 1.2
+
 const GRAY_POWERUPS: Array[Dictionary] = [
-	{
-		"id": "gray_damage_up",
-		"name": "Sharpened Rounds",
-		"description": "Increases the damage of the player's main shot for the rest of the run.",
-		"stats": {
-			"bullet": {
-				"damage": {"op": "add", "value": 1},
-			},
-		},
-	},
 	{
 		"id": "gray_speed_up",
 		"name": "Engine Tune-Up",
-		"description": "Increases the player's movement speed for the rest of the run.",
-		"stats": {
-			"player": {
-				"speed": {"op": "add", "value": 40.0},
-			},
-		},
+		"description": "Multiplies the ship's movement speed.",
+		"levels": [
+			{"summary": "Speed x1.5", "stats": {"player": {"speed": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Speed x1.75", "stats": {"player": {"speed": {"op": "mult", "value": 1.75}}}},
+			{"summary": "Speed x2", "stats": {"player": {"speed": {"op": "mult", "value": 2.0}}}},
+		],
+	},
+	{
+		"id": "gray_damage_up",
+		"name": "Sharpened Rounds",
+		"description": "Multiplies the damage of the ship's main shot.",
+		# Enemy health is whole numbers, so fractional damage is averaged out
+		# over a run of shots (x1.5 = shots alternate 1 and 2 damage) - see
+		# PlayerShooting.configure_bullet().
+		"levels": [
+			{"summary": "Damage x1.5", "stats": {"bullet": {"damage": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Damage x1.75", "stats": {"bullet": {"damage": {"op": "mult", "value": 1.75}}}},
+			{"summary": "Damage x2", "stats": {"bullet": {"damage": {"op": "mult", "value": 2.0}}}},
+		],
 	},
 	{
 		"id": "gray_health_up",
 		"name": "Reinforced Hull",
-		"description": "Increases the player's maximum shield for the rest of the run.",
-		"stats": {
-			"player": {
-				"max_shield": {"op": "add", "value": 3},
-			},
-		},
-	},
-	{
-		"id": "gray_fire_rate_up",
-		"name": "Rapid Cycler",
-		"description": "Reduces the player's shot cooldown, letting them fire faster, for the rest of the run.",
-		"stats": {
-			"player": {
-				"shoot_cooldown": {"op": "mult", "value": 0.75},
-			},
-		},
-	},
-	{
-		"id": "gray_bubble_behind",
-		"name": "Reverse Thrusters",
-		"description": "The player's bubble shot launches from behind them instead of in front, for the rest of the run.",
-		"stats": {
-			"bubble": {
-				"launch_behind": {"op": "set", "value": true},
-			},
-		},
+		"description": "Multiplies the ship's maximum health. The extra health is added right away.",
+		"levels": [
+			{"summary": "Health x1.5", "stats": {"player": {"max_shield": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Health x1.75", "stats": {"player": {"max_shield": {"op": "mult", "value": 1.75}}}},
+			{"summary": "Health x2", "stats": {"player": {"max_shield": {"op": "mult", "value": 2.0}}}},
+		],
 	},
 	{
 		"id": "gray_penetration",
 		"name": "Penetrator Rounds",
-		"description": "The player's main shot damages the first enemy it hits, then passes through it to hit one more, for the rest of the run.",
-		"stats": {
-			"bullet": {
-				# "set", not "add" - penetration stays at 1 even if picked twice.
-				"penetration_count": {"op": "set", "value": 1},
-			},
-		},
+		"description": "The main shot passes through enemies it hits, even ones that survive, and keeps going.",
+		# Penetration count is how many enemies a shot passes THROUGH (see
+		# bullets/bullet.gd) - level 1 hits 2 enemies total, level 3 hits 4.
+		"levels": [
+			{"summary": "Passes through 1 enemy", "stats": {"bullet": {"penetration_count": {"op": "set", "value": 1}}}},
+			{"summary": "Passes through 2 enemies", "stats": {"bullet": {"penetration_count": {"op": "set", "value": 2}}}},
+			{"summary": "Passes through 3 enemies", "stats": {"bullet": {"penetration_count": {"op": "set", "value": 3}}}},
+		],
+	},
+	{
+		"id": "gray_shot_speed",
+		"name": "Muzzle Booster",
+		"description": "Multiplies how fast the ship's main shot travels.",
+		"levels": [
+			{"summary": "Shot speed x1.5", "stats": {"bullet": {"speed": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Shot speed x1.75", "stats": {"bullet": {"speed": {"op": "mult", "value": 1.75}}}},
+			{"summary": "Shot speed x2", "stats": {"bullet": {"speed": {"op": "mult", "value": 2.0}}}},
+		],
+	},
+	{
+		"id": "gray_shot_range",
+		"name": "Long Barrel",
+		"description": "Multiplies how far the ship's main shot travels before fading.",
+		"levels": [
+			{"summary": "Shot distance x1.5", "stats": {"bullet": {"max_distance": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Shot distance x1.75", "stats": {"bullet": {"max_distance": {"op": "mult", "value": 1.75}}}},
+			{"summary": "Shot distance x2", "stats": {"bullet": {"max_distance": {"op": "mult", "value": 2.0}}}},
+		],
+	},
+	{
+		"id": "gray_fire_rate",
+		"name": "Rapid Cycler",
+		"description": "Multiplies how often the ship fires its main shot.",
+		# Fire rate x1.5 = the time between shots divided by 1.5.
+		"levels": [
+			{"summary": "Fire rate x1.5", "stats": {"player": {"shoot_cooldown": {"op": "mult", "value": 1.0 / 1.5}}}},
+			{"summary": "Fire rate x1.75", "stats": {"player": {"shoot_cooldown": {"op": "mult", "value": 1.0 / 1.75}}}},
+			{"summary": "Fire rate x2", "stats": {"player": {"shoot_cooldown": {"op": "mult", "value": 0.5}}}},
+		],
+	},
+	{
+		"id": "gray_jump_damage",
+		"name": "Heavy Landing",
+		"description": "Multiplies the damage of the shockwave when you land a jump.",
+		"levels": [
+			{"summary": "Jump damage x1.5", "stats": {"player": {"jump_damage": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Jump damage x1.75", "stats": {"player": {"jump_damage": {"op": "mult", "value": 1.75}}}},
+			{"summary": "Jump damage x2", "stats": {"player": {"jump_damage": {"op": "mult", "value": 2.0}}}},
+		],
+	},
+	{
+		"id": "gray_jump_radius",
+		"name": "Wide Impact",
+		"description": "Multiplies how far the shockwave reaches when you land a jump.",
+		"levels": [
+			{"summary": "Shockwave size x1.5", "stats": {"player": {"jump_shockwave_radius": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Shockwave size x1.75", "stats": {"player": {"jump_shockwave_radius": {"op": "mult", "value": 1.75}}}},
+			{"summary": "Shockwave size x2", "stats": {"player": {"jump_shockwave_radius": {"op": "mult", "value": 2.0}}}},
+		],
+	},
+	{
+		"id": "gray_bubble_charge_damage",
+		"name": "Charged Shell",
+		"description": "Multiplies the damage a charged (blue) bubble deals to enemies it passes through.",
+		"levels": [
+			{"summary": "Charged bubble damage x1.5", "stats": {"bubble": {"charged_damage": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Charged bubble damage x1.75", "stats": {"bubble": {"charged_damage": {"op": "mult", "value": 1.75}}}},
+			{"summary": "Charged bubble damage x2", "stats": {"bubble": {"charged_damage": {"op": "mult", "value": 2.0}}}},
+		],
+	},
+	{
+		"id": "gray_bubble_jump_pop",
+		"name": "Pop Blast",
+		"description": "Multiplies the explosion damage when you jump on a bubble and pop it.",
+		"levels": [
+			{"summary": "Jump-pop damage x1.5", "stats": {"bubble": {"jump_pop_damage_mult": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Jump-pop damage x1.75", "stats": {"bubble": {"jump_pop_damage_mult": {"op": "mult", "value": 1.75}}}},
+			{"summary": "Jump-pop damage x2", "stats": {"bubble": {"jump_pop_damage_mult": {"op": "mult", "value": 2.0}}}},
+		],
+	},
+	{
+		"id": "gray_jump_cooldown",
+		"name": "Quick Recovery",
+		"description": "Shortens the wait before you can jump again.",
+		"levels": [
+			{"summary": "Jump cooldown 90%", "stats": {"player": {"dash_cooldown": {"op": "mult", "value": 0.9}}}},
+			{"summary": "Jump cooldown 80%", "stats": {"player": {"dash_cooldown": {"op": "mult", "value": 0.8}}}},
+			{"summary": "Jump cooldown 70%", "stats": {"player": {"dash_cooldown": {"op": "mult", "value": 0.7}}}},
+		],
+	},
+	{
+		"id": "gray_armor",
+		"name": "Plating",
+		"description": "Every hit you take does less damage (but always at least 1).",
+		# Flat damage reduction - see PlayerHealth.take_damage() / ARMOR_MIN_DAMAGE.
+		"levels": [
+			{"summary": "Armor 1", "stats": {"player": {"armor": {"op": "set", "value": 1}}}},
+			{"summary": "Armor 2", "stats": {"player": {"armor": {"op": "set", "value": 2}}}},
+			{"summary": "Armor 3", "stats": {"player": {"armor": {"op": "set", "value": 3}}}},
+		],
+	},
+	{
+		"id": "gray_homing",
+		"name": "Seeker Rounds",
+		"description": "The main shot curves toward the nearest enemy ahead of it.",
+		# Level 2 / 3 turn 30% / 60% harder than level 1 (HOMING_BASE_STRENGTH).
+		"levels": [
+			{"summary": "Homing", "stats": {"bullet": {"homing_enabled": {"op": "set", "value": true}, "homing_strength": {"op": "set", "value": HOMING_BASE_STRENGTH * 1.0}}}},
+			{"summary": "Homing +30%", "stats": {"bullet": {"homing_enabled": {"op": "set", "value": true}, "homing_strength": {"op": "set", "value": HOMING_BASE_STRENGTH * 1.3}}}},
+			{"summary": "Homing +60%", "stats": {"bullet": {"homing_enabled": {"op": "set", "value": true}, "homing_strength": {"op": "set", "value": HOMING_BASE_STRENGTH * 1.6}}}},
+		],
+	},
+	{
+		"id": "gray_kill_score",
+		"name": "Bounty Hunter",
+		"description": "Multiplies the points every kill is worth.",
+		"levels": [
+			{"summary": "Kill points x1.5", "stats": {"player": {"kill_score_mult": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Kill points x1.75", "stats": {"player": {"kill_score_mult": {"op": "mult", "value": 1.75}}}},
+			{"summary": "Kill points x2", "stats": {"player": {"kill_score_mult": {"op": "mult", "value": 2.0}}}},
+		],
+	},
+	{
+		"id": "gray_bubble_charges",
+		"name": "Capacitor",
+		"description": "Bubbles can hold more charges when you shoot them (normally 3).",
+		"levels": [
+			{"summary": "Bubble charges +1 (4)", "stats": {"bubble": {"shot_charge_max": {"op": "add", "value": 1}}}},
+			{"summary": "Bubble charges +2 (5)", "stats": {"bubble": {"shot_charge_max": {"op": "add", "value": 2}}}},
+			{"summary": "Bubble charges +3 (6)", "stats": {"bubble": {"shot_charge_max": {"op": "add", "value": 3}}}},
+		],
 	},
 ]
 
@@ -240,14 +377,19 @@ const GRAY_ACCENT_COLOR := Color(0.65, 0.67, 0.72)
 
 
 static func get_random_gray_powerup() -> Dictionary:
-	"""Pick one random power-up from GRAY_POWERUPS - the standard,
-	always-available fallback offered at the end of a level whenever the
-	player earned fewer than MAX_POWERUP_CHOICES power-ups that level (see
-	BaseLevel._offer_run_powerup_choice()). Returns an empty dict if
-	GRAY_POWERUPS is somehow empty."""
-	if GRAY_POWERUPS.is_empty():
+	"""Pick one random power-up from GRAY_POWERUPS that ISN'T already at its
+	max level for the run - the standard, always-available fallback offered
+	at the end of a level whenever the player earned fewer than
+	MAX_POWERUP_CHOICES power-ups that level (see
+	BaseLevel._offer_run_powerup_choice()). Returns an empty dict if every
+	gray power-up is maxed (or GRAY_POWERUPS is empty)."""
+	var pool: Array = []
+	for powerup: Dictionary in GRAY_POWERUPS:
+		if Stats.get_run_powerup_level(powerup.get("id", "")) < get_max_level(powerup):
+			pool.append(powerup)
+	if pool.is_empty():
 		return {}
-	return GRAY_POWERUPS[randi() % GRAY_POWERUPS.size()]
+	return pool[randi() % pool.size()]
 
 
 static func get_powerups_for_enemy_type(enemy_type: String) -> Array:
@@ -268,11 +410,14 @@ static func get_available_powerups_for_enemy_type(enemy_type: String) -> Array:
 	"""Same as get_powerups_for_enemy_type(), but filtered down to power-ups
 	the player is currently eligible to receive (e.g. excludes
 	yellow_pollen_blast_radius until the player already has some way to
-	apply pollination)."""
+	apply pollination, and any leveled power-up already at max level)."""
 	var pool: Array = get_powerups_for_enemy_type(enemy_type)
 	var available: Array = []
 	for powerup: Dictionary in pool:
 		if powerup.get("requires_pollination_source", false) and not _player_has_pollination_source():
+			continue
+		# A leveled power-up already at its top level has nothing left to give.
+		if is_maxed(powerup.get("id", "")):
 			continue
 		available.append(powerup)
 	return available
@@ -298,6 +443,21 @@ static func get_random_shop_offers(count: int) -> Array:
 	var pool: Array = get_all_available_powerups()
 	pool.shuffle()
 	return pool.slice(0, min(count, pool.size()))
+
+
+static func get_powerup_pages() -> Array:
+	"""Every power-up grouped by type, one group per page of the test
+	picker: gray first, then each enemy type in POWERUPS_BY_ENEMY_TYPE
+	(yellow...). Each page is {"title", "color", "powerups"}. New enemy
+	types get their own page automatically."""
+	var pages: Array = [{"title": "GRAY", "color": GRAY_ACCENT_COLOR, "powerups": GRAY_POWERUPS}]
+	for enemy_type in POWERUPS_BY_ENEMY_TYPE:
+		pages.append({
+			"title": String(enemy_type).to_upper(),
+			"color": ENEMY_TYPE_ACCENT_COLORS.get(enemy_type, DEFAULT_ACCENT_COLOR),
+			"powerups": POWERUPS_BY_ENEMY_TYPE[enemy_type],
+		})
+	return pages
 
 
 static func get_every_powerup() -> Array:
@@ -335,11 +495,12 @@ static func apply_random_powerup(player: Player, enemy_type: String) -> Dictiona
 	player is currently eligible for) and apply it to the player via
 	Stats.add_powerup() (persists for the rest of the level). Returns the
 	chosen power-up dict, or an empty dict if enemy_type has no eligible
-	power-ups right now."""
+	power-ups right now. A leveled power-up the player already has goes up a
+	level (see grant_for_level())."""
 	if fusion_powerup_override_id != "":
 		var forced := get_powerup_by_id(fusion_powerup_override_id)
 		if not forced.is_empty():
-			Stats.add_powerup(forced.get("id", ""), forced.get("stats", {}))
+			grant_for_level(forced.get("id", ""))
 			return forced
 		push_warning("fusion_powerup_override_id '%s' isn't a real power-up id - falling back to random" % fusion_powerup_override_id)
 
@@ -348,7 +509,7 @@ static func apply_random_powerup(player: Player, enemy_type: String) -> Dictiona
 		return {}
 
 	var powerup: Dictionary = pool[randi() % pool.size()]
-	Stats.add_powerup(powerup.get("id", ""), powerup.get("stats", {}))
+	grant_for_level(powerup.get("id", ""))
 	return powerup
 
 
@@ -391,3 +552,199 @@ static func get_accent_color_for_powerup_id(powerup_id: String) -> Color:
 			return GRAY_ACCENT_COLOR
 	var enemy_type := get_enemy_type_for_powerup_id(powerup_id)
 	return ENEMY_TYPE_ACCENT_COLORS.get(enemy_type, DEFAULT_ACCENT_COLOR)
+
+
+# ===== LEVELS - helpers (see "POWER-UP LEVELS" near the top) =====
+
+static func is_leveled(powerup: Dictionary) -> bool:
+	"""True if this power-up uses a "levels" array (rather than plain
+	"stats")."""
+	return powerup.has("levels")
+
+
+static func get_max_level(powerup: Dictionary) -> int:
+	"""How many levels this power-up has (1 for a plain "stats" power-up)."""
+	if is_leveled(powerup):
+		return maxi(powerup["levels"].size(), 1)
+	return 1
+
+
+static func get_max_level_for_id(powerup_id: String) -> int:
+	var powerup := get_powerup_by_id(powerup_id)
+	if powerup.is_empty():
+		return 1
+	return get_max_level(powerup)
+
+
+static func get_level_entry(powerup: Dictionary, level: int) -> Dictionary:
+	"""The "levels" entry for `level` (1-based, clamped into range). For a
+	plain "stats" power-up, a level-1 entry wrapping its stats."""
+	if not is_leveled(powerup):
+		return {"summary": "", "stats": powerup.get("stats", {})}
+	var levels: Array = powerup["levels"]
+	if levels.is_empty():
+		return {}
+	return levels[clampi(level, 1, levels.size()) - 1]
+
+
+static func get_level_stats(powerup_id: String, level: int) -> Dictionary:
+	"""Stat changes a leveled power-up applies at `level` (used by
+	Stats.recompute()). Empty for level 0 / unknown ids."""
+	if level <= 0:
+		return {}
+	var powerup := get_powerup_by_id(powerup_id)
+	if powerup.is_empty():
+		return {}
+	return get_level_entry(powerup, level).get("stats", {})
+
+
+static func get_level_summary(powerup: Dictionary, level: int) -> String:
+	"""Short "what this level does" line, e.g. "Speed x1.75" ("" if the
+	power-up has no per-level summaries)."""
+	if level <= 0:
+		return ""
+	return get_level_entry(powerup, level).get("summary", "")
+
+
+static func is_maxed(powerup_id: String) -> bool:
+	"""True if this is a leveled power-up the player already has at its top
+	level (counting this level's pickups plus the run's). Plain "stats"
+	power-ups are never "maxed" - they keep stacking like before."""
+	var powerup := get_powerup_by_id(powerup_id)
+	if powerup.is_empty() or not is_leveled(powerup):
+		return false
+	return Stats.get_powerup_level(powerup_id) >= get_max_level(powerup)
+
+
+static func grant_for_level(powerup_id: String) -> void:
+	"""Give the player this power-up for the rest of the LEVEL (power-bubble
+	pickups, the test pause menu). Leveled power-ups go up one level; plain
+	ones stack another copy (old behavior). Either way Stats emits
+	powerup_collected, which pops up the info screen (see
+	BaseLevel._on_powerup_collected())."""
+	var powerup := get_powerup_by_id(powerup_id)
+	if powerup.is_empty():
+		push_warning("grant_for_level: unknown power-up id '%s'" % powerup_id)
+		return
+	if is_leveled(powerup):
+		Stats.add_leveled_powerup(powerup_id, false)
+	else:
+		Stats.add_powerup(powerup_id, powerup.get("stats", {}))
+
+
+static func set_level_for_test(powerup_id: String, level: int) -> void:
+	"""TEST TOOL: set a power-up to an exact level for the rest of this
+	level (see Stats.set_leveled_powerup_level()). Plain "stats" power-ups
+	have no levels, so this just grants one like grant_for_level()."""
+	var powerup := get_powerup_by_id(powerup_id)
+	if powerup.is_empty():
+		push_warning("set_level_for_test: unknown power-up id '%s'" % powerup_id)
+		return
+	if is_leveled(powerup):
+		Stats.set_leveled_powerup_level(powerup_id, level)
+	else:
+		grant_for_level(powerup_id)
+
+
+static func remove_for_test(powerup_id: String) -> void:
+	"""TEST TOOL: take a power-up away completely (see
+	Stats.remove_powerup_completely())."""
+	Stats.remove_powerup_completely(powerup_id)
+
+
+static func grant_for_run(powerup_id: String) -> void:
+	"""Keep this power-up for the rest of the RUN (end-of-level choice, the
+	shop, the Test menu's launch). Leveled power-ups go up one run level;
+	plain ones stack another copy (old behavior). No popup."""
+	var powerup := get_powerup_by_id(powerup_id)
+	if powerup.is_empty():
+		push_warning("grant_for_run: unknown power-up id '%s'" % powerup_id)
+		return
+	if is_leveled(powerup):
+		Stats.add_leveled_powerup(powerup_id, true)
+	else:
+		Stats.choose_run_powerup(powerup_id, powerup.get("stats", {}))
+
+
+static func with_level_info(powerup: Dictionary, level: int) -> Dictionary:
+	"""A copy of `powerup` with display info for one particular level added,
+	for the popups/cards to show:
+		"display_level"  - the level to show (0 = don't show a level)
+		"max_level"      - its top level
+		"level_summary"  - that level's summary line
+	Plain "stats" power-ups get display_level 0 (no level badge)."""
+	var copy := powerup.duplicate()
+	if is_leveled(powerup) and level > 0:
+		var max_level := get_max_level(powerup)
+		copy["display_level"] = mini(level, max_level)
+		copy["max_level"] = max_level
+		copy["level_summary"] = get_level_summary(powerup, level)
+	else:
+		copy["display_level"] = 0
+		copy["max_level"] = 1
+		copy["level_summary"] = ""
+	return copy
+
+
+static func level_badge_text(display_level: int, max_level: int) -> String:
+	"""e.g. "LV 2/3", or "LV 3/3 MAX" at the top level - shared by every
+	place that shows a level. "" for power-ups without levels."""
+	if display_level <= 0:
+		return ""
+	var text := "LV %d/%d" % [display_level, max_level]
+	if display_level >= max_level and max_level > 1:
+		text += " MAX"
+	return text
+
+
+# Leftover fractions of a damage point, per damage source - see whole_damage().
+static var _damage_carry: Dictionary = {}
+
+
+static func whole_damage(source_key: String, amount: float) -> int:
+	"""(Also used for kill score - any whole-number amount a power-up
+	multiplies.) Enemy health is whole numbers, but power-up multipliers make damage
+	fractional (5 x 1.75 = 8.75). Rounding would make some levels identical,
+	so each hit from `source_key` does the whole part and the leftover
+	fraction builds up until it adds an extra point - the average is exact
+	(x1.5 on 3 damage: 4, 5, 4, 5...). Same idea as
+	PlayerShooting._whole_damage_for_next_shot() for the main shot."""
+	var whole := floori(amount)
+	var carry: float = _damage_carry.get(source_key, 0.0) + (amount - whole)
+	if carry >= 0.999:
+		carry -= 1.0
+		whole += 1
+	_damage_carry[source_key] = carry
+	return whole
+
+
+# Border color for each level - level 1 blue, 2 red, 3 gold. Used for the
+# power-up squares in the side panel, the pickup popup and the choice cards.
+# Add more entries if a power-up ever gets more than 3 levels (anything past
+# the end uses the last color).
+const LEVEL_COLORS: Array[Color] = [
+	Color(0.3, 0.55, 1.0),    # level 1 - blue
+	Color(0.95, 0.25, 0.25),  # level 2 - red
+	Color(1.0, 0.8, 0.2),     # level 3 - gold
+]
+
+
+static func level_color(level: int) -> Color:
+	"""Border color for a power-up at `level` (see LEVEL_COLORS)."""
+	if level <= 0:
+		return Color(0.5, 0.52, 0.6)
+	return LEVEL_COLORS[mini(level, LEVEL_COLORS.size()) - 1]
+
+
+static func get_owned_leveled_powerups() -> Array:
+	"""Every leveled power-up the player currently has (level >= 1), in
+	definition order, each as with_level_info(powerup, current level). Used
+	by the side-panel power-up list (powerup_hud.gd)."""
+	var owned: Array = []
+	for powerup: Dictionary in get_every_powerup():
+		if not is_leveled(powerup):
+			continue
+		var level: int = Stats.get_powerup_level(powerup.get("id", ""))
+		if level > 0:
+			owned.append(with_level_info(powerup, level))
+	return owned

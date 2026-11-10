@@ -1,4 +1,5 @@
 extends Control
+const MenuKeys := preload("res://menu_keys.gd")   # shared menu keys: WASD/arrows + J/Space/Enter
 const TestOptions := preload("res://test_options.gd")   # Test menu switches (see test_options.gd)
 
 ## Developer/test-only menu (see levels/title_screen.gd's Test button). Lets
@@ -194,7 +195,7 @@ func _input(event: InputEvent) -> void:
 		elif event.is_action_pressed("left"):
 			TestOptions.set_value(row["id"], maxi(v - 1, row["min"]))
 
-	if event.is_action_pressed("start"):
+	if MenuKeys.is_confirm(event):
 		_activate_row(row)
 
 
@@ -228,8 +229,9 @@ func _launch() -> void:
 	for i in range(powerups.size()):
 		if powerup_checked[i]:
 			var powerup: Dictionary = powerups[i]
-			Stats.choose_run_powerup(powerup.get("id", ""), powerup.get("stats", {}))
+			PlayerPowerUps.grant_for_run(powerup.get("id", ""))
 
+	TestOptions.launched_from_test_menu = true
 	GameShell.change_scene(level_paths[level_index])
 
 

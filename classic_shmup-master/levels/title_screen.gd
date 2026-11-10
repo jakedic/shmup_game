@@ -1,4 +1,28 @@
 extends Control
+const TestOptions := preload("res://test_options.gd")
+const MenuKeys := preload("res://menu_keys.gd")   # W/S or arrows to move, J/Space/Enter to pick
+
+
+func _ready() -> void:
+	# Back at the title = no longer in a Test-menu launch (see
+	# TestOptions.launched_from_test_menu).
+	TestOptions.launched_from_test_menu = false
+	MenuKeys.focus_first(_buttons())
+	_opened_msec = Time.get_ticks_msec()
+
+
+var _opened_msec := 0
+
+
+func _buttons() -> Array:
+	return [$StartButton, $TutorialButton, $TestButton]
+
+
+func _input(event: InputEvent) -> void:
+	if MenuKeys.is_confirm(event) and MenuKeys.too_soon(_opened_msec):
+		get_viewport().set_input_as_handled()
+		return
+	MenuKeys.handle_buttons(event, _buttons())
 
 
 

@@ -85,12 +85,12 @@ const BUBBLE_ATTRACTION_PULL_SPEED := 160.0  # direct extra pull toward the near
 # with no effect either way. The charge lasts for SHOCKWAVE_CHARGE_TOUCHES
 # paddle-bounces off the player (see _bounce_off_player()) - another
 # shockwave hit refreshes it back to the full count.
-const SHOCKWAVE_CHARGE_DAMAGE := 1
+const SHOCKWAVE_CHARGE_DAMAGE := 1   # no longer used - see Stats "bubble"/"charged_damage"
 const SHOCKWAVE_CHARGE_TOUCHES := 3
 # Test menu "Shot: powers up" (TestOptions): each bullet that hits the bubble
 # adds ONE charge - damage for one enemy hit / bounce off an enemy - stacking
 # up to SHOT_CHARGE_MAX. Bouncing off the ship doesn't use them up. The outline shows one ring per stored charge.
-const SHOT_CHARGE_MAX := 3
+const SHOT_CHARGE_MAX := 3   # default only - the real cap is Stats "bubble"/"shot_charge_max" (gray Capacitor power-up)
 # Each stored shot charge grows the bubble's radius by this fraction of its
 # normal size (1 charge = 110%, 2 = 120%, 3 = 130%). Scales the whole node,
 # so the sprite, collision shape and outline all grow together.
@@ -172,7 +172,9 @@ class ChargeOutline extends Node2D:
 		# Gentle pulse so it reads as "energized" rather than a static border.
 		var a: float = 0.65 + 0.35 * sin(_t * 10.0)
 		for i in maxi(rings, 1):
-			draw_arc(Vector2.ZERO, radius + i * RING_GAP, 0.0, TAU, 32, Color(1, 1, 1, a * (1.0 - i * 0.2)), 2.0 if i == 0 else 1.5)
+			# Outer rings fade a bit, but never fully - up to 6 charges with
+			# the Capacitor power-up.
+			draw_arc(Vector2.ZERO, radius + i * RING_GAP, 0.0, TAU, 32, Color(1, 1, 1, a * maxf(1.0 - i * 0.15, 0.3)), 2.0 if i == 0 else 1.5)
 
 class ShockwaveBurst extends Node2D:
 	## Sends out BUBBLE_SHOCKWAVE_COUNT landing-style rings from a bubble, one
@@ -555,7 +557,8 @@ func _become_shockwave_charged(source: String = "bubble_charged") -> void:
 	if source == "bubble_shot_charged":
 		# Each bullet adds one charge = one enemy hit, up to SHOT_CHARGE_MAX
 		# (see _use_shot_charge()). The ship doesn't use them up.
-		_charge_touches_left = mini(_charge_touches_left + 1, SHOT_CHARGE_MAX) if was_charged else 1
+		var charge_cap: int = int(Stats.get_stat("bubble", "shot_charge_max"))
+		_charge_touches_left = mini(_charge_touches_left + 1, charge_cap) if was_charged else 1
 		_shot_charged = true
 	else:
 		# Jump charge. Re-hit while already charged: refresh the grace timer
@@ -681,6 +684,12 @@ func create_pop_damage(damage_source: String = "bubble_pop"):
 	
 	# Damage all enemies in range
 	var damage_amount = damage * (JUMP_POP_DAMAGE_MULT if damage_source == "bubble_jump_pop" else POP_DAMAGE_MULT)
+	if damage_source == "bubble_jump_pop":
+		# Gray Pop Blast power-up (Stats "bubble"/"jump_pop_damage_mult").
+		# Fractional results are averaged over pops - see
+		# PlayerPowerUps.whole_damage().
+		damage_amount = PlayerPowerUps.whole_damage("bubble_jump_pop",
+			float(damage_amount) * float(Stats.get_stat("bubble", "jump_pop_damage_mult")))
 	for enemy in enemies_in_range:
 		if enemy.has_method("take_damage"):
 			enemy.take_damage(damage_amount, {"source": damage_source})
@@ -795,7 +804,11 @@ func _on_area_entered(area: Area2D):
 	# effect on the bubble itself, and enemy bullets are still ignored.
 	if area.is_in_group("enemies") or area.is_in_group("enemy"):
 		if is_shockwave_charged and area.has_method("take_damage"):
-			area.take_damage(SHOCKWAVE_CHARGE_DAMAGE, {"source": _charge_source})
+			# Charged damage comes from Stats (gray Charged Shell power-up);
+			# fractional values are averaged over hits.
+			var charged_damage := PlayerPowerUps.whole_damage("bubble_charged",
+				float(Stats.get_stat("bubble", "charged_damage")))
+			area.take_damage(charged_damage, {"source": _charge_source})
 			if _shot_charged:
 				_use_shot_charge()
 		# Test option: bounce off enemies like off the stage walls.
