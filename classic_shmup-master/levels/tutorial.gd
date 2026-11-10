@@ -455,6 +455,21 @@ const TUTORIAL_BUBBLE_JUMP_VIDEO := "res://Art assets/Tutorial/bubble_jump.ogv"
 const TUTORIAL_BUBBLE_SHOOT_VIDEO := "res://Art assets/Tutorial/bubble_shoot.ogv"
 const TUTORIAL_BUBBLE_COMBINE_VIDEO := "res://Art assets/Tutorial/bubble_combine.ogv"
 
+# Wave 5a card clip: in the cosmic storm, K shoots out a bubble, J shots
+# power it up from the clear strip, and it flies up and destroys a storm
+# astroid. Times are seconds of bubble_storm_shoot.ogv.
+const TUTORIAL_STORM_SHOOT_VIDEO := "res://Art assets/Tutorial/bubble_storm_shoot.ogv"
+const TUTORIAL_STORM_SHOOT_KEYS := [
+	["J", 0.75, 1.65],
+]
+
+# Wave 5b card clip: jumping on the caged bubble pops it and the explosion
+# takes out the armored ring. Times are seconds of bubble_jump_on.ogv.
+const TUTORIAL_JUMP_ON_VIDEO := "res://Art assets/Tutorial/bubble_jump_on.ogv"
+const TUTORIAL_JUMP_ON_KEYS := [
+	["L", 0.65, 0.85],
+]
+
 # Red Frog as a speaker preset for say()/talk().
 const RED_FROG := {"speaker": "Red Frog", "portrait": FACE_RED}
 
@@ -891,7 +906,7 @@ func _on_target_bubble_popped() -> void:
 # these astroids get STORM_TARGET_HEALTH = 1, so each charge = one astroid.
 # Golden astroids + gray bees drift down (same supply as wave 3) so the
 # player can get a bubble back if they lose it - but only while they have no
-# bubble out and aren't transformed (_supply_only_when_needed). No video on the card yet.
+# bubble out and aren't transformed (_supply_only_when_needed).
 const CosmicStormScript := preload("res://effects/cosmic_storm.gd")
 const STORM_BOTTOM_PERCENT := 0.75   # storm covers the top 75% of the screen
 const STORM_TARGET_SPOTS := [        # screen fractions (x, y) where the astroids park
@@ -934,10 +949,11 @@ func _wave_5a() -> void:
 			{"text": "Aw shucks. You actually read that thing? Guess we're both geniuses then."},
 		], RED_FROG)
 
-		# No video yet - add "video" (and "key_timeline") here once it's recorded.
 		await show_info({
 			"title": "Using Bubbles: Shoot",
+			"video": TUTORIAL_STORM_SHOOT_VIDEO,
 			"keys": [["J"]],
+			"key_timeline": TUTORIAL_STORM_SHOOT_KEYS,
 			"text": "Shoot (J) a bubble to power it up. A powered-up bubble damages the enemies it hits. The storm jams your blasters - you can only shoot from the clear space at the bottom.",
 		})
 	show_challenge()   # instructions + challenge fade in now that the talking's done
@@ -1025,7 +1041,6 @@ func _on_storm_target_died(_value: int) -> void:
 # one jump-pop finishes them.
 # Golden astroids + gray bees drift down only while the player has no bubble
 # out and isn't transformed (_supply_only_when_needed), in case they lose it.
-# No video on the card yet.
 const CAGED_BUBBLE_SCENE := preload("res://bullets/bubble.tscn")
 const JUMP_RING := {                 # same look as the bomb-ring trial
 	"radius": 36.0,
@@ -1065,10 +1080,11 @@ func _wave_5b() -> void:
 			{"text": "Not sure how, but I can't say you haven't surprised me before."},
 		], RED_FROG)
 
-		# No video yet - add "video" (and "key_timeline") here once it's recorded.
 		await show_info({
 			"title": "Using Bubbles: Jump",
+			"video": TUTORIAL_JUMP_ON_VIDEO,
 			"keys": [["L"]],
+			"key_timeline": TUTORIAL_JUMP_ON_KEYS,
 			"text": "Jump (L) on a bubble to pop it in a big explosion - and get its transformation back.",
 		})
 	show_challenge()   # instructions + challenge fade in now that the talking's done

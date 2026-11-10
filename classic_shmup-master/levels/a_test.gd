@@ -34,7 +34,7 @@ func _ready() -> void:
 func _test_wave() -> void:
 	if START_TRANSFORMED:
 		_start_in_gray_form()
-	await _wave_5b()
+	await _wave_5a()
 
 
 ## Same end result as absorbing a gray bee, minus the beam / hitstop.
