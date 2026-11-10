@@ -11,9 +11,9 @@
 [ext_resource type="Texture2D" uid="uid://b1jinxtgd3rv0" path="res://Mini Pixel Pack 3/Player ship/Boosters_right (16 x 16).png" id="4_bbrn4"]
 [ext_resource type="Texture2D" uid="uid://8sql62rflh1i" path="res://Art assets/Player assets and transformations/Player_topdown.png" id="5_n7ghd"]
 [ext_resource type="Texture2D" uid="uid://2aa2aerwlxgm" path="res://Art assets/Player assets and transformations/Player_topdown_placeholder_transformation_sprite.png" id="6_b26j0"]
-[ext_resource type="Script" path="res://player/player_shadow.gd" id="7_shadow"]
-[ext_resource type="Script" path="res://player/absorb_ready_outline.gd" id="8_outline"]
-[ext_resource type="SpriteFrames" path="res://player/anim/player_ship_frames.tres" id="9_shipanim"]
+[ext_resource type="Script" uid="uid://dfuht1sy0h31w" path="res://player/player_shadow.gd" id="7_shadow"]
+[ext_resource type="Script" uid="uid://c8g0wu2ofd8c7" path="res://player/absorb_ready_outline.gd" id="8_outline"]
+[ext_resource type="SpriteFrames" uid="uid://dnic8juvhxejs" path="res://player/anim/player_ship_frames.tres" id="9_shipanim"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_rbfoc"]
 atlas = ExtResource("2_6cdot")
@@ -48,7 +48,7 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_kqk0y")
 }],
-"loop": true,
+"loop": 1,
 "name": &"forward",
 "speed": 10.0
 }, {
@@ -59,7 +59,7 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_7nji5")
 }],
-"loop": true,
+"loop": 1,
 "name": &"left",
 "speed": 10.0
 }, {
@@ -70,7 +70,7 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_u7ed7")
 }],
-"loop": true,
+"loop": 1,
 "name": &"right",
 "speed": 10.0
 }]
@@ -112,7 +112,7 @@ sprite_frames = SubResource("SpriteFrames_p6f8n")
 animation = &"forward"
 autoplay = "forward"
 
-[node name="Anim" type="AnimatedSprite2D" parent="Ship"]
+[node name="Anim" type="AnimatedSprite2D" parent="Ship" unique_id=2059912343]
 use_parent_material = true
 scale = Vector2(1.1, 1.41)
 sprite_frames = ExtResource("9_shipanim")

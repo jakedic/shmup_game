@@ -314,6 +314,12 @@ func is_talking() -> bool:
 	return _dialogue != null and _dialogue.is_talking()
 
 
+## Clear only the side-panel box (see DialogueUI.clear_side()).
+func clear_side_dialogue() -> void:
+	if _dialogue:
+		_dialogue.clear_side()
+
+
 func clear_dialogue() -> void:
 	if _dialogue:
 		_dialogue.clear_all()

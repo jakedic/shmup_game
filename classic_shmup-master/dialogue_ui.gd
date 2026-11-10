@@ -160,6 +160,24 @@ func is_talking() -> bool:
 	return _talk_active
 
 
+## Drop the side box's current line and anything queued behind it (anyone
+## awaiting those lines is released). The tutorial calls this when a center
+## box opens so the same character isn't talking in both places at once.
+func clear_side() -> void:
+	var ids: Array = []
+	if _side_current != null:
+		ids.append(_side_current["id"])
+	for l in _side_queue:
+		ids.append(l["id"])
+	_side_queue.clear()
+	_side_current = null
+	_side_state = ""
+	_hide_side()
+	for id in ids:
+		side_line_done.emit(id)
+	_update_portrait()
+
+
 ## Drop everything (used on scene changes). Anything awaiting a line is
 ## released so no coroutine is left hanging.
 func clear_all() -> void:

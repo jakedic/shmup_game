@@ -12,6 +12,17 @@ signal bounced_off_player(total_bounces: int)
 # long it's allowed to keep bouncing before it's forced to pop on its own.
 @export var bubble_lifetime: float = 3600.0
 
+# Pop explosion damage = bubble damage x this. Jumping on a bubble hits
+# harder than any other pop, so it beats armor a plain jump landing (3
+# damage, player/landing_shockwave.gd) can't get through - e.g. the armor-3
+# astroids in tutorial wave 5b. Added 2026-11-06; before that every pop was x3.
+const POP_DAMAGE_MULT := 3
+const JUMP_POP_DAMAGE_MULT := 5
+# Pop explosion radius (damage, bullet-clearing and the blue flash). Jumping
+# on a bubble ("bubble_jump_pop") uses a blast 10% smaller than other pops.
+const POP_EXPLOSION_RADIUS := 80.0
+const JUMP_POP_RADIUS_MULT := 0.9
+
 @onready var screensize: Vector2 = get_viewport_rect().size
 
 var absorbed_enemy_type: String = "" 
@@ -80,6 +91,13 @@ const SHOCKWAVE_CHARGE_TOUCHES := 3
 # adds ONE charge - damage for one enemy hit / bounce off an enemy - stacking
 # up to SHOT_CHARGE_MAX. Bouncing off the ship doesn't use them up. The outline shows one ring per stored charge.
 const SHOT_CHARGE_MAX := 3
+# Each stored shot charge grows the bubble's radius by this fraction of its
+# normal size (1 charge = 110%, 2 = 120%, 3 = 130%). Scales the whole node,
+# so the sprite, collision shape and outline all grow together.
+const SHOT_CHARGE_SIZE_STEP := 0.10
+const SHOT_CHARGE_GROW_TIME := 0.12
+var _uncharged_scale := Vector2.ZERO   # captured the first time a charge resizes the bubble
+var _charge_size_tween: Tween
 # Test menu "Jump: bubble sends shockwave": after a short delay the bubble
 # sends out this many landing-style rings, one after another.
 const BUBBLE_SHOCKWAVE_COUNT := 3
@@ -464,6 +482,12 @@ func _bounce_away_from(point: Vector2) -> void:
 		direction = direction.bounce(normal).normalized()
 	global_position += normal * 2.0
 
+func bounce_off_point(point: Vector2) -> void:
+	"""Bounce off something solid at `point` (e.g. a tutorial TargetBubble -
+	bullets/target_bubble.gd - popping when this bubble hits it)."""
+	_bounce_away_from(point)
+	flash_white()
+
 func on_shockwave_hit(center: Vector2) -> void:
 	"""Called by LandingShockwave when the player's jump-landing ring reaches
 	this bubble ("jumping on it"). What happens is set by the Test menu
@@ -567,6 +591,21 @@ func _refresh_charge_outline() -> void:
 	var outline := get_node_or_null("ChargeOutline")
 	if outline:
 		outline.rings = _charge_touches_left if _shot_charged else 1
+	_apply_charge_size()
+
+func _apply_charge_size() -> void:
+	"""Grow the bubble SHOT_CHARGE_SIZE_STEP per stored shot charge (jump
+	charges don't change its size). Back to normal once the charge is gone."""
+	if _is_fusing:
+		return
+	if _uncharged_scale == Vector2.ZERO:
+		_uncharged_scale = scale
+	var charges := _charge_touches_left if (is_shockwave_charged and _shot_charged) else 0
+	var target := _uncharged_scale * (1.0 + SHOT_CHARGE_SIZE_STEP * charges)
+	if _charge_size_tween and _charge_size_tween.is_valid():
+		_charge_size_tween.kill()
+	_charge_size_tween = create_tween()
+	_charge_size_tween.tween_property(self, "scale", target, SHOT_CHARGE_GROW_TIME).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _clear_shockwave_charge() -> void:
 	"""Back to a normal bubble: no outline, no enemy damage, speed boost
@@ -582,6 +621,7 @@ func _clear_shockwave_charge() -> void:
 	if outline:
 		remove_child(outline)
 		outline.queue_free()
+	_apply_charge_size()
 
 const OneShotAnim := preload("res://effects/one_shot_anim.gd")
 const POP_FRAMES := preload("res://player/anim/bubble_pop_frames.tres")
@@ -612,7 +652,7 @@ func create_pop_damage(damage_source: String = "bubble_pop"):
 	simple timer approach"""
 	
 	# Get all enemies in range manually
-	var explosion_radius = 80
+	var explosion_radius := _pop_radius(damage_source)
 	var enemies_in_range = []
 	
 	# Search for enemies in the scene
@@ -636,11 +676,11 @@ func create_pop_damage(damage_source: String = "bubble_pop"):
 		for enemy in enemies_in_range:
 			if enemy.has_method("apply_status_effect"):
 				enemy.apply_status_effect(StatusEffects.POLLINATED, {})
-		create_visual_explosion()
+		create_visual_explosion(explosion_radius)
 		return
 	
 	# Damage all enemies in range
-	var damage_amount = damage * 3
+	var damage_amount = damage * (JUMP_POP_DAMAGE_MULT if damage_source == "bubble_jump_pop" else POP_DAMAGE_MULT)
 	for enemy in enemies_in_range:
 		if enemy.has_method("take_damage"):
 			enemy.take_damage(damage_amount, {"source": damage_source})
@@ -648,7 +688,7 @@ func create_pop_damage(damage_source: String = "bubble_pop"):
 			enemy.explode()
 	
 	# Create a visual explosion effect (optional)
-	create_visual_explosion()
+	create_visual_explosion(explosion_radius)
 	
 
 func _clear_enemy_bullets(radius: float) -> void:
@@ -660,13 +700,18 @@ func _clear_enemy_bullets(radius: float) -> void:
 		if global_position.distance_to(b.global_position) <= radius:
 			b.queue_free()
 
-func create_visual_explosion():
+func _pop_radius(damage_source: String) -> float:
+	"""Explosion radius for a pop - 10% smaller when jumped on."""
+	if damage_source == "bubble_jump_pop":
+		return POP_EXPLOSION_RADIUS * JUMP_POP_RADIUS_MULT
+	return POP_EXPLOSION_RADIUS
+
+func create_visual_explosion(radius: float = POP_EXPLOSION_RADIUS):
 	"""Create a blue circular explosion effect using a Polygon2D"""
 	var explosion = Polygon2D.new()
 	
 	# Create a circle with 32 points
 	var points = []
-	var radius = 80
 	var segments = 32
 	for i in range(segments):
 		var angle = (i / float(segments)) * 2 * PI

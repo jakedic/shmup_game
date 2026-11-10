@@ -449,6 +449,15 @@ const EXPLOSION_SHEET_DIAMETER := 200.0
 @export var death_explosion: bool = true
 ## Final ring size in play-area px. 0 = auto from the hitbox size.
 @export var explosion_diameter: float = 0.0
+## Bigger enemies: this many EXTRA explosions go off around the main one,
+## slightly staggered, so the death reads as a bigger blast. 0 = just one.
+@export var extra_explosions: int = 0
+## How far (px) from the center the extra explosions can land.
+@export var extra_explosion_spread: float = 14.0
+## Each extra explosion's size, as a fraction of the main one.
+@export var extra_explosion_scale: float = 0.7
+## Extra explosions go off one after another, this many seconds apart.
+@export var extra_explosion_stagger: float = 0.08
 
 func _spawn_death_explosion() -> void:
 	var d := explosion_diameter
@@ -459,6 +468,24 @@ func _spawn_death_explosion() -> void:
 			var r := cs.shape.get_rect().size * cs.global_scale.abs()
 			d = clampf(maxf(r.x, r.y) * 1.6, 22.0, 64.0)
 	OneShotAnim.spawn(EXPLOSION_FRAMES, &"explode", global_position, d / EXPLOSION_SHEET_DIAMETER)
+	_spawn_extra_explosions(d)
+
+func _spawn_extra_explosions(main_diameter: float) -> void:
+	"""The staggered extra blasts for extra_explosions. Scheduled on scene-
+	tree timers (not on this enemy), so they still go off after it's freed."""
+	if extra_explosions <= 0 or not is_inside_tree():
+		return
+	var center := global_position
+	var size := main_diameter * extra_explosion_scale / EXPLOSION_SHEET_DIAMETER
+	var tree := get_tree()
+	for i in extra_explosions:
+		# Spread evenly around the center (with a little jitter) so they
+		# don't all pile up on one side.
+		var ang := TAU * float(i) / extra_explosions + randf_range(-0.6, 0.6)
+		var at := center + Vector2.from_angle(ang) * randf_range(extra_explosion_spread * 0.5, extra_explosion_spread)
+		var s := size * randf_range(0.85, 1.15)
+		tree.create_timer(extra_explosion_stagger * (i + 1), false).timeout.connect(
+				func(): OneShotAnim.spawn(EXPLOSION_FRAMES, &"explode", at, s))
 
 func custom_explode():
 	"""Override this for custom explosion effects"""

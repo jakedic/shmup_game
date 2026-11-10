@@ -15,37 +15,41 @@
 extends RefCounted
 
 # --- Bubble: shooting it ---
-const BUBBLE_SHOT_EXPLODES := "bubble_shot_explodes"   # shot -> pops in a big explosion (normal)
-const BUBBLE_SHOT_CHARGES := "bubble_shot_charges"     # shot -> +1 charge (damages enemies for one bounce off the ship), up to 3
+const BUBBLE_SHOT_EXPLODES := "bubble_shot_explodes"   # shot -> pops in a big explosion
+const BUBBLE_SHOT_CHARGES := "bubble_shot_charges"     # shot -> +1 charge (damages enemies for one bounce off the ship), up to 3 (normal)
 const BUBBLE_SHOT_BOUNCES := "bubble_shot_bounces"     # shot -> knocked away from the bullet
-const BUBBLE_SHOT_PASSES := "bubble_shot_passes"       # the bullet keeps going through the bubble (after doing any of the above)
+const BUBBLE_SHOT_PASSES := "bubble_shot_passes"       # the bullet keeps going through the bubble (after doing any of the above) (normal)
 # --- Bubble: jumping on it (the landing shockwave reaching it) ---
-const BUBBLE_JUMP_CHARGES := "bubble_jump_charges"     # jump -> powered up (normal)
-const BUBBLE_JUMP_EXPLODES := "bubble_jump_explodes"   # jump -> pops in a big explosion
+const BUBBLE_JUMP_CHARGES := "bubble_jump_charges"     # jump -> powered up
+const BUBBLE_JUMP_EXPLODES := "bubble_jump_explodes"   # jump -> pops in a big explosion (normal)
 const BUBBLE_JUMP_REGAINS := "bubble_jump_regains"     # jump -> pops and you get its transformation back
 const BUBBLE_JUMP_SHOCKWAVE := "bubble_jump_shockwave" # jump -> after a short delay the bubble sends out 3 landing-style shockwaves
 # --- Bubble: movement ---
-const BUBBLE_ENEMY_BOUNCE := "bubble_enemy_bounce"     # bounces off enemies as well as the stage walls
+const BUBBLE_ENEMY_BOUNCE := "bubble_enemy_bounce"     # bounces off enemies as well as the stage walls (normal)
 # --- Multiplier / absorbing ---
 const ALWAYS_MAX_MULTIPLIER := "always_max_multiplier" # multiplier never drops below 4x
 const KILL_POINTS_X4 := "kill_points_x4"               # kills charge the multiplier 4x as much
 const ABSORB_ASTROIDS := "absorb_astroids"             # the absorb beam works on astroids, giving the gray form
 # --- Sliders (numbers, not on/off) ---
-const BUBBLE_SPEED := "bubble_speed"   # 0-10; 5 = normal speed, 0 = doesn't move, 10 = double
+const BUBBLE_SPEED := "bubble_speed"   # 0-10; 5 = the bubble's base speed, 0 = doesn't move, 10 = double (default is 6 = 120%)
 
+# Defaults (changed 2026-11-09): shot = powers up + bullet passes through;
+# jump = pops + explodes (no longer regains its power); bounces off enemies;
+# speed 6.
 static var values := {
-	BUBBLE_SHOT_EXPLODES: true,
-	BUBBLE_SHOT_CHARGES: false,
+	BUBBLE_SHOT_EXPLODES: false,
+	BUBBLE_SHOT_CHARGES: true,
 	BUBBLE_SHOT_BOUNCES: false,
-	BUBBLE_JUMP_CHARGES: true,
-	BUBBLE_JUMP_EXPLODES: false,
+	BUBBLE_SHOT_PASSES: true,
+	BUBBLE_JUMP_CHARGES: false,
+	BUBBLE_JUMP_EXPLODES: true,
 	BUBBLE_JUMP_REGAINS: false,
 	BUBBLE_JUMP_SHOCKWAVE: false,
-	BUBBLE_ENEMY_BOUNCE: false,
+	BUBBLE_ENEMY_BOUNCE: true,
 	ALWAYS_MAX_MULTIPLIER: false,
 	KILL_POINTS_X4: false,
 	ABSORB_ASTROIDS: false,
-	BUBBLE_SPEED: 5,
+	BUBBLE_SPEED: 6,
 }
 
 # Test menu layout: a "header" row starts a group, a "slider" row is a number

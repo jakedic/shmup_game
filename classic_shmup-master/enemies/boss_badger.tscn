@@ -21,6 +21,7 @@ follow_anchor_enabled = false
 can_shoot = false
 health_bar_offset = Vector2(0, -38)
 health_bar_width = 35.0
+big_death = true
 
 [node name="Sprite2D" type="Sprite2D" parent="Head"]
 texture_filter = 5

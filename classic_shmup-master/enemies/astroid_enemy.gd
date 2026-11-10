@@ -72,6 +72,7 @@ class_name AstroidEnemy
 # code via spawn_drift_wave's "stop_percent" field. -1 = never stops.
 var hold_at_y: float = -1.0
 var _is_held: bool = false
+var _velocity_before_hold := Vector2.ZERO   # travel_velocity right before it parked at hold_at_y
 
 var travel_velocity: Vector2 = Vector2.ZERO
 var rotation_speed_deg: float = 0.0
@@ -121,6 +122,7 @@ func custom_process(delta: float):
 	rotation += deg_to_rad(rotation_speed_deg) * delta
 	if hold_at_y >= 0.0 and not _is_held and travel_velocity.y > 0.0 and position.y >= hold_at_y:
 		position.y = hold_at_y
+		_velocity_before_hold = travel_velocity
 		travel_velocity = Vector2.ZERO
 		_is_held = true
 
@@ -142,10 +144,18 @@ func custom_die():
 		GameShell.multiplier_on_golden_kill()
 	if not split_scene:
 		return
+	# A parked (hold_at_y) astroid has no velocity left, so its fragments
+	# would sit still - give them the speed it was drifting at before it
+	# parked (or straight down at default_travel_speed as a last resort).
+	var base_velocity: Vector2 = travel_velocity
+	if base_velocity.length() < 0.01:
+		base_velocity = _velocity_before_hold
+	if base_velocity.length() < 0.01:
+		base_velocity = Vector2.DOWN * default_travel_speed
 	for i in range(split_count):
 		var t = float(i) / max(1, split_count - 1)
 		var angle = deg_to_rad(split_angle_spread_deg) * (t - 0.5)
-		var fragment_velocity = travel_velocity.rotated(angle) * split_speed_multiplier
+		var fragment_velocity = base_velocity.rotated(angle) * split_speed_multiplier
 		_spawn_fragment(fragment_velocity)
 
 func _spawn_fragment(velocity: Vector2) -> void:

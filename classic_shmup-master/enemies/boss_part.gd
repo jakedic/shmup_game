@@ -21,6 +21,18 @@ class_name BossPart
 @export var health_bar_width: float = 30.0
 @export var death_fade_time: float = 0.4
 
+# ===== BIG DEATH (e.g. the badger's head) =====
+# Instead of the quick fade: lots of explosions go off across the part while
+# it shakes and fades out, then one big final blast.
+@export var big_death: bool = false
+@export var big_death_time: float = 1.8          # seconds of explosions + fading
+@export var big_death_interval: float = 0.09     # seconds between each pop of explosions
+@export var big_death_burst: int = 2             # explosions per pop
+@export var big_death_explosion_size: Vector2 = Vector2(18, 34)   # random size range, px
+@export var big_death_final_size: float = 70.0   # the last big blast, px
+
+var _dying := false
+
 
 func custom_ready():
 	can_shoot = false
@@ -66,13 +78,18 @@ func explode():
 	# boss part shrugs that off (the player still takes the contact damage) -
 	# only running out of health kills it, which goes through die() first and
 	# sets is_alive = false.
-	if is_alive:
+	if is_alive or _dying:
 		return
+	_dying = true
 	current_speed = 0
 	set_deferred("monitorable", false)
 	set_deferred("monitoring", false)
 	died.emit(score_value)
 	queue_redraw()
+	if big_death:
+		await _big_death_sequence()
+		queue_free()
+		return
 	# Fade the sprite (not `modulate`, which the hit flash also uses) and
 	# shrink a little, then remove.
 	var spr := get_node_or_null("Sprite2D") as Sprite2D
@@ -82,6 +99,49 @@ func explode():
 	tw.tween_property(self, "scale", scale * 0.7, death_fade_time)
 	await tw.finished
 	queue_free()
+
+
+func _big_death_sequence() -> void:
+	"""The big finish (used by the badger's head): explosions keep popping
+	all over the art while it shakes, flickers and fades out, then one last
+	big blast. The part stays in the "enemies" group until this is done, so
+	the level doesn't end (or start the next wave) underneath it."""
+	_flash_left = 0.0
+	modulate = enemy_color
+	var spr := get_node_or_null("Sprite2D") as Sprite2D
+	# Area the explosions can land in: the sprite's on-screen box, pulled in
+	# a bit so they sit on the art rather than its empty corners.
+	var half := Vector2(20, 20)
+	if spr:
+		half = spr.get_rect().size * spr.global_scale.abs() * 0.5 * 0.8
+		var tw := create_tween()
+		tw.tween_property(spr, "modulate", Color(1, 1, 1, 0), big_death_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	GameShell.shake_screen(big_death_time, 2.0)
+
+	var elapsed := 0.0
+	var flick := false
+	while elapsed < big_death_time:
+		if not is_inside_tree():
+			return
+		for i in big_death_burst:
+			var at := global_position + Vector2(randf_range(-half.x, half.x), randf_range(-half.y, half.y))
+			var d := randf_range(big_death_explosion_size.x, big_death_explosion_size.y)
+			OneShotAnim.spawn(EXPLOSION_FRAMES, &"explode", at, d / EXPLOSION_SHEET_DIAMETER)
+		if spr:
+			# Rattle + flicker between white-hot and normal.
+			spr.position = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 2.0
+			flick = not flick
+			spr.self_modulate = Color(1.6, 1.4, 1.4) if flick else Color.WHITE
+		await get_tree().create_timer(big_death_interval, false).timeout
+		elapsed += big_death_interval
+
+	# Final blast in the middle.
+	if not is_inside_tree():
+		return
+	visible = false
+	OneShotAnim.spawn(EXPLOSION_FRAMES, &"explode", global_position, big_death_final_size / EXPLOSION_SHEET_DIAMETER)
+	GameShell.shake_screen(0.4, 4.0)
+	await get_tree().create_timer(0.5, false).timeout
 
 
 func _draw() -> void:

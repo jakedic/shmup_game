@@ -13,6 +13,10 @@ score_value = 15
 default_travel_speed = 18.0
 split_scene = ExtResource("3_ast_m")
 split_count = 3
+explosion_diameter = 34.0
+extra_explosions = 2
+extra_explosion_spread = 24.0
+extra_explosion_stagger = 0.18
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 scale = Vector2(0.10944, 0.10944)

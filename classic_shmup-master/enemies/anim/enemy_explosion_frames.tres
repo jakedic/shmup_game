@@ -1,6 +1,6 @@
-[gd_resource type="SpriteFrames" format=3]
+[gd_resource type="SpriteFrames" format=3 uid="uid://cnrptb5uh13yp"]
 
-[ext_resource type="Texture2D" path="res://enemies/anim/enemy_explosion_sheet.png" id="1_sheet"]
+[ext_resource type="Texture2D" uid="uid://cmevv8f3l8ji8" path="res://enemies/anim/enemy_explosion_sheet.png" id="1_sheet"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_explode_0"]
 atlas = ExtResource("1_sheet")
@@ -89,7 +89,7 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_explode_11")
 }],
-"loop": false,
+"loop": 0,
 "name": &"explode",
 "speed": 30.0
 }]

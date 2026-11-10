@@ -1,6 +1,6 @@
-[gd_resource type="SpriteFrames" format=3]
+[gd_resource type="SpriteFrames" format=3 uid="uid://dnic8juvhxejs"]
 
-[ext_resource type="Texture2D" path="res://player/anim/player_ship_sheet.png" id="1_sheet"]
+[ext_resource type="Texture2D" uid="uid://5unbhefn831g" path="res://player/anim/player_ship_sheet.png" id="1_sheet"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_idle_0"]
 atlas = ExtResource("1_sheet")
@@ -155,7 +155,7 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_idle_9")
 }],
-"loop": true,
+"loop": 1,
 "name": &"idle",
 "speed": 30.0
 }, {
@@ -190,7 +190,7 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_left_9")
 }],
-"loop": true,
+"loop": 1,
 "name": &"left",
 "speed": 30.0
 }, {
@@ -225,7 +225,7 @@ animations = [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_right_9")
 }],
-"loop": true,
+"loop": 1,
 "name": &"right",
 "speed": 30.0
 }]

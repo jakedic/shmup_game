@@ -125,6 +125,9 @@ static func on_area_entered(player: Player, area: Area2D) -> void:
 	if area.is_in_group("enemies"):
 		handle_enemy_collision(player, area)
 
+## Damage an enemy takes when the ship flies into it (armor applies).
+const CONTACT_DAMAGE_TO_ENEMY := 2
+
 static func handle_enemy_collision(player: Player, area: Area2D) -> void:
 	"""Handle collision with enemy"""
 
@@ -165,8 +168,13 @@ static func handle_enemy_collision(player: Player, area: Area2D) -> void:
 	if is_invincible(player):
 		return
 
-	# Normal collision handling (player takes damage)
-	if area.has_method("explode"):
+	# Normal collision handling: the player takes damage, and the enemy takes
+	# CONTACT_DAMAGE_TO_ENEMY (through its armor) instead of always exploding -
+	# so tough or armored enemies survive being flown into. (Changed
+	# 2026-11-06; it used to be an instant kill via explode().)
+	if area.has_method("take_damage"):
+		area.take_damage(CONTACT_DAMAGE_TO_ENEMY, {"source": "ship_contact"})
+	elif area.has_method("explode"):
 		area.explode()
 
 	# Take damage
