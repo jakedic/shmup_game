@@ -98,6 +98,11 @@ var is_landing_paused: bool = false
 # After taking damage the ship blinks and can't be hurt again for
 # PlayerHealth.HIT_INVINCIBILITY_DURATION seconds (see PlayerHealth.take_damage()).
 var is_hit_invincible: bool = false
+# Yellow form: true for a moment after the charge shot becomes fully charged
+# (see PlayerChargeShot.FULL_CHARGE_INVINCIBILITY). Separate from
+# is_hit_invincible so the two timers can't cut each other short.
+var is_charge_invincible: bool = false
+var _charge_invincible_token: int = 0
 var _hit_blink_tween: Tween = null
 var landing_pause_duration: float = 0.0
 
@@ -194,6 +199,8 @@ var can_absorb: bool = true
 # Gray-form ship tint + "about to revert" flashing - see
 # PlayerVisuals.update_form_tint().
 var gray_ship_material: ShaderMaterial = null
+var yellow_ship_material: ShaderMaterial = null
+var intangible_flash_elapsed: float = 0.0
 var form_flash_on: bool = true
 var form_flash_elapsed: float = 0.0
 

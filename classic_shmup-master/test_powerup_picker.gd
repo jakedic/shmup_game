@@ -27,7 +27,12 @@ const MenuKeys := preload("res://menu_keys.gd")   # shared menu keys: WASD/arrow
 ## Mouse:    click the page bar's < > to flip pages, a row's checkbox/name to
 ##           tick it, its SET level to cycle it, GIVE/BACK. Drawn in code like levels/test_menu.gd.
 
-## picks: [{"id": String, "level": int}] - level 0 for power-ups without levels.
+## The LAST page is FORM: pick one transformation (radio-style) and GIVE
+## switches you into it - see PlayerAbsorption.set_form_for_test(). Test
+## forms don't time out; they last until you pick another one.
+##
+## picks: [{"id": String, "level": int, "remove": bool}] for power-ups, plus
+## one {"form": String} entry if a form was picked on the FORM page.
 signal give_requested(picks: Array)
 signal back_requested
 
@@ -51,6 +56,21 @@ var target_levels: Dictionary = {}
 # cursor: -1 = page bar, 0..powerups.size()-1 = rows, then GIVE, then BACK
 var cursor: int = -1
 
+# FORM page rows (the transformations you can switch into). "form" is the
+# value of player.current_form; "gray_homing" = the gray form with the
+# badger cigar's homing shots.
+const FORM_ROWS: Array[Dictionary] = [
+	{"id": "form_default", "name": "Default (no form)", "form": "default"},
+	{"id": "form_yellow", "name": "Yellow", "form": "yellow"},
+	{"id": "form_gray", "name": "Gray", "form": "gray"},
+	{"id": "form_gray_homing", "name": "Gray + homing (cigar)", "form": "gray_homing"},
+	{"id": "form_hive", "name": "Hive", "form": "hive"},
+	{"id": "form_flower", "name": "Flower", "form": "flower"},
+	{"id": "form_red", "name": "Red", "form": "red"},
+]
+const FORM_COLOR := Color(0.53, 0.81, 0.92)
+var selected_form: String = ""   # "" = leave the form alone
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -60,7 +80,14 @@ func _ready() -> void:
 
 
 func open() -> void:
+	# Cover the whole play area (anchors alone don't size a Control that sits
+	# directly under a CanvasLayer) - needed for the dark backdrop and for
+	# mouse clicks to land on the picker.
+	position = Vector2.ZERO
+	size = get_viewport_rect().size
 	pages = PlayerPowerUps.get_powerup_pages()
+	pages.append({"title": "FORM", "color": FORM_COLOR, "powerups": FORM_ROWS, "forms": true})
+	selected_form = ""
 	checked_ids.clear()
 	target_levels.clear()
 	for p: Dictionary in pages:
@@ -86,7 +113,18 @@ func _id(i: int) -> String:
 	return powerups[i].get("id", "")
 
 
+func _is_form_page() -> bool:
+	return not pages.is_empty() and pages[page].get("forms", false)
+
+
+func _current_form() -> String:
+	var player := get_tree().get_first_node_in_group("player")
+	return String(player.current_form) if player and "current_form" in player else "default"
+
+
 func _is_checked(i: int) -> bool:
+	if _is_form_page():
+		return selected_form == powerups[i].get("form", "")
 	return checked_ids.has(_id(i))
 
 
@@ -166,7 +204,7 @@ func _input(event: InputEvent) -> void:
 	elif event.is_action_pressed("up"):
 		cursor = last if cursor <= -1 else cursor - 1
 	elif dir != 0:
-		if on_row:
+		if on_row and not _is_form_page():
 			_change_level(cursor, dir, false)
 		elif cursor == _give_index() and dir > 0:
 			cursor = _back_index()
@@ -192,7 +230,7 @@ func _gui_input(event: InputEvent) -> void:
 	for i in powerups.size():
 		if _row_rect(i).has_point(p):
 			cursor = i
-			if p.x >= SET_X - 6.0:
+			if p.x >= SET_X - 6.0 and not _is_form_page():
 				_change_level(i, 1, true)   # click the level to cycle it
 			else:
 				_activate(i)
@@ -208,6 +246,10 @@ func _gui_input(event: InputEvent) -> void:
 func _activate(index: int) -> void:
 	if index == -1:
 		_flip_page(1)   # select on the page bar = next page
+	elif index < powerups.size() and _is_form_page():
+		# Radio: pick this form (pick it again to un-pick).
+		var f: String = powerups[index].get("form", "")
+		selected_form = "" if selected_form == f else f
 	elif index < powerups.size():
 		if _is_checked(index):
 			checked_ids.erase(_id(index))
@@ -223,6 +265,8 @@ func _activate(index: int) -> void:
 					var lvl := int(target_levels.get(pid, 0))
 					var leveled := PlayerPowerUps.is_leveled(powerup)
 					picks.append({"id": pid, "level": lvl if leveled else 0, "remove": lvl == 0})
+		if selected_form != "":
+			picks.append({"form": selected_form})
 		hide()
 		give_requested.emit(picks)
 	else:
@@ -237,6 +281,11 @@ func _draw() -> void:
 	draw_string(font, Vector2(10, 16), "* TEST: GIVE POWER-UPS *", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1.0, 0.85, 0.2))
 	draw_string(font, Vector2(10, 27), "Tick, set with A/D (NONE removes it), then GIVE.", HORIZONTAL_ALIGNMENT_LEFT, WIDTH - 20, 6, dim)
 	_draw_page_bar(font)
+	if _is_form_page():
+		_draw_form_page(font, dim)
+		_draw_button(font, _give_rect(), "GIVE", cursor == _give_index(), Color(0.4, 0.85, 0.55))
+		_draw_button(font, _back_rect(), "BACK", cursor == _back_index(), Color(0.7, 0.72, 0.8))
+		return
 	draw_string(font, Vector2(HAVE_X, LIST_TOP - 10.0), "HAVE", HORIZONTAL_ALIGNMENT_LEFT, -1, 6, dim)
 	draw_string(font, Vector2(SET_X, LIST_TOP - 10.0), "SET", HORIZONTAL_ALIGNMENT_LEFT, -1, 6, dim)
 
@@ -279,6 +328,28 @@ func _draw() -> void:
 	_draw_button(font, _back_rect(), "BACK", cursor == _back_index(), Color(0.7, 0.72, 0.8))
 
 
+func _draw_form_page(font: Font, dim: Color) -> void:
+	"""FORM page: one round "radio" per transformation, NOW next to the one
+	you're in."""
+	draw_string(font, Vector2(HAVE_X, LIST_TOP - 10.0), "NOW", HORIZONTAL_ALIGNMENT_LEFT, -1, 6, dim)
+	var now := _current_form()
+	for i in powerups.size():
+		var row: Dictionary = powerups[i]
+		var y := LIST_TOP + i * ROW_HEIGHT
+		var selected := cursor == i
+		if selected:
+			draw_rect(_row_rect(i), Color(1, 1, 1, 0.08))
+		var ring_color := Color(1.0, 0.85, 0.35) if selected else FORM_COLOR.darkened(0.2)
+		draw_arc(Vector2(15.5, y - 3.5), 3.5, 0.0, TAU, 16, ring_color, 1.0)
+		if _is_checked(i):
+			draw_circle(Vector2(15.5, y - 3.5), 1.8, Color(0.4, 0.9, 0.55))
+		var text_color := Color(1.0, 0.85, 0.35) if selected else Color(0.85, 0.87, 0.93)
+		draw_string(font, Vector2(25, y), row.get("name", "?"), HORIZONTAL_ALIGNMENT_LEFT, HAVE_X - 30, 8, text_color)
+		var form: String = row.get("form", "")
+		if form == now:
+			draw_string(font, Vector2(HAVE_X, y), "NOW", HORIZONTAL_ALIGNMENT_LEFT, -1, 7, FORM_COLOR)
+
+
 func _draw_page_bar(font: Font) -> void:
 	"""< GRAY  1/2 >  in the page's type color; highlighted when the cursor
 	is on it. Shows how many are ticked on the other pages too."""
@@ -292,7 +363,7 @@ func _draw_page_bar(font: Font) -> void:
 	var text := "<  %s  %d/%d  >" % [pages[page]["title"], page + 1, pages.size()]
 	var ts: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 9)
 	draw_string(font, Vector2((WIDTH - ts.x) / 2.0, PAGE_BAR_Y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, color.lightened(0.3) if selected else color)
-	var ticked := checked_ids.size()
+	var ticked := checked_ids.size() + (1 if selected_form != "" else 0)
 	if ticked > 0:
 		draw_string(font, Vector2(r.end.x - 52, PAGE_BAR_Y), "%d ticked" % ticked, HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color(0.4, 0.9, 0.55))
 

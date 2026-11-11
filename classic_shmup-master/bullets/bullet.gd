@@ -92,6 +92,11 @@ var enemies_hit_count: int = 0
 
 var slow_down: int = 0
 
+# Pollination bounce (status_effects/pollinated_status.gd): when this bullet
+# hits a pollinated enemy and bounces, it flies straight at this enemy and
+# ignores every other enemy until it gets there (or the target dies).
+var _bounce_target: Node2D = null
+
 func _ready():
 	"""Called when bullet is added to scene"""
 	# Apply visual properties
@@ -152,6 +157,15 @@ func _process(delta: float):
 	"""Process bullet movement and behavior each frame"""
 	time_alive += delta
 	
+	# Bouncing to the next enemy (pollination) - head straight for it.
+	if _bounce_target != null:
+		if _is_valid_homing_target(_bounce_target):
+			var to_t: Vector2 = _bounce_target.global_position - global_position
+			if to_t.length() > 0.1:
+				direction = to_t.normalized()
+		else:
+			_bounce_target = null
+
 	if face_direction:
 		rotation = direction.angle() + PI / 2.0   # sprite points up = Vector2.UP
 
@@ -177,7 +191,7 @@ func _process(delta: float):
 	
 	# Handle homing behavior. With no target set, a homing bullet picks the
 	# nearest living enemy ahead of it (re-checked a few times a second).
-	if is_homing_active:
+	if is_homing_active and _bounce_target == null:
 		if not _is_valid_homing_target(_target):
 			_target = null
 			_retarget_timer -= delta
@@ -300,6 +314,15 @@ func handle_enemy_collision(area: Area2D):
 		# Prevent multiple collisions in same frame
 		if is_queued_for_deletion():
 			return
+		# Mid-bounce (pollination): pass over everything but the target.
+		if _bounce_target != null and _is_valid_homing_target(_bounce_target) and area != _bounce_target:
+			return
+		_bounce_target = null
+		
+		# Was the enemy pollinated going into this hit? (Only bullets that
+		# actually do damage trigger pollination - not pollen puffs.)
+		var was_pollinated: bool = damage > 0 and area.has_method("has_status_effect") \
+				and area.has_status_effect(StatusEffects.POLLINATED)
 		
 		# Check BEFORE dealing damage - this is about whatever status the
 		# enemy already had going into this hit (e.g. already pollinated),
@@ -338,6 +361,15 @@ func handle_enemy_collision(area: Area2D):
 		if is_first_hit:
 			_release_pollen_cone(hit_position, area)
 		
+		# Pollination: maybe travel on to another enemy, or deal bonus damage
+		# (see PollinatedStatus.resolve_bullet_hit()). A bounce doesn't use up
+		# pierce / penetration - the bullet just heads for the next enemy.
+		if was_pollinated:
+			var next_target := PollinatedStatus.resolve_bullet_hit(area, hit_position, damage, enemy_died)
+			if next_target != null:
+				_start_pollen_bounce(next_target)
+				return
+		
 		# A status that blocks pierce consumption (e.g. pollinated) means
 		# this hit is free: damage already applied above, but the bullet
 		# keeps its full remaining pierce budget and keeps going, whether
@@ -356,6 +388,17 @@ func handle_enemy_collision(area: Area2D):
 			keep_going = true
 		if not keep_going:
 			queue_free()
+
+func _start_pollen_bounce(target: Node2D) -> void:
+	"""Send this bullet straight at `target` (pollination bounce). Its range
+	starts over so it doesn't fizzle out on the way."""
+	_bounce_target = target
+	_target = null
+	direction = (target.global_position - global_position).normalized()
+	distance_traveled = 0.0
+	if slow_down == 1:
+		speed *= 2   # undo the end-of-range slowdown
+		slow_down = 0
 
 func handle_enemy_bullet_collision(area: Area2D):
 	"""Handle collision with an enemy bullet - the two cancel each other out.

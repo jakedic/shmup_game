@@ -28,6 +28,9 @@ static func take_damage(player: Player, damage_amount: int = 1) -> void:
 	# Still blinking from the last hit - ignore.
 	if player.is_hit_invincible:
 		return
+	# Yellow form just finished charging its shot (PlayerChargeShot).
+	if player.is_charge_invincible:
+		return
 
 	var armor: int = int(Stats.get_stat("player", "armor"))
 	if armor > 0:
@@ -199,4 +202,4 @@ static func is_invincible(player: Player) -> bool:
 	own Area2D, so it needs this explicit check instead."""
 	# Every dash is a jump now, so the ship is untouchable for the whole
 	# dash (not just with dash_invincible) - see PlayerMovement.start_dash().
-	return player.is_dashing or player.is_post_dash_invincible or player.is_landing_grace or player.is_hit_invincible
+	return player.is_dashing or player.is_post_dash_invincible or player.is_landing_grace or player.is_hit_invincible or player.is_charge_invincible

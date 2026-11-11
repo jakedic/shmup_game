@@ -1247,7 +1247,9 @@ func _on_test_powerups_given(picks: Array) -> void:
 	# take over the pause and unpause once the last one is dismissed.
 	is_paused = false
 	for pick: Dictionary in picks:
-		if pick.get("remove", false):
+		if pick.has("form"):
+			PlayerAbsorption.set_form_for_test(player, pick["form"])
+		elif pick.get("remove", false):
 			PlayerPowerUps.remove_for_test(pick["id"])
 		else:
 			PlayerPowerUps.set_level_for_test(pick["id"], pick["level"])

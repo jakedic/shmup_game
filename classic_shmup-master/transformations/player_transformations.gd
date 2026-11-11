@@ -60,9 +60,9 @@ static func transform_yellow(player: Player) -> void:
 	var timer = player.get_tree().create_timer(0.5)
 	timer.timeout.connect(func(): player.modulate = player.player_color)
 
-	var yellow_texture = load("res://Art assets/Player assets and transformations/Player_topdown_placeholder_transformation_sprite.png")
-	player.get_node("Ship").texture = yellow_texture
-	player.get_node("Ship").hframes = 3  # Adjust this to match your yellow sprite's frame count
+	# Look: the normal player ship, tinted yellow - no sprite swap. The tint
+	# is a shader applied every frame by PlayerVisuals.update_form_tint()
+	# while current_form == "yellow" (player/yellow_tint.gdshader).
 
 	# Change bullets to yellow bullets
 	# If you want ALL bullets to be yellow while transformed:

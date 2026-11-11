@@ -2,39 +2,46 @@
 ## Behavior for the "pollinated" status condition (see
 ## status_effects/status_effect_registry.gd).
 ##
-## Currently only inflicted by the pollen-puff secondary shot
-## (bullets/bullet_pollen.gd, via Bullet's generic status_effect_name /
-## status_effect_chance exports - see bullets/bullet_base.gd), but this
-## handler doesn't know or care where the status came from. Any future
-## bullet/attack can inflict "pollinated" just by setting those same two
-## exports, and any future status condition just needs its own
-## StatusEffectHandler subclass - nothing here is pollen-shot-specific.
+## Inflicted by pollen bullets / puffs / residue / Cross-Pollination etc. via
+## Bullet's generic status_effect_name / status_effect_chance, or
+## apply_status_effect() directly - this handler doesn't care where it came
+## from.
 ##
-## Rules implemented here:
-##   - Applying: attaches a small visual (pollen stuck to the enemy).
-##   - On death: triggers a small explosion at the enemy's position.
-##       - Non-pollinated enemies caught in the explosion become pollinated.
-##       - Pollinated enemies caught in the explosion take a large amount of
-##         damage - which may kill them and chain into further explosions.
-##         Each explosion in a chain does less damage than the last, so the
-##         chain dissipates instead of exploding the whole screen at full
-##         strength.
-##   - Piercing shots that hit a pollinated enemy don't consume pierce.
+## Rules (reworked 2026-11-11):
+##   When a player bullet that does damage hits a POLLINATED enemy
+##   (see resolve_bullet_hit(), called from bullets/bullet.gd):
+##     - If another POLLINATED enemy is within bounce_radius() of it, the
+##       bullet always (100%) travels on to the nearest one.
+##     - Otherwise there's a BOUNCE_CHANCE (50%) roll. On success:
+##         - another enemy within bounce_radius() -> the bullet travels on to
+##           the nearest one;
+##         - no enemy in range -> the hit enemy takes an extra
+##           BONUS_DAMAGE_FRACTION (50%) of the damage it just took.
+##       On a failed roll nothing happens and the enemy stays pollinated.
+##     - Either effect (travel or bonus damage) removes the hit enemy's
+##       pollination.
+##   Because the bullet arrives at the next enemy as a normal hit, a bullet
+##   that reaches another pollinated enemy keeps chaining until it hits one
+##   that isn't pollinated (or the roll fails / nothing's in range). Each hop
+##   removes a pollination, so a chain always ends.
+##
+## (The old rules - pollinated enemies exploding on death, and hits on them
+## not using up a piercing shot's pierce - were removed in the rework.)
 class_name PollinatedStatus
 extends StatusEffectHandler
 
-# Fallback/default only - the actual radius used at runtime comes from
-# Stats.get_stat("pollen", "chain_explosion_radius") (see stats.gd), which
-# starts at this same value and can be increased by the
-# yellow_pollen_blast_radius power-up. Kept as a const so PollenExplosionVisual
-# has a sane default even if Stats isn't available for some reason.
+const BOUNCE_CHANCE := 0.5
+const BONUS_DAMAGE_FRACTION := 0.5
+# The bounce search radius is this fraction of the bubble's pop explosion
+# radius (Bubble.POP_EXPLOSION_RADIUS = 80 -> 40px), so it stays in
+# proportion if that radius is changed.
+const BOUNCE_RADIUS_OF_BUBBLE_POP := 0.5
+# Little pollen flash where a bounce / bonus happens.
+const SPARK_RADIUS := 10.0
+
+# Old default used by PollenExplosionVisual (still used for small pollen
+# bursts) - unrelated to the bounce radius.
 const EXPLOSION_RADIUS := 40.0
-const BASE_EXPLOSION_DAMAGE := 8
-const MIN_EXPLOSION_DAMAGE := 1
-# How much each subsequent explosion in the same cascade dissipates by.
-# e.g. 0.55 means the 2nd explosion in a chain does ~55% of the 1st's
-# damage, the 3rd does ~55% of the 2nd's, and so on.
-const CHAIN_DAMAGE_DECAY := 0.55
 
 
 func on_apply(enemy: BaseEnemy, _data: Dictionary) -> void:
@@ -51,64 +58,65 @@ func on_remove(enemy: BaseEnemy) -> void:
 		visual.queue_free()
 
 
-func on_owner_died(enemy: BaseEnemy, context: Dictionary) -> void:
-	# Continue an existing cascade's chain state if this death was itself
-	# caused by a chain explosion, otherwise start a fresh one.
-	var chain_state: Dictionary = context.get("pollen_chain", {})
-	if chain_state.is_empty():
-		chain_state = {"count": 0}
-
-	var damage := _damage_for_chain(chain_state.count)
-	chain_state.count += 1  # this explosion now counts toward the chain
-
-	var explosion_radius := _current_explosion_radius()
-	_spawn_explosion_visual(enemy, explosion_radius)
-	_detonate(enemy, damage, chain_state, explosion_radius)
+static func bounce_radius() -> float:
+	return Bubble.POP_EXPLOSION_RADIUS * BOUNCE_RADIUS_OF_BUBBLE_POP
 
 
-func blocks_pierce_consumption() -> bool:
-	return true
+static func resolve_bullet_hit(enemy: Node2D, hit_position: Vector2, damage_dealt: int, enemy_died: bool) -> Node2D:
+	"""Called by a player bullet right after it damaged an enemy that WAS
+	pollinated going into the hit. Applies the rules above and returns the
+	enemy the bullet should travel to next, or null if it doesn't bounce."""
+	var tree := enemy.get_tree() if is_instance_valid(enemy) and enemy.is_inside_tree() else null
+	if tree == null:
+		return null
 
-
-func _damage_for_chain(chain_count: int) -> int:
-	var scaled: float = BASE_EXPLOSION_DAMAGE * pow(CHAIN_DAMAGE_DECAY, chain_count)
-	return int(max(MIN_EXPLOSION_DAMAGE, round(scaled)))
-
-
-func _detonate(dying_enemy: BaseEnemy, damage: int, chain_state: Dictionary, explosion_radius: float) -> void:
-	if not is_instance_valid(dying_enemy) or not dying_enemy.is_inside_tree():
-		return
-
-	var origin: Vector2 = dying_enemy.global_position
-
-	for other in dying_enemy.get_tree().get_nodes_in_group("enemies"):
-		if other == dying_enemy or not is_instance_valid(other):
-			continue
-		if not (other.has_method("has_status_effect") and other.has_method("apply_status_effect")):
+	var radius := bounce_radius()
+	var nearest_pollinated: Node2D = null
+	var nearest_pollinated_d := INF
+	var nearest_any: Node2D = null
+	var nearest_any_d := INF
+	for other in tree.get_nodes_in_group("enemies"):
+		if other == enemy or not is_instance_valid(other) or other.is_queued_for_deletion():
 			continue
 		if "is_alive" in other and not other.is_alive:
 			continue
-		if origin.distance_to(other.global_position) > explosion_radius:
+		var d: float = hit_position.distance_to(other.global_position)
+		if d > radius:
 			continue
+		if d < nearest_any_d:
+			nearest_any_d = d
+			nearest_any = other
+		if other.has_method("has_status_effect") and other.has_status_effect(StatusEffects.POLLINATED) \
+				and d < nearest_pollinated_d:
+			nearest_pollinated_d = d
+			nearest_pollinated = other
 
-		if other.has_status_effect(StatusEffects.POLLINATED):
-			if other.has_method("take_damage"):
-				other.take_damage(damage, {"pollen_chain": chain_state})
+	var target: Node2D = null
+	if nearest_pollinated:
+		target = nearest_pollinated                       # always chains to pollinated
+	elif randf() < BOUNCE_CHANCE:
+		if nearest_any:
+			target = nearest_any
+		elif not enemy_died and enemy.has_method("take_damage"):
+			# Nothing to bounce to: extra damage instead. Fractions carry over
+			# to later bonuses so the average is exactly 50%.
+			var bonus := PlayerPowerUps.whole_damage("pollen_bonus", damage_dealt * BONUS_DAMAGE_FRACTION)
+			if bonus > 0:
+				enemy.take_damage(bonus, {"source": "pollen_bonus"})
 		else:
-			other.apply_status_effect(StatusEffects.POLLINATED, {})
+			return null   # enemy already died and nothing in range - nothing to do
+	else:
+		return null       # failed roll - stays pollinated
+
+	# Either effect uses up this enemy's pollination.
+	if is_instance_valid(enemy) and not enemy.is_queued_for_deletion() and enemy.has_method("remove_status_effect"):
+		enemy.remove_status_effect(StatusEffects.POLLINATED)
+	_spawn_spark(hit_position)
+	return target
 
 
-func _current_explosion_radius() -> float:
-	var radius = Stats.get_stat("pollen", "chain_explosion_radius")
-	if radius == null:
-		return EXPLOSION_RADIUS
-	return radius
-
-
-func _spawn_explosion_visual(enemy: BaseEnemy, explosion_radius: float) -> void:
-	if not is_instance_valid(enemy) or not enemy.is_inside_tree():
-		return
-	var explosion := PollenExplosionVisual.new()
-	explosion.global_position = enemy.global_position
-	explosion.max_radius = explosion_radius
-	GameShell.game_root().add_child(explosion)
+static func _spawn_spark(pos: Vector2) -> void:
+	var spark := PollenExplosionVisual.new()
+	spark.max_radius = SPARK_RADIUS
+	GameShell.game_root().add_child(spark)
+	spark.global_position = pos

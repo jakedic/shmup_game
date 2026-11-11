@@ -100,32 +100,51 @@ static func animate_recoil(player: Player) -> void:
 	tween.tween_property(player.get_node("Ship"), "position:y", player.recoil_distance, player.recoil_duration)
 	tween.tween_property(player.get_node("Ship"), "position:y", 0, player.recoil_duration * 0.5)
 
-# ===== FORM TINT (gray form) =====
+# ===== FORM TINT (gray + yellow forms) =====
 # While the player is in the gray form the ship is drawn in greyscale (same
-# shader as the gray enemies). In the last FORM_EXPIRY_WARNING seconds of the
-# transformation it flashes between grey and its normal colors, faster and
-# faster, to warn that the form is about to run out. Driven every frame from
-# player.gd's _process(), so reverting (timer, bubble shot, manual) just
-# naturally drops the tint the next frame.
+# shader as the gray enemies); in the yellow form it's the same ship tinted
+# yellow (player/yellow_tint.gdshader). In the last FORM_EXPIRY_WARNING
+# seconds of the transformation it flashes between the tint and its normal
+# colors, faster and faster, to warn that the form is about to run out.
+# While the player is intangible after a full charge (yellow form -
+# PlayerChargeShot), the ship flashes bright yellow every
+# INTANGIBLE_FLASH_INTERVAL. Driven every frame from player.gd's
+# _process(), so reverting (timer, bubble shot, manual) just naturally drops
+# the tint the next frame.
 
 const GRAYSCALE_SHADER := preload("res://enemies/grayscale.gdshader")
+const YELLOW_TINT_SHADER := preload("res://player/yellow_tint.gdshader")
 const FORM_EXPIRY_WARNING := 3.0      # seconds left when the flashing starts
-const FORM_FLASH_SLOW := 0.2          # seconds per grey/normal swap at the start...
+const FORM_FLASH_SLOW := 0.2          # seconds per tint/normal swap at the start...
 const FORM_FLASH_FAST := 0.07         # ...speeding up to this by the very end
+const INTANGIBLE_FLASH_INTERVAL := 0.06   # seconds per bright-yellow on/off while intangible
+
+static func _form_material(player: Player, form: String) -> ShaderMaterial:
+	if form == "gray":
+		if player.gray_ship_material == null:
+			player.gray_ship_material = ShaderMaterial.new()
+			player.gray_ship_material.shader = GRAYSCALE_SHADER
+		return player.gray_ship_material
+	if form == "yellow":
+		if player.yellow_ship_material == null:
+			player.yellow_ship_material = ShaderMaterial.new()
+			player.yellow_ship_material.shader = YELLOW_TINT_SHADER
+		return player.yellow_ship_material
+	return null
 
 static func update_form_tint(player: Player) -> void:
 	var ship := player.get_node_or_null("Ship") as CanvasItem
 	if ship == null:
 		return
-	if player.gray_ship_material == null:
-		player.gray_ship_material = ShaderMaterial.new()
-		player.gray_ship_material.shader = GRAYSCALE_SHADER
 	# Never clobber some other material put on the ship by something else.
-	if ship.material != null and ship.material != player.gray_ship_material:
+	if ship.material != null and ship.material != player.gray_ship_material \
+			and ship.material != player.yellow_ship_material:
 		return
 
-	var tinted: bool = player.current_form == "gray"
-	if tinted:
+	var form_mat := _form_material(player, String(player.current_form))
+	var intangible: bool = player.is_charge_invincible
+	var tinted: bool = form_mat != null
+	if tinted and not intangible:
 		var t: Timer = player.transformation_timer
 		if t and not t.is_stopped() and t.time_left <= FORM_EXPIRY_WARNING:
 			var left: float = t.time_left
@@ -140,6 +159,20 @@ static func update_form_tint(player: Player) -> void:
 			player.form_flash_elapsed = 0.0
 			player.form_flash_on = true
 
-	var want: Material = player.gray_ship_material if tinted else null
+	# Intangible: rapid bright-yellow flashing (uses the yellow tint shader's
+	# "flash" even if the player somehow isn't in the yellow form).
+	if intangible:
+		var yellow_mat := _form_material(player, "yellow")
+		player.intangible_flash_elapsed += player.get_process_delta_time()
+		var on := int(player.intangible_flash_elapsed / INTANGIBLE_FLASH_INTERVAL) % 2 == 0
+		yellow_mat.set_shader_parameter("flash", 1.0 if on else 0.0)
+		if ship.material != yellow_mat:
+			ship.material = yellow_mat
+		return
+	player.intangible_flash_elapsed = 0.0
+	if player.yellow_ship_material:
+		player.yellow_ship_material.set_shader_parameter("flash", 0.0)
+
+	var want: Material = form_mat if tinted else null
 	if ship.material != want:
 		ship.material = want

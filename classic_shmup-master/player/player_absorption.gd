@@ -106,6 +106,28 @@ static func reset_to_default_form(player: Player) -> void:
 	player.modulate = player.player_color
 	PlayerVisuals.update_sprite(player)
 
+static func set_form_for_test(player: Player, form: String) -> void:
+	"""TEST TOOL (pause menu Test: Power-ups -> FORM page): switch straight
+	into `form` ("default", "yellow", "gray", "gray_homing" = gray with the
+	badger cigar's homing, "hive", "flower", "red"). Leaves the score
+	multiplier alone and stops the form's timer, so a test form lasts until
+	you pick another one."""
+	if player.current_form != 'default':
+		reset_to_default_form(player)
+		player.current_form = 'default'
+	var homing := form == "gray_homing"
+	var base_form := "gray" if homing else form
+	if base_form == "default" or base_form == "":
+		return
+	if homing:
+		player.set_meta("gray_homing_next", true)
+	player.current_form = base_form
+	var fn := PlayerTransformations.get_transformation_function_name(base_form)
+	if player.has_method(fn):
+		player.call(fn)
+	if player.transformation_timer:
+		player.transformation_timer.stop()
+
 static func _start_absorb_freeze(player: Player) -> void:
 	player.absorb_froze_game = true
 	player.get_tree().paused = true
