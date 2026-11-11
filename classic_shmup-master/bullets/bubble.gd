@@ -433,6 +433,10 @@ func _bounce_off_player(player: Node2D) -> void:
 	player_bounces += 1
 	bounced_off_player.emit(player_bounces)
 
+	# Bubble Guard power-up: invulnerable for a bit after each paddle-bounce.
+	if player is Player:
+		PlayerHealth.grant_intangible(player, float(Stats.get_stat("player", "bubble_bounce_invincibility")))
+
 func _on_shot(bullet: Area2D) -> void:
 	"""A player bullet hit this bubble. What happens is set by the Test
 	menu (TestOptions) - any mix of:
@@ -671,6 +675,18 @@ func create_pop_damage(damage_source: String = "bubble_pop"):
 	# the hive's walls, which normal shots can't destroy).
 	_clear_enemy_bullets(explosion_radius)
 
+	# Pollen Pop power-up: jumping on a bubble leaves pollen residue over the
+	# whole blast area (Stats "pollen"/"jump_pop_residue_mult" = how long it
+	# lasts vs. the normal 2.5s; 0 = not owned).
+	if damage_source == "bubble_jump_pop":
+		var residue_mult: float = float(Stats.get_stat("pollen", "jump_pop_residue_mult"))
+		if residue_mult > 0.0:
+			var patch: Node2D = POLLEN_RESIDUE_SCRIPT.new()
+			patch.radius = explosion_radius
+			patch.duration = patch.DURATION * residue_mult
+			GameShell.game_root().add_child(patch)
+			patch.global_position = global_position
+		
 	# yellow_bubble_pollen_pop power-up: the pop explosion no longer deals
 	# damage at all - it guarantees the "pollinated" status effect on every
 	# enemy it hits instead (see status_effects/pollinated_status.gd for

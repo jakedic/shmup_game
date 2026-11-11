@@ -1,6 +1,8 @@
 # player_base.gd
 extends Area2D
 class_name Player
+const POLLEN_TRAIL := preload("res://player/player_pollen_trail.gd")   # Pollen Trail power-up
+const STINGER := preload("res://player/player_stinger.gd")   # Stinger power-up
 
 # NOTE ON STRUCTURE:
 # This script holds the player's state (signals, exported properties,
@@ -201,6 +203,10 @@ var can_absorb: bool = true
 var gray_ship_material: ShaderMaterial = null
 var yellow_ship_material: ShaderMaterial = null
 var intangible_flash_elapsed: float = 0.0
+var _intangible_flash_active: bool = false
+# 0..1 bright-yellow wash on the yellow form's ship while charging the shot
+# (set by PlayerChargeShot, applied by PlayerVisuals.update_form_tint()).
+var charge_flash_amount: float = 0.0
 var form_flash_on: bool = true
 var form_flash_elapsed: float = 0.0
 
@@ -352,6 +358,8 @@ func _process(delta):
 	process_input(delta)
 	process_shield_regen(delta)
 	PlayerVisuals.update_form_tint(self)
+	POLLEN_TRAIL.update(self)   # Pollen Trail power-up (no-op without it)
+	STINGER.update(self, delta)   # Stinger power-up (no-op without it)
 
 	# Update double-tap timers
 	update_doubletap_timers(delta)

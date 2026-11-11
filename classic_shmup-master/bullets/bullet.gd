@@ -48,6 +48,10 @@ static var bullet_vs_bullet_collision_enabled: bool = false
 @export var pollen_cone_chance: float = 0.0
 @export var pollen_cone_range: float = 60.0
 @export var pollen_cone_angle_degrees: float = 70.0
+# Each enemy the cone pollinates also leaves a patch of pollen residue where
+# it was (same residue as the yellow form's puff burst - 50% to pollinate
+# each enemy passing through, fades in a couple of seconds).
+const POLLEN_RESIDUE_SCRIPT := preload("res://status_effects/pollen_residue.gd")
 
 # Homing properties
 @export var homing_enabled: bool = false
@@ -365,9 +369,12 @@ func handle_enemy_collision(area: Area2D):
 		# (see PollinatedStatus.resolve_bullet_hit()). A bounce doesn't use up
 		# pierce / penetration - the bullet just heads for the next enemy.
 		if was_pollinated:
-			var next_target := PollinatedStatus.resolve_bullet_hit(area, hit_position, damage, enemy_died)
-			if next_target != null:
-				_start_pollen_bounce(next_target)
+			var targets: Array = PollinatedStatus.resolve_bullet_hit(area, hit_position, damage, enemy_died)
+			if not targets.is_empty():
+				# Pollen Split: one extra shot per extra target, from here.
+				for i in range(1, targets.size()):
+					_spawn_split_shot(hit_position, targets[i])
+				_start_pollen_bounce(targets[0])
 				return
 		
 		# A status that blocks pierce consumption (e.g. pollinated) means
@@ -388,6 +395,25 @@ func handle_enemy_collision(area: Area2D):
 			keep_going = true
 		if not keep_going:
 			queue_free()
+
+func _spawn_split_shot(from_pos: Vector2, target: Node2D) -> void:
+	"""Pollen Split power-up: a copy of this bullet (same scene, damage,
+	speed, piercing, status effect...) that starts here and flies straight
+	at `target` (see _start_pollen_bounce())."""
+	if scene_file_path == "":
+		return
+	var copy = load(scene_file_path).instantiate()
+	GameShell.game_root().add_child(copy)
+	# Set after add_child - bullet scripts reset some stats in _ready().
+	for prop in ["damage", "speed", "max_distance", "pierce_count", "penetration_count",
+			"status_effect_name", "status_effect_chance", "face_direction", "modulate"]:
+		if prop in copy:
+			copy.set(prop, get(prop))
+	copy.homing_enabled = false
+	copy.pollen_cone_enabled = false   # only the original shot sprays a cone
+	copy.enemies_hit_count = 1         # not a "first hit" any more
+	copy.start(from_pos, (target.global_position - from_pos).normalized())
+	copy._start_pollen_bounce(target)
 
 func _start_pollen_bounce(target: Node2D) -> void:
 	"""Send this bullet straight at `target` (pollination bounce). Its range
@@ -507,6 +533,9 @@ func _release_pollen_cone(origin: Vector2, hit_enemy) -> void:
 			continue
 		if randf() < pollen_cone_chance:
 			other.apply_status_effect(status_effect_name, {})
+			var residue: Node2D = POLLEN_RESIDUE_SCRIPT.new()
+			GameShell.game_root().add_child(residue)
+			residue.global_position = other.global_position
 
 func _spawn_pollen_cone_visual(origin: Vector2, cone_dir: Vector2) -> void:
 	"""Purely cosmetic - a short-lived fading wedge showing where the pollen

@@ -18,104 +18,147 @@ class_name PlayerPowerUps
 # stat changes it applies. "stats" uses the exact same
 # { category -> { stat_key -> {"op": ..., "value": ...} } } shape that
 # Stats.add_modifier()/add_level_modifier() expect.
+# Trimmed 2026-11-11 to just these two while the yellow pool is redone.
+# Removed: Speed Boost, Dash Invincibility, Pollen Burst, Blast Radius,
+# Piercing Rounds. (Their stat keys - e.g. "dash_invincible",
+# "pop_applies_pollination" - still exist in stats.gd, unused.)
 const YELLOW_POWERUPS: Array[Dictionary] = [
-	{
-		"id": "yellow_speed_boost",
-		"name": "Speed Boost",
-		"description": "Doubles the player's movement speed for the rest of the level.",
-		"stats": {
-			"player": {
-				"speed": {"op": "mult", "value": 2.0},
-			},
-		},
-	},
-	{
-		"id": "yellow_dash_invincibility",
-		"name": "Dash Invincibility",
-		"description": "The player is invincible to enemy bullets AND enemy ships while dashing (plus a brief moment after), and the dash loops in a tight loop-de-loop, for the rest of the level.",
-		"stats": {
-			"player": {
-				# Covers both enemy bullets (physics-level collision toggle)
-				# and enemy ships (explicit check in
-				# PlayerHealth.is_invincible()) - see
-				# player/player_movement.gd and player/player_health.gd.
-				"dash_invincible": {"op": "set", "value": true},
-				# Keep that same invincibility alive for a short moment after
-				# the dash itself ends, instead of cutting off the instant it
-				# does - see PlayerMovement._begin_post_dash_grace().
-				"post_dash_invincibility_duration": {"op": "set", "value": 2.4},
-				# Loop-de-loop dash motion - circle_radius/circle_speed drive
-				# the circular strafe added on top of the dash's straight-line
-				# direction (see PlayerMovement.handle_movement()). Both
-				# default to 0 (a plain straight dash); these values are the
-				# same ones that used to sit here commented out under
-				# transform_yellow() in transformations/player_transformations.gd
-				# before the dash-invincibility power-up existed. circle_radius
-				# was originally 600.0 - way too large for this game's tiny
-				# 240x320 viewport (project.godot) - shrunk down to a tight
-				# loop that actually fits on screen.
-				"circle_radius": {"op": "set", "value": 600.0},
-				"circle_speed": {"op": "set", "value": 20.0},
-			},
-		},
-	},
 	{
 		"id": "yellow_pollen_shot",
 		"name": "Pollen Shot",
-		"description": "While holding shoot, the ship also fires weak, wiggling pollen balls from its left and right sides, for the rest of the level.",
-		"stats": {
-			"player": {
-				"has_pollen_shot": {"op": "set", "value": true},
-			},
-		},
-	},
-	{
-		"id": "yellow_bubble_pollen_pop",
-		"name": "Pollen Burst",
-		"description": "Popping a power bubble with your shot no longer damages enemies caught in the blast - it guarantees the pollinated status on all of them instead, for the rest of the level.",
-		"stats": {
-			"bubble": {
-				"pop_applies_pollination": {"op": "set", "value": true},
-			},
-		},
-	},
-	{
-		"id": "yellow_pollen_blast_radius",
-		"name": "Blast Radius",
-		"description": "Increases the radius of the small explosion triggered when a pollinated enemy dies, for the rest of the level.",
-		# Only offered once the player already has some way to actually
-		# apply pollination - otherwise this power-up would do nothing.
-		"requires_pollination_source": true,
-		"stats": {
-			"pollen": {
-				"chain_explosion_radius": {"op": "add", "value": 40.0},
-			},
-		},
-	},
-	{
-		"id": "yellow_piercing_rounds",
-		"name": "Piercing Rounds",
-		"description": "The player's main shot pierces through one additional enemy, for the rest of the level.",
-		"stats": {
-			"bullet": {
-				"can_pierce": {"op": "set", "value": true},
-				"pierce_count": {"op": "add", "value": 1},
-			},
-		},
+		"description": "While holding shoot, the ship also fires wiggling pollen balls from its left and right sides. They barely do damage, but each hit may pollinate the enemy.",
+		"levels": [
+			{"summary": "20% pollination per hit", "stats": {"player": {"has_pollen_shot": {"op": "set", "value": true}}, "pollen": {"status_effect_chance": {"op": "set", "value": 0.2}}}},
+			{"summary": "30% pollination per hit", "stats": {"player": {"has_pollen_shot": {"op": "set", "value": true}}, "pollen": {"status_effect_chance": {"op": "set", "value": 0.3}}}},
+			{"summary": "40% pollination per hit", "stats": {"player": {"has_pollen_shot": {"op": "set", "value": true}}, "pollen": {"status_effect_chance": {"op": "set", "value": 0.4}}}},
+		],
 	},
 	{
 		"id": "yellow_piercing_pollen",
 		"name": "Cross-Pollination",
-		"description": "The first enemy the player's main shot hits releases a cone of pollen behind it, with a 50% chance to pollinate each other enemy caught in the cone, for the rest of the level.",
-		"stats": {
-			"bullet": {
+		"description": "The first enemy your main shot hits sprays a cone of pollen behind it. Each other enemy in the cone may become pollinated - and leaves a patch of pollen residue where it was.",
+		"levels": [
+			{"summary": "20% per enemy in the cone", "stats": {"bullet": {
 				"status_effect_name": {"op": "set", "value": "pollinated"},
 				"pollen_cone_enabled": {"op": "set", "value": true},
-				"pollen_cone_chance": {"op": "set", "value": 0.5},
+				"pollen_cone_chance": {"op": "set", "value": 0.2},
 				"pollen_cone_range": {"op": "set", "value": 60.0},
 				"pollen_cone_angle_degrees": {"op": "set", "value": 70.0},
-			},
-		},
+			}}},
+			{"summary": "30% per enemy in the cone", "stats": {"bullet": {
+				"status_effect_name": {"op": "set", "value": "pollinated"},
+				"pollen_cone_enabled": {"op": "set", "value": true},
+				"pollen_cone_chance": {"op": "set", "value": 0.3},
+				"pollen_cone_range": {"op": "set", "value": 60.0},
+				"pollen_cone_angle_degrees": {"op": "set", "value": 70.0},
+			}}},
+			{"summary": "40% per enemy in the cone", "stats": {"bullet": {
+				"status_effect_name": {"op": "set", "value": "pollinated"},
+				"pollen_cone_enabled": {"op": "set", "value": true},
+				"pollen_cone_chance": {"op": "set", "value": 0.4},
+				"pollen_cone_range": {"op": "set", "value": 60.0},
+				"pollen_cone_angle_degrees": {"op": "set", "value": 70.0},
+			}}},
+		],
+	},
+	{
+		"id": "yellow_pollen_trail",
+		"name": "Pollen Trail",
+		"description": "You leave a trail of pollen behind you as you move. Enemies passing through it have a 50% chance to become pollinated.",
+		"levels": [
+			{"summary": "Residue lasts 2.5s", "stats": {"pollen": {"trail_duration_mult": {"op": "set", "value": 1.0}}}},
+			{"summary": "Residue lasts ~3.1s", "stats": {"pollen": {"trail_duration_mult": {"op": "set", "value": 1.25}}}},
+			{"summary": "Residue lasts 3.75s", "stats": {"pollen": {"trail_duration_mult": {"op": "set", "value": 1.5}}}},
+		],
+	},
+	{
+		"id": "yellow_pollen_pop",
+		"name": "Pollen Pop",
+		"description": "Jumping on a bubble leaves pollen over the whole blast area. Enemies passing through it have a 50% chance to become pollinated.",
+		"levels": [
+			{"summary": "Residue lasts 2.5s", "stats": {"pollen": {"jump_pop_residue_mult": {"op": "set", "value": 1.0}}}},
+			{"summary": "Residue lasts ~3.1s", "stats": {"pollen": {"jump_pop_residue_mult": {"op": "set", "value": 1.25}}}},
+			{"summary": "Residue lasts 3.75s", "stats": {"pollen": {"jump_pop_residue_mult": {"op": "set", "value": 1.5}}}},
+		],
+	},
+	{
+		"id": "yellow_pollen_leap",
+		"name": "Pollen Leap",
+		"description": "Jumping leaves pollen where you take off and where you land, as wide as your jump shockwave. Enemies passing through it have a 50% chance to become pollinated.",
+		"levels": [
+			{"summary": "Residue lasts 2.5s", "stats": {"pollen": {"jump_residue_mult": {"op": "set", "value": 1.0}}}},
+			{"summary": "Residue lasts ~3.1s", "stats": {"pollen": {"jump_residue_mult": {"op": "set", "value": 1.25}}}},
+			{"summary": "Residue lasts 3.75s", "stats": {"pollen": {"jump_residue_mult": {"op": "set", "value": 1.5}}}},
+		],
+	},
+	{
+		"id": "yellow_wide_bloom",
+		# Only offered once the player owns a pollen source (see
+		# POLLINATION_SOURCE_POWERUP_IDS) - it does nothing without one.
+		"requires_pollination_source": true,
+		"name": "Wide Bloom",
+		"description": "Shots that hit a pollinated enemy can bounce to enemies farther away.",
+		"levels": [
+			{"summary": "Bounce range x1.25 (50px)", "stats": {"pollen": {"bounce_radius_mult": {"op": "set", "value": 1.25}}}},
+			{"summary": "Bounce range x1.5 (60px)", "stats": {"pollen": {"bounce_radius_mult": {"op": "set", "value": 1.5}}}},
+			{"summary": "Bounce range x1.75 (70px)", "stats": {"pollen": {"bounce_radius_mult": {"op": "set", "value": 1.75}}}},
+		],
+	},
+	{
+		"id": "yellow_pollen_split",
+		# Only offered once the player owns a pollen source (see
+		# POLLINATION_SOURCE_POWERUP_IDS) - it does nothing without one.
+		"requires_pollination_source": true,
+		"name": "Pollen Split",
+		"description": "When a shot bounces off a pollinated enemy, extra shots also fly out to other enemies in range.",
+		"levels": [
+			{"summary": "+1 extra shot", "stats": {"pollen": {"extra_bounce_shots": {"op": "set", "value": 1}}}},
+			{"summary": "+2 extra shots", "stats": {"pollen": {"extra_bounce_shots": {"op": "set", "value": 2}}}},
+			{"summary": "+3 extra shots", "stats": {"pollen": {"extra_bounce_shots": {"op": "set", "value": 3}}}},
+		],
+	},
+	{
+		"id": "yellow_safe_landing",
+		"name": "Safe Landing",
+		"description": "You stay invulnerable for a moment after landing a jump.",
+		"levels": [
+			{"summary": "0.5s after landing", "stats": {"player": {"landing_invincibility": {"op": "set", "value": 0.5}}}},
+			{"summary": "0.75s after landing", "stats": {"player": {"landing_invincibility": {"op": "set", "value": 0.75}}}},
+			{"summary": "1s after landing", "stats": {"player": {"landing_invincibility": {"op": "set", "value": 1.0}}}},
+		],
+	},
+	{
+		"id": "yellow_bubble_guard",
+		"name": "Bubble Guard",
+		"description": "You become invulnerable for a moment every time a bubble bounces off you.",
+		"levels": [
+			{"summary": "0.5s per bounce", "stats": {"player": {"bubble_bounce_invincibility": {"op": "set", "value": 0.5}}}},
+			{"summary": "0.75s per bounce", "stats": {"player": {"bubble_bounce_invincibility": {"op": "set", "value": 0.75}}}},
+			{"summary": "1s per bounce", "stats": {"player": {"bubble_bounce_invincibility": {"op": "set", "value": 1.0}}}},
+		],
+	},
+	{
+		"id": "yellow_second_wind",
+		"name": "Second Wind",
+		"description": "You stay invulnerable for longer after getting hit (normally 1s).",
+		"levels": [
+			{"summary": "1.5s after a hit", "stats": {"player": {"hit_invincibility_duration": {"op": "set", "value": 1.5}}}},
+			{"summary": "2s after a hit", "stats": {"player": {"hit_invincibility_duration": {"op": "set", "value": 2.0}}}},
+			{"summary": "2.5s after a hit", "stats": {"player": {"hit_invincibility_duration": {"op": "set", "value": 2.5}}}},
+		],
+	},
+	{
+		"id": "yellow_stinger",
+		# Only offered once the player owns an invulnerability power-up (see
+		# INVULNERABILITY_SOURCE_POWERUP_IDS).
+		"requires_invulnerability_source": true,
+		"name": "Stinger",
+		"description": "While invulnerable, enemies you touch take damage, and your jump cooldown pauses. All your invulnerability lasts longer.",
+		"levels": [
+			{"summary": "Invulnerability x2", "stats": {"player": {"has_stinger": {"op": "set", "value": true}, "invincibility_mult": {"op": "set", "value": 2.0}}}},
+			{"summary": "Invulnerability x2.5", "stats": {"player": {"has_stinger": {"op": "set", "value": true}, "invincibility_mult": {"op": "set", "value": 2.5}}}},
+			{"summary": "Invulnerability x3", "stats": {"player": {"has_stinger": {"op": "set", "value": true}, "invincibility_mult": {"op": "set", "value": 3.0}}}},
+		],
 	},
 ]
 
@@ -123,10 +166,20 @@ const YELLOW_POWERUPS: Array[Dictionary] = [
 # effect to an enemy. Used to gate power-ups like yellow_pollen_blast_radius
 # that only make sense once the player has some way to actually pollinate
 # something. Add new pollination-granting power-ups' ids here too.
+# Owning any of these unlocks power-ups flagged
+# "requires_invulnerability_source" (Stinger).
+const INVULNERABILITY_SOURCE_POWERUP_IDS: Array[String] = [
+	"yellow_safe_landing",
+	"yellow_bubble_guard",
+	"yellow_second_wind",
+]
+
 const POLLINATION_SOURCE_POWERUP_IDS: Array[String] = [
 	"yellow_pollen_shot",
-	"yellow_bubble_pollen_pop",
 	"yellow_piercing_pollen",
+	"yellow_pollen_trail",
+	"yellow_pollen_pop",
+	"yellow_pollen_leap",
 ]
 
 # enemy_type (as returned by e.g. YellowEnemy.get_enemy_type()) -> pool of
@@ -416,6 +469,8 @@ static func get_available_powerups_for_enemy_type(enemy_type: String) -> Array:
 	for powerup: Dictionary in pool:
 		if powerup.get("requires_pollination_source", false) and not _player_has_pollination_source():
 			continue
+		if powerup.get("requires_invulnerability_source", false) and not _player_owns_any(INVULNERABILITY_SOURCE_POWERUP_IDS):
+			continue
 		# A leveled power-up already at its top level has nothing left to give.
 		if is_maxed(powerup.get("id", "")):
 			continue
@@ -475,6 +530,17 @@ static func get_every_powerup() -> Array:
 	return all
 
 
+static func _player_owns_any(ids: Array[String]) -> bool:
+	"""True if the player has any of these power-ups (this level, carried
+	forward this run, or set from the test picker)."""
+	for id in ids:
+		if id in Stats.collected_powerups or id in Stats.chosen_run_powerups:
+			return true
+		if Stats.get_powerup_level(id) > 0:
+			return true
+	return false
+
+
 static func _player_has_pollination_source() -> bool:
 	"""True if the player has already collected a power-up that can, by
 	itself, apply the "pollinated" status effect (see
@@ -486,6 +552,10 @@ static func _player_has_pollination_source() -> bool:
 			return true
 	for chosen_id in Stats.chosen_run_powerups:
 		if chosen_id in POLLINATION_SOURCE_POWERUP_IDS:
+			return true
+	# Leveled power-ups (incl. ones set from the test picker).
+	for source_id in POLLINATION_SOURCE_POWERUP_IDS:
+		if Stats.get_powerup_level(source_id) > 0:
 			return true
 	return false
 

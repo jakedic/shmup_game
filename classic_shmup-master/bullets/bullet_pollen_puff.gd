@@ -17,7 +17,7 @@ class_name Bullet_PollenPuff
 ## bursts in a small pollen explosion and leaves a patch of pollen residue
 ## (status_effects/pollen_residue.gd) - enemies passing through it have a
 ## 50% chance to become pollinated. See _check_charged_shot_burst().
-const POLLEN_RESIDUE_SCRIPT := preload("res://status_effects/pollen_residue.gd")
+# (POLLEN_RESIDUE_SCRIPT is inherited from Bullet - bullets/bullet.gd.)
 # How close a charged shot has to come to the puff's center to burst it.
 const BURST_TOUCH_DISTANCE := 12.0
 # Radius of the small burst drawn when it pops.

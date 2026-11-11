@@ -92,6 +92,22 @@ var default_stats: Dictionary = {
 		# default (immunity ends the instant the dash does). Only meaningful
 		# alongside dash_invincible = true.
 		"post_dash_invincibility_duration": 0.0,
+		# Invulnerability power-ups (yellow pool, see player_powerups.gd).
+		# All use PlayerHealth.grant_intangible() (blue blink, no damage):
+		#   landing_invincibility       - Safe Landing: seconds after a jump lands
+		#   bubble_bounce_invincibility - Bubble Guard: seconds after a bubble
+		#                                 paddle-bounces off the ship
+		# 0 = power-up not owned.
+		"landing_invincibility": 0.0,
+		"bubble_bounce_invincibility": 0.0,
+		# Seconds of blinking invulnerability after taking a hit
+		# (PlayerHealth.start_hit_invincibility()). Raised by Second Wind.
+		"hit_invincibility_duration": 1.0,
+		# Stinger power-up (player/player_stinger.gd): sting enemies you touch
+		# while invulnerable, jump cooldown pauses meanwhile, and every
+		# invulnerability lasts invincibility_mult x as long (2 / 2.5 / 3).
+		"has_stinger": false,
+		"invincibility_mult": 1.0,
 		# yellow power-up: secondary "pollen shot" fire (see
 		# player/player_powerups.gd + player/player_pollen_shot.gd) - off
 		# unless granted by a power bubble this level.
@@ -176,18 +192,38 @@ var default_stats: Dictionary = {
 	# category used for the player's normal shot.
 	"pollen": {
 		"speed": 90.0,
-		"damage": 1,
-		"cooldown": 0.35,
+		"damage": 0.1,            # per ball, averaged (1 ball in 10 does 1) - see PlayerPollenShot._spawn_one()
+		"cooldown": 0.5,          # seconds between pairs (was 0.35 - lowered fire rate 2026-11-11)
 		"max_distance": 220.0,
 		"wiggle_amplitude": 10.0,   # how far side-to-side it drifts, in px
 		"wiggle_frequency": 6.0,    # how fast it wiggles, in radians/sec
 		# Chance (0.0-1.0) per enemy hit to inflict the "pollinated" status
 		# effect (see status_effects/pollinated_status.gd).
 		"status_effect_chance": 0.2,
-		# Radius of the small chain-reaction explosion triggered when a
-		# pollinated enemy dies (see status_effects/pollinated_status.gd).
-		# Boosted by the yellow_pollen_blast_radius power-up.
+		# Unused since the 2026-11-11 pollination rework (pollinated
+		# enemies no longer explode on death, and the Blast Radius power-up
+		# that raised this was removed).
 		"chain_explosion_radius": 40.0,
+		# Pollen residue power-ups (see status_effects/pollen_residue.gd).
+		# 0 = power-up not owned; otherwise a multiplier on how long the
+		# residue lasts (1 / 1.25 / 1.5 at levels 1 / 2 / 3).
+		#   trail_duration_mult    - Pollen Trail (player/player_pollen_trail.gd)
+		#   jump_pop_residue_mult  - Pollen Pop (bubble.gd create_pop_damage())
+		#   jump_residue_mult      - Pollen Leap (player_movement.gd - residue
+		#                            at jump takeoff + landing, radius = the
+		#                            jump shockwave radius)
+		"trail_duration_mult": 0.0,
+		"jump_pop_residue_mult": 0.0,
+		"jump_residue_mult": 0.0,
+		# Pollination bounce (status_effects/pollinated_status.gd):
+		#   bounce_radius_mult - multiplier on the bounce search radius
+		#                        (normally 50% of the bubble pop radius).
+		#                        Raised by the Wide Bloom power-up.
+		#   extra_bounce_shots - how many ADDITIONAL shots fly out to other
+		#                        enemies in range when a bounce happens.
+		#                        Raised by the Pollen Split power-up.
+		"bounce_radius_mult": 1.0,
+		"extra_bounce_shots": 0,
 	},
 	# Larger, slow "pollen puff" fired straight from the ship when the
 	# player releases the yellow form's charge shot BEFORE it's fully

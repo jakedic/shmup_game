@@ -106,9 +106,14 @@ static func animate_recoil(player: Player) -> void:
 # yellow (player/yellow_tint.gdshader). In the last FORM_EXPIRY_WARNING
 # seconds of the transformation it flashes between the tint and its normal
 # colors, faster and faster, to warn that the form is about to run out.
-# While the player is intangible after a full charge (yellow form -
-# PlayerChargeShot), the ship flashes bright yellow every
-# INTANGIBLE_FLASH_INTERVAL. Driven every frame from player.gd's
+# Colors mean the same thing everywhere:
+#   BLUE flashing   = can't be hurt. While intangible after a full charge
+#                     (yellow form - PlayerChargeShot) the ship blinks blue
+#                     exactly like the jump's invincibility
+#                     (PlayerMovement.DASH_TINT_COLOR / INVINCIBILITY_FLASH_INTERVAL).
+#   BRIGHT YELLOW   = charging the yellow shot (blinking), solid when fully
+#                     charged - player.charge_flash_amount -> the yellow
+#                     tint shader's "flash". Driven every frame from player.gd's
 # _process(), so reverting (timer, bubble shot, manual) just naturally drops
 # the tint the next frame.
 
@@ -117,7 +122,6 @@ const YELLOW_TINT_SHADER := preload("res://player/yellow_tint.gdshader")
 const FORM_EXPIRY_WARNING := 3.0      # seconds left when the flashing starts
 const FORM_FLASH_SLOW := 0.2          # seconds per tint/normal swap at the start...
 const FORM_FLASH_FAST := 0.07         # ...speeding up to this by the very end
-const INTANGIBLE_FLASH_INTERVAL := 0.06   # seconds per bright-yellow on/off while intangible
 
 static func _form_material(player: Player, form: String) -> ShaderMaterial:
 	if form == "gray":
@@ -159,20 +163,26 @@ static func update_form_tint(player: Player) -> void:
 			player.form_flash_elapsed = 0.0
 			player.form_flash_on = true
 
-	# Intangible: rapid bright-yellow flashing (uses the yellow tint shader's
-	# "flash" even if the player somehow isn't in the yellow form).
+	# Intangible: blink blue like the jump's invincibility (whole ship,
+	# via modulate), then settle back on the normal color once it ends.
+	# On the blue beats the form tint is dropped too - blue over the yellow
+	# tint would come out green instead of the jump's blue.
+	var blue_beat := false
 	if intangible:
-		var yellow_mat := _form_material(player, "yellow")
 		player.intangible_flash_elapsed += player.get_process_delta_time()
-		var on := int(player.intangible_flash_elapsed / INTANGIBLE_FLASH_INTERVAL) % 2 == 0
-		yellow_mat.set_shader_parameter("flash", 1.0 if on else 0.0)
-		if ship.material != yellow_mat:
-			ship.material = yellow_mat
-		return
-	player.intangible_flash_elapsed = 0.0
-	if player.yellow_ship_material:
-		player.yellow_ship_material.set_shader_parameter("flash", 0.0)
+		blue_beat = int(player.intangible_flash_elapsed / PlayerMovement.INVINCIBILITY_FLASH_INTERVAL) % 2 == 0
+		player.modulate = PlayerMovement.DASH_TINT_COLOR if blue_beat else player.player_color
+		player._intangible_flash_active = true
+	elif player._intangible_flash_active:
+		player._intangible_flash_active = false
+		player.intangible_flash_elapsed = 0.0
+		player.modulate = player.player_color
 
-	var want: Material = form_mat if tinted else null
+	# Charging glow (bright yellow) - off while intangible so the blue reads.
+	if player.yellow_ship_material:
+		var amount: float = 0.0 if intangible else player.charge_flash_amount
+		player.yellow_ship_material.set_shader_parameter("flash", amount)
+
+	var want: Material = form_mat if tinted and not blue_beat else null
 	if ship.material != want:
 		ship.material = want

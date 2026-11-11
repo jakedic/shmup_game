@@ -48,10 +48,43 @@ static func take_damage(player: Player, damage_amount: int = 1) -> void:
 
 	if player.is_alive:
 		start_hit_invincibility(player)
-		GameShell.on_player_hit(HIT_INVINCIBILITY_DURATION)
+		GameShell.on_player_hit(hit_invincibility_duration())
+
+static func hit_invincibility_duration() -> float:
+	"""Seconds of invulnerability after a hit: HIT_INVINCIBILITY_DURATION by
+	default, longer with the yellow Second Wind power-up (Stats
+	"player"/"hit_invincibility_duration")."""
+	return float(Stats.get_stat("player", "hit_invincibility_duration")) * invincibility_mult()
+
+static func invincibility_mult() -> float:
+	"""Stinger power-up: every invulnerability lasts this many times longer
+	(1 without it)."""
+	return maxf(float(Stats.get_stat("player", "invincibility_mult")), 1.0)
+
+static func grant_intangible(player: Player, duration: float) -> void:
+	"""Ignore all damage (bullets + ship contact) for `duration` seconds,
+	with the ship blinking blue like the jump (PlayerVisuals.update_form_tint()).
+	Shares the is_charge_invincible flag with the full-charge invulnerability.
+	A new grant never cuts an existing, longer one short."""
+	if duration <= 0.0 or not player.is_alive:
+		return
+	duration *= invincibility_mult()
+	var now := Time.get_ticks_msec() / 1000.0
+	var until := now + duration
+	if player.is_charge_invincible and float(player.get_meta("intangible_until", 0.0)) >= until:
+		return
+	player.set_meta("intangible_until", until)
+	player.is_charge_invincible = true
+	player._charge_invincible_token += 1
+	var token: int = player._charge_invincible_token
+	# process_always = false: pausing the game pauses the countdown too.
+	player.get_tree().create_timer(duration, false).timeout.connect(func():
+		if is_instance_valid(player) and player._charge_invincible_token == token:
+			player.is_charge_invincible = false
+	)
 
 static func start_hit_invincibility(player: Player) -> void:
-	"""Blink and ignore all damage for HIT_INVINCIBILITY_DURATION seconds."""
+	"""Blink and ignore all damage for hit_invincibility_duration() seconds."""
 	player.is_hit_invincible = true
 	if is_instance_valid(player._hit_blink_tween):
 		player._hit_blink_tween.kill()
@@ -63,7 +96,7 @@ static func start_hit_invincibility(player: Player) -> void:
 	tween.tween_property(player, "modulate:a", 1.0, HIT_BLINK_INTERVAL)
 	player._hit_blink_tween = tween
 	# process_always = false so pausing the game pauses the countdown too.
-	var timer := player.get_tree().create_timer(HIT_INVINCIBILITY_DURATION, false)
+	var timer := player.get_tree().create_timer(hit_invincibility_duration(), false)
 	timer.timeout.connect(func():
 		if is_instance_valid(player) and tween == player._hit_blink_tween:
 			end_hit_invincibility(player)

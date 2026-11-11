@@ -53,7 +53,10 @@ static func _spawn_one(player: Player, spawn_pos: Vector2, p: Dictionary) -> voi
 	GameShell.game_root().add_child(bullet)
 
 	if bullet.has_method("set_damage"):
-		bullet.set_damage(p.get("damage", 1))
+		# Damage can be fractional (0.1 by default) but bullets deal whole
+		# numbers, so the fraction carries from ball to ball: 1 ball in 10
+		# does 1 damage, the rest 0 - see PlayerPowerUps.whole_damage().
+		bullet.set_damage(PlayerPowerUps.whole_damage("pollen_shot", float(p.get("damage", 0.1))))
 	if bullet.has_method("set_speed"):
 		bullet.set_speed(p.get("speed", 90.0))
 	if "max_distance" in bullet:

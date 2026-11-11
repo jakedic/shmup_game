@@ -38,6 +38,9 @@ const JUMP_SPEED_MULTIPLIER := 1.15
 # shockwave ring is ~90% of its full size by 0.2s.
 const LANDING_GRACE_DURATION := 0.2
 
+# Pollen Leap power-up residue (see _spawn_jump_residue()).
+const POLLEN_RESIDUE_SCRIPT := preload("res://status_effects/pollen_residue.gd")
+
 static func handle_movement(player: Player, delta: float) -> void:
 	"""Process player movement with smooth acceleration"""
 	var input = Input.get_vector("left", "right", "up", "down")
@@ -227,6 +230,9 @@ static func on_dash_start(player: Player) -> void:
 
 	_start_jump(player)
 
+	# Pollen Leap power-up: residue at the takeoff spot.
+	_spawn_jump_residue(player)
+
 static func on_dash_end(player: Player) -> void:
 	"""Clean up dash effects"""
 	# Restore normal speed
@@ -243,6 +249,10 @@ static func on_dash_end(player: Player) -> void:
 	# killing what you land on spares you the landing hit below.
 	if player.is_alive:
 		_spawn_landing_shockwave(player)
+		# Pollen Leap power-up: residue at the landing spot.
+		_spawn_jump_residue(player)
+		# Safe Landing power-up: invulnerable for a bit after touching down.
+		PlayerHealth.grant_intangible(player, float(Stats.get_stat("player", "landing_invincibility")))
 
 	if player.bullet_invincible_during_dash and player.post_dash_invincibility_duration > LANDING_GRACE_DURATION:
 		# Dash Invincibility power-up: its longer grace period already
@@ -426,3 +436,18 @@ static func on_dash_timer_timeout(player: Player) -> void:
 static func on_dash_cooldown_timeout(player: Player) -> void:
 	"""Called when dash cooldown ends"""
 	player.can_dash = true
+
+static func _spawn_jump_residue(player: Player) -> void:
+	"""Pollen Leap (yellow power-up): drop a pollen residue patch at the
+	player's current spot, as wide as the jump shockwave (Stats
+	"player"/"jump_shockwave_radius", so Wide Impact grows it too). Lasts
+	the normal residue duration x Stats "pollen"/"jump_residue_mult"
+	(0 = not owned; 1 / 1.25 / 1.5 at levels 1 / 2 / 3)."""
+	var mult: float = float(Stats.get_stat("pollen", "jump_residue_mult"))
+	if mult <= 0.0:
+		return
+	var patch: Node2D = POLLEN_RESIDUE_SCRIPT.new()
+	patch.radius = float(Stats.get_stat("player", "jump_shockwave_radius"))
+	patch.duration = patch.DURATION * mult
+	GameShell.game_root().add_child(patch)
+	patch.global_position = player.global_position
