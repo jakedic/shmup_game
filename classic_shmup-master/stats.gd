@@ -108,6 +108,13 @@ var default_stats: Dictionary = {
 		# invulnerability lasts invincibility_mult x as long (2 / 2.5 / 3).
 		"has_stinger": false,
 		"invincibility_mult": 1.0,
+		# Pollen Haven (player/player_pollen_haven.gd): invulnerable while
+		# standing in pollen residue, plus haven_linger seconds after leaving.
+		"has_pollen_haven": false,
+		# Bullseye (yellow, player/player_aimer.gd): show the aimer on the
+		# enemy the main shot would hit.
+		"has_aimer": false,
+		"haven_linger": 0.0,
 		# yellow power-up: secondary "pollen shot" fire (see
 		# player/player_powerups.gd + player/player_pollen_shot.gd) - off
 		# unless granted by a power bubble this level.
@@ -134,6 +141,9 @@ var default_stats: Dictionary = {
 		# through even when they survive the hit (see bullets/bullet.gd).
 		"penetration_count": 0,
 		"max_distance": 125.0,
+		# Long Shot (yellow): +this x 100% damage per LONG_SHOT_DISTANCE_UNIT
+		# px the bullet has travelled (bullets/bullet.gd _hit_damage()).
+		"distance_damage_bonus": 0.0,
 		"homing_enabled": false,
 		"homing_strength": 1.2,   # max turn rate, radians/second (see bullets/bullet.gd update_homing())
 		# Status-effect infliction for the player's PRIMARY shot (see
@@ -209,12 +219,11 @@ var default_stats: Dictionary = {
 		# residue lasts (1 / 1.25 / 1.5 at levels 1 / 2 / 3).
 		#   trail_duration_mult    - Pollen Trail (player/player_pollen_trail.gd)
 		#   jump_pop_residue_mult  - Pollen Pop (bubble.gd create_pop_damage())
-		#   jump_residue_mult      - Pollen Leap (player_movement.gd - residue
-		#                            at jump takeoff + landing, radius = the
-		#                            jump shockwave radius)
+		#   bubble_trail_duration_mult - Pollen Wake (bubble.gd - trail behind a
+		#                            fully charged bubble until its charges run out)
 		"trail_duration_mult": 0.0,
 		"jump_pop_residue_mult": 0.0,
-		"jump_residue_mult": 0.0,
+		"bubble_trail_duration_mult": 0.0,
 		# Pollination bounce (status_effects/pollinated_status.gd):
 		#   bounce_radius_mult - multiplier on the bounce search radius
 		#                        (normally 50% of the bubble pop radius).

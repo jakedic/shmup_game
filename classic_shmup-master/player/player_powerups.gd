@@ -82,13 +82,26 @@ const YELLOW_POWERUPS: Array[Dictionary] = [
 		],
 	},
 	{
-		"id": "yellow_pollen_leap",
-		"name": "Pollen Leap",
-		"description": "Jumping leaves pollen where you take off and where you land, as wide as your jump shockwave. Enemies passing through it have a 50% chance to become pollinated.",
+		"id": "yellow_pollen_wake",
+		"name": "Pollen Wake",
+		"description": "A fully charged bubble leaves a trail of pollen behind it until it runs out of charges. Enemies passing through have a 50% chance to become pollinated.",
 		"levels": [
-			{"summary": "Residue lasts 2.5s", "stats": {"pollen": {"jump_residue_mult": {"op": "set", "value": 1.0}}}},
-			{"summary": "Residue lasts ~3.1s", "stats": {"pollen": {"jump_residue_mult": {"op": "set", "value": 1.25}}}},
-			{"summary": "Residue lasts 3.75s", "stats": {"pollen": {"jump_residue_mult": {"op": "set", "value": 1.5}}}},
+			{"summary": "Trail lasts 2.5s", "stats": {"pollen": {"bubble_trail_duration_mult": {"op": "set", "value": 1.0}}}},
+			{"summary": "Trail lasts ~3.1s", "stats": {"pollen": {"bubble_trail_duration_mult": {"op": "set", "value": 1.25}}}},
+			{"summary": "Trail lasts 3.75s", "stats": {"pollen": {"bubble_trail_duration_mult": {"op": "set", "value": 1.5}}}},
+		],
+	},
+	{
+		"id": "yellow_pollen_haven",
+		# Only offered once the player owns a power-up that leaves pollen
+		# residue (see RESIDUE_SOURCE_POWERUP_IDS).
+		"requires_residue_source": true,
+		"name": "Pollen Haven",
+		"description": "You're invulnerable while standing in pollen residue.",
+		"levels": [
+			{"summary": "Only while in pollen", "stats": {"player": {"has_pollen_haven": {"op": "set", "value": true}, "haven_linger": {"op": "set", "value": 0.0}}}},
+			{"summary": "+0.5s after leaving", "stats": {"player": {"has_pollen_haven": {"op": "set", "value": true}, "haven_linger": {"op": "set", "value": 0.5}}}},
+			{"summary": "+1s after leaving", "stats": {"player": {"has_pollen_haven": {"op": "set", "value": true}, "haven_linger": {"op": "set", "value": 1.0}}}},
 		],
 	},
 	{
@@ -160,6 +173,26 @@ const YELLOW_POWERUPS: Array[Dictionary] = [
 			{"summary": "Invulnerability x3", "stats": {"player": {"has_stinger": {"op": "set", "value": true}, "invincibility_mult": {"op": "set", "value": 3.0}}}},
 		],
 	},
+	{
+		"id": "yellow_long_shot",
+		"name": "Long Shot",
+		"description": "Your shots fly farther and hit harder the farther they travel (+100% damage per base shot range travelled).",
+		"levels": [
+			{"summary": "Shot distance x1.25", "stats": {"bullet": {"distance_damage_bonus": {"op": "set", "value": 1.0}, "max_distance": {"op": "mult", "value": 1.25}}}},
+			{"summary": "Shot distance x1.5", "stats": {"bullet": {"distance_damage_bonus": {"op": "set", "value": 1.0}, "max_distance": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Shot distance x1.75", "stats": {"bullet": {"distance_damage_bonus": {"op": "set", "value": 1.0}, "max_distance": {"op": "mult", "value": 1.75}}}},
+		],
+	},
+	{
+		"id": "yellow_bullseye",
+		"name": "Bullseye",
+		"description": "An aimer marks the enemy your shot will hit, and your shots fly faster.",
+		"levels": [
+			{"summary": "Shot speed x1.25", "stats": {"player": {"has_aimer": {"op": "set", "value": true}}, "bullet": {"speed": {"op": "mult", "value": 1.25}}}},
+			{"summary": "Shot speed x1.5", "stats": {"player": {"has_aimer": {"op": "set", "value": true}}, "bullet": {"speed": {"op": "mult", "value": 1.5}}}},
+			{"summary": "Shot speed x1.75", "stats": {"player": {"has_aimer": {"op": "set", "value": true}}, "bullet": {"speed": {"op": "mult", "value": 1.75}}}},
+		],
+	},
 ]
 
 # ids of every power-up that can, by itself, apply the "pollinated" status
@@ -174,12 +207,21 @@ const INVULNERABILITY_SOURCE_POWERUP_IDS: Array[String] = [
 	"yellow_second_wind",
 ]
 
+# Power-ups that leave pollen residue on the field. Owning any of these
+# unlocks power-ups flagged "requires_residue_source" (Pollen Haven).
+const RESIDUE_SOURCE_POWERUP_IDS: Array[String] = [
+	"yellow_piercing_pollen",
+	"yellow_pollen_trail",
+	"yellow_pollen_pop",
+	"yellow_pollen_wake",
+]
+
 const POLLINATION_SOURCE_POWERUP_IDS: Array[String] = [
 	"yellow_pollen_shot",
 	"yellow_piercing_pollen",
 	"yellow_pollen_trail",
 	"yellow_pollen_pop",
-	"yellow_pollen_leap",
+	"yellow_pollen_wake",
 ]
 
 # enemy_type (as returned by e.g. YellowEnemy.get_enemy_type()) -> pool of
@@ -285,9 +327,9 @@ const GRAY_POWERUPS: Array[Dictionary] = [
 		# Penetration count is how many enemies a shot passes THROUGH (see
 		# bullets/bullet.gd) - level 1 hits 2 enemies total, level 3 hits 4.
 		"levels": [
-			{"summary": "Passes through 1 enemy", "stats": {"bullet": {"penetration_count": {"op": "set", "value": 1}}}},
-			{"summary": "Passes through 2 enemies", "stats": {"bullet": {"penetration_count": {"op": "set", "value": 2}}}},
-			{"summary": "Passes through 3 enemies", "stats": {"bullet": {"penetration_count": {"op": "set", "value": 3}}}},
+			{"summary": "Passes through 1 enemy", "stats": {"bullet": {"penetration_count": {"op": "add", "value": 1}}}},
+			{"summary": "Passes through 2 enemies", "stats": {"bullet": {"penetration_count": {"op": "add", "value": 2}}}},
+			{"summary": "Passes through 3 enemies", "stats": {"bullet": {"penetration_count": {"op": "add", "value": 3}}}},
 		],
 	},
 	{
@@ -470,6 +512,8 @@ static func get_available_powerups_for_enemy_type(enemy_type: String) -> Array:
 		if powerup.get("requires_pollination_source", false) and not _player_has_pollination_source():
 			continue
 		if powerup.get("requires_invulnerability_source", false) and not _player_owns_any(INVULNERABILITY_SOURCE_POWERUP_IDS):
+			continue
+		if powerup.get("requires_residue_source", false) and not _player_owns_any(RESIDUE_SOURCE_POWERUP_IDS):
 			continue
 		# A leveled power-up already at its top level has nothing left to give.
 		if is_maxed(powerup.get("id", "")):

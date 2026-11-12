@@ -3,6 +3,8 @@ extends Area2D
 class_name Player
 const POLLEN_TRAIL := preload("res://player/player_pollen_trail.gd")   # Pollen Trail power-up
 const STINGER := preload("res://player/player_stinger.gd")   # Stinger power-up
+const POLLEN_HAVEN := preload("res://player/player_pollen_haven.gd")   # Pollen Haven power-up
+const AIMER := preload("res://player/player_aimer.gd")   # Bullseye power-up
 
 # NOTE ON STRUCTURE:
 # This script holds the player's state (signals, exported properties,
@@ -359,6 +361,8 @@ func _process(delta):
 	process_shield_regen(delta)
 	PlayerVisuals.update_form_tint(self)
 	POLLEN_TRAIL.update(self)   # Pollen Trail power-up (no-op without it)
+	POLLEN_HAVEN.update(self)   # Pollen Haven power-up (no-op without it)
+	AIMER.update(self)   # Bullseye power-up aimer (no-op without it)
 	STINGER.update(self, delta)   # Stinger power-up (no-op without it)
 
 	# Update double-tap timers

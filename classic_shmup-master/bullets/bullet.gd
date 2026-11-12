@@ -21,6 +21,11 @@ static var bullet_vs_bullet_collision_enabled: bool = false
 # it goes through uses one up. 0 = normal bullet.
 @export var penetration_count: int = 0
 @export var max_distance: float = 1000.0  # Max distance before bullet expires
+# Long Shot power-up (set by PlayerShooting.configure_bullet() from Stats
+# "bullet"/"distance_damage_bonus"): +this x 100% damage for every
+# LONG_SHOT_DISTANCE_UNIT px travelled. 0 = off.
+var distance_damage_bonus: float = 0.0
+const LONG_SHOT_DISTANCE_UNIT := 125.0   # = the base shot range
 @export var bounce_count: int = 0  # How many times bullet bounces off screen edges
 @export var split_on_death: bool = false  # Split into smaller bullets when destroyed
 @export var split_count: int = 2  # How many bullets to split into
@@ -349,7 +354,7 @@ func handle_enemy_collision(area: Area2D):
 		# Damage the enemy
 		var enemy_died = false
 		if area.has_method("take_damage"):
-			enemy_died = await area.take_damage(damage, {"source": "bullet", "penetrating": penetration_count > 0})
+			enemy_died = await area.take_damage(_hit_damage(), {"source": "bullet", "penetrating": penetration_count > 0})
 		elif area.has_method("explode"):
 			area.explode()
 			enemy_died = true
@@ -405,7 +410,7 @@ func _spawn_split_shot(from_pos: Vector2, target: Node2D) -> void:
 	var copy = load(scene_file_path).instantiate()
 	GameShell.game_root().add_child(copy)
 	# Set after add_child - bullet scripts reset some stats in _ready().
-	for prop in ["damage", "speed", "max_distance", "pierce_count", "penetration_count",
+	for prop in ["damage", "speed", "max_distance", "pierce_count", "penetration_count", "distance_damage_bonus",
 			"status_effect_name", "status_effect_chance", "face_direction", "modulate"]:
 		if prop in copy:
 			copy.set(prop, get(prop))
@@ -469,7 +474,7 @@ func handle_enemy_body_collision(body: Node2D):
 	
 	var enemy_died = false
 	if body.has_method("take_damage"):
-		enemy_died = body.take_damage(damage, {"source": "bullet", "penetrating": penetration_count > 0})
+		enemy_died = body.take_damage(_hit_damage(), {"source": "bullet", "penetrating": penetration_count > 0})
 	
 	if not enemy_died:
 		_maybe_inflict_status_effect(body)
@@ -570,6 +575,15 @@ func set_direction(new_direction: Vector2):
 func set_speed(new_speed: float):
 	"""Change bullet speed"""
 	speed = new_speed
+
+func _hit_damage() -> int:
+	"""Damage for the hit happening now. Normally just `damage`; with Long
+	Shot it grows with distance_traveled (fractions carry over between
+	hits via PlayerPowerUps.whole_damage())."""
+	if distance_damage_bonus <= 0.0 or damage <= 0:
+		return damage
+	var amount := float(damage) * (1.0 + distance_damage_bonus * distance_traveled / LONG_SHOT_DISTANCE_UNIT)
+	return PlayerPowerUps.whole_damage("long_shot", amount)
 
 func set_damage(new_damage: int):
 	"""Change bullet damage"""

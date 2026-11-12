@@ -116,6 +116,8 @@ static func configure_bullet(bullet: Node2D) -> void:
 		bullet.set_penetration_count(int(b.get("penetration_count", 0)))
 	if "max_distance" in bullet:
 		bullet.max_distance = b.max_distance
+	if "distance_damage_bonus" in bullet:
+		bullet.distance_damage_bonus = float(b.get("distance_damage_bonus", 0.0))
 	if "homing_enabled" in bullet:
 		bullet.homing_enabled = b.homing_enabled
 	if "homing_strength" in bullet:

@@ -26,10 +26,9 @@ static func on_transformation_timer_timeout(player: Player) -> void:
 static func get_transformation_function_name(enemy_type: String) -> String:
 	return "transform_" + enemy_type.to_lower()
 
-# How much the yellow form multiplies the main shot's speed. Also the
-# reference the charge time scales against (PlayerChargeShot.
-# effective_charge_duration()): at default bullet speed x this, the charge
-# takes exactly charge_shot_duration.
+# How much the yellow form multiplies the main shot's speed. (The charge
+# time scales with fire rate, not this - see PlayerChargeShot.
+# effective_charge_duration().)
 const YELLOW_SHOT_SPEED_MULT := 2.0
 
 static func transform_yellow(player: Player) -> void:

@@ -46,16 +46,16 @@ const FULL_CHARGE_INVINCIBILITY := 1.0
 
 
 static func effective_charge_duration(player: Player) -> float:
-	"""How long the charge takes right now. Scales with shot speed: at the
-	yellow form's normal shot speed (default bullet speed x
-	PlayerTransformations.YELLOW_SHOT_SPEED_MULT) it's exactly
-	player.charge_shot_duration; faster shots (Muzzle Booster etc.) charge
-	proportionally faster - x2 shot speed = half the charge time."""
-	var reference: float = float(Stats.default_stats["bullet"]["speed"]) * PlayerTransformations.YELLOW_SHOT_SPEED_MULT
-	var current: float = float(Stats.get_stat("bullet", "speed"))
-	if current <= 0.0 or reference <= 0.0:
+	"""How long the charge takes right now. Scales with fire rate (not shot
+	speed): at the default shot cooldown (Stats default "player"/
+	"shoot_cooldown") it's exactly player.charge_shot_duration; a faster fire
+	rate (Rapid Cycler etc.) charges proportionally faster - x2 fire rate =
+	half the charge time."""
+	var reference: float = float(Stats.default_stats["player"]["shoot_cooldown"])
+	var current: float = maxf(float(Stats.get_stat("player", "shoot_cooldown")), 0.05)
+	if reference <= 0.0:
 		return player.charge_shot_duration
-	return player.charge_shot_duration * reference / current
+	return player.charge_shot_duration * current / reference
 
 static func _update_charge(player: Player, delta: float) -> void:
 	var duration := effective_charge_duration(player)

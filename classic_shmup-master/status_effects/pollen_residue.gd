@@ -32,6 +32,8 @@ var _specks: Array = []    # [Vector2 offset, float size] for the drawing
 
 
 func _ready() -> void:
+	# Pollen Haven (player/player_pollen_haven.gd) finds patches by group.
+	add_to_group("pollen_residue")
 	# Bigger patches get more specks so they look as dense as small ones.
 	var count := maxi(int(SPECK_COUNT * (radius / RADIUS) * (radius / RADIUS)), 6)
 	for i in mini(count, 200):

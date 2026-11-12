@@ -107,6 +107,13 @@ const SHOCKWAVE_CHARGE_SPEED_MULT := 1.12
 const SHOCKWAVE_OUTLINE_COLOR := Color(0.3, 0.7, 1.0, 1.0)
 var is_shockwave_charged: bool = false
 var _charge_touches_left: int = 0  # player touches left before the charge ends
+# Pollen Wake power-up: dropping a residue trail (set once the bubble is
+# fully charged, cleared when its charges run out - see _update_pollen_wake()).
+var _pollen_wake_active: bool = false
+var _pollen_wake_last := Vector2.INF
+const POLLEN_WAKE_SPACING := 12.0   # px between trail patches
+const POLLEN_WAKE_RADIUS := 12.0    # each patch's radius
+const POLLEN_WAKE_BASE_DURATION := 2.5
 # time_elapsed when the charge was applied. A paddle touch within
 # SHOCKWAVE_TOUCH_GRACE of that doesn't clear it - covers landing right next
 # to the bubble, where the ship's touch and the shockwave arrive together.
@@ -282,6 +289,7 @@ func _process(delta: float):
 
 	position += direction * speed * delta
 	_bounce_off_walls()
+	_update_pollen_wake()
 
 	if not _player_collision_armed and global_position.distance_to(spawn_position) >= PLAYER_COLLISION_ARM_DISTANCE:
 		_player_collision_armed = true
@@ -442,7 +450,7 @@ func _on_shot(bullet: Area2D) -> void:
 	menu (TestOptions) - any mix of:
 	  explodes (normal) - pops in a big explosion (pop_bubble())
 	  powers up         - each bullet adds one charge (damage for one enemy
-	                      hit / bounce), stacking up to SHOT_CHARGE_MAX
+						  hit / bounce), stacking up to SHOT_CHARGE_MAX
 	  bounces           - gets knocked away from the bullet
 	  passes through    - the bullet isn't used up: it does any of the above
 	                      and keeps going to hit whatever is behind
@@ -570,6 +578,11 @@ func _become_shockwave_charged(source: String = "bubble_charged") -> void:
 		_charged_at = time_elapsed
 		_charge_touches_left = maxi(_charge_touches_left, SHOCKWAVE_CHARGE_TOUCHES)
 		_shot_charged = false
+	# Pollen Wake: start trailing once full (shot charges at the cap, or a
+	# jump charge, which always fills the bubble). Runs until
+	# _clear_shockwave_charge().
+	if not _shot_charged or _charge_touches_left >= int(Stats.get_stat("bubble", "shot_charge_max")):
+		_pollen_wake_active = true
 	if was_charged:
 		_refresh_charge_outline()
 		return
@@ -622,6 +635,8 @@ func _clear_shockwave_charge() -> void:
 	is_shockwave_charged = false
 	_charge_touches_left = 0
 	_shot_charged = false
+	_pollen_wake_active = false
+	_pollen_wake_last = Vector2.INF
 	speed /= SHOCKWAVE_CHARGE_SPEED_MULT
 	base_speed /= SHOCKWAVE_CHARGE_SPEED_MULT
 	var outline := get_node_or_null("ChargeOutline")
@@ -1014,3 +1029,23 @@ func _play_pop_animation() -> void:
 	if spr:
 		tint *= spr.modulate * spr.self_modulate
 	OneShotAnim.spawn(POP_FRAMES, &"pop", global_position, on_screen / POP_SHEET_BUBBLE_DIAMETER, tint)
+
+func _update_pollen_wake() -> void:
+	"""Pollen Wake (yellow power-up): while _pollen_wake_active, drop a small
+	pollen residue patch every POLLEN_WAKE_SPACING px of travel. Patches
+	last POLLEN_WAKE_BASE_DURATION x Stats "pollen"/"bubble_trail_duration_mult"
+	(0 = not owned; 1 / 1.25 / 1.5 at levels 1 / 2 / 3)."""
+	if not _pollen_wake_active:
+		return
+	var mult: float = float(Stats.get_stat("pollen", "bubble_trail_duration_mult"))
+	if mult <= 0.0:
+		return
+	if _pollen_wake_last != Vector2.INF and global_position.distance_to(_pollen_wake_last) < POLLEN_WAKE_SPACING:
+		return
+	_pollen_wake_last = global_position
+	var patch: Node2D = POLLEN_RESIDUE_SCRIPT.new()
+	patch.radius = POLLEN_WAKE_RADIUS
+	patch.duration = POLLEN_WAKE_BASE_DURATION * mult
+	patch.show_outline = false
+	GameShell.game_root().add_child(patch)
+	patch.global_position = global_position
