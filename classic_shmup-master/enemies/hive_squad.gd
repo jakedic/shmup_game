@@ -42,9 +42,9 @@ const SQUAD_SIZE := 2  # the hive squad is always a pair
 @export var start_pos: Vector2 = Vector2(120, -40)  # center of the pair at spawn (normally off-screen)
 @export var end_pos: Vector2 = Vector2(120, 360)    # sets the pair's direction of travel
 @export var start_delay: float = 0.0
-@export var path_speed: float = 20.0       # px/s - same slow creep as the solo hive
+@export var path_speed: float = 50.0       # px/s - same slow creep as the solo hive
 @export var spacing: float = 32.0          # px between the two hives while side by side
-@export var meet_fractions: Array[float] = [1.0 / 3.0, 2.0 / 3.0]  # where they merge + fire, as fractions of the on-screen part of the path
+@export var meet_fractions: Array[float] = [1.0 / 4.0, 2.0 / 4.0, 3.0/4.0]  # where they merge + fire, as fractions of the on-screen part of the path
 @export var converge_height: float = 16.0  # px above/below each meet point where they turn in/out (half of spacing = a 45-degree diagonal)
 @export var turn_speed: float = 10.0       # how quickly they rotate to face a new direction (higher = snappier)
 

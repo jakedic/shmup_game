@@ -23,14 +23,7 @@ extends SquadWaveLevel
 # back, just something to dodge or pick off.
 #test wave
 func _wave_0() -> void:
-	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": 0.5, "start_delay": 1.0})
-	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.7, "end_side": Side.BOTTOM, "end_percent": 0.7, "start_delay": 1.0})
-	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": 0.2})
-	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.8, "end_side": Side.BOTTOM, "end_percent": 0.8})
-	spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.4, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": 1})
-	spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.7, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": 1.5})
-	spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .5, "start_delay": 2.5})
-	spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.8, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .5, "start_delay": 3})
+	spawn_hive_squad_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.7, "end_side": Side.BOTTOM, "end_percent": 0.7})
 
 #Done, intro wave that is pretty simple and lets the player learn what the bee enemy and asteroids do
 func _wave_1() -> void:
@@ -122,41 +115,22 @@ func _wave_7() -> void:
 # Wave 8 - multiple squad wave, just ramping up the challenge slightly
 func _wave_8() -> void:
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": 0.5, "start_delay": 1.0})
-	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": 0.6, "start_delay": 1.0})
+	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.7, "end_side": Side.BOTTOM, "end_percent": 0.7, "start_delay": 1.0})
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": 0.2})
 	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.8, "end_side": Side.BOTTOM, "end_percent": 0.8})
-	spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": 1})
-	spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": 1.5})
+	spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.4, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": 1})
+	spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.7, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": 1.5})
 	spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .5, "start_delay": 2.5})
 	spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.8, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .5, "start_delay": 3})
 
 
 #not sure what wave this would be but this is an interesting pattern that would towards the end of the level
 #pattern needs to be reworked does not work the way I thought it would
-#func _wave_9() -> void:
-	#spawn_squad_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": LANE_CENTER, "end_side": Side.BOTTOM, "end_percent": LANE_CENTER, "circle_progress": .2, "start_delay": .6})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "start_delay": .6})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "start_delay": 1.2})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "start_delay": 1.8})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "start_delay": 2.4})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "start_delay": 3})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "start_delay": 3.6})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "start_delay": 4.2})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "start_delay": 4.8})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "start_delay": 5.4})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "start_delay": 6})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 1, "end_side": Side.BOTTOM, "end_percent": .1})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 1, "end_side": Side.BOTTOM, "end_percent": 0.1, "start_delay": .6})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 1, "end_side": Side.BOTTOM, "end_percent": 0.1, "start_delay": 1.2})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 1, "end_side": Side.BOTTOM, "end_percent": 0.1, "start_delay": 1.8})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 1, "end_side": Side.BOTTOM, "end_percent": 0.1, "start_delay": 2.4})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 1, "end_side": Side.BOTTOM, "end_percent": 0.1, "start_delay": 3})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 1, "end_side": Side.BOTTOM, "end_percent": 0.1, "start_delay": 3.6})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 1, "end_side": Side.BOTTOM, "end_percent": 0.1, "start_delay": 4.2})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 1, "end_side": Side.BOTTOM, "end_percent": 0.1, "start_delay": 4.8})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 1, "end_side": Side.BOTTOM, "end_percent": 0.1, "start_delay": 5.4})
-	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 1, "end_side": Side.BOTTOM, "end_percent": 0.1, "start_delay": 6})
+func _wave_9() -> void:
+	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": 0.2,"start_delay": 1.2})
+	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.8, "end_side": Side.BOTTOM, "end_percent": 0.8, "start_delay": 1.2})
+	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": 0.5})
+
 #func _wave_0() -> void:
 	
 	#spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.3})
@@ -177,7 +151,7 @@ func _ready() -> void:
 	level_paths = {
 		"next_level": "res://levels/level_1.tscn"
 	}
-	waves = [ _wave_0,_wave_1, _wave_2, _wave_3, _wave_4, _wave_5, _wave_6,_wave_7, _wave_8, _wave_boss]
+	waves = [ _wave_0,_wave_1, _wave_2, _wave_3, _wave_4, _wave_5, _wave_6,_wave_7, _wave_8, _wave_9, _wave_boss]
 	boss_scene = BEE_MINIBOSS
 	fallback_enemy = ENEMY_BEE
 	super._ready()
