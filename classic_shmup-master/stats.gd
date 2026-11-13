@@ -244,7 +244,7 @@ var default_stats: Dictionary = {
 	"pollen_puff": {
 		"speed": 45.0,          # slow - about half of the secondary pollen shot's speed
 		"damage": 0,            # never deals damage, purely a pollination tool
-		"max_distance": 160.0,  # about half the 320 px play area
+		"max_distance": 136.0,  # a bit under half the 320 px play area
 		"pulse_amplitude": 0.25,  # how much it swells/shrinks, as a fraction of base size
 		"pulse_frequency": 3.0,   # how fast it pulses, in radians/sec
 		# 100% chance to inflict "pollinated" (see

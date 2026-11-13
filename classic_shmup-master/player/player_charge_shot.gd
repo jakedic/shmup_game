@@ -184,7 +184,7 @@ static func _fire_pollen_puff(player: Player) -> void:
 	if bullet.has_method("set_speed"):
 		bullet.set_speed(p.get("speed", 45.0))
 	if "max_distance" in bullet:
-		bullet.max_distance = p.get("max_distance", 160.0)
+		bullet.max_distance = p.get("max_distance", 136.0)
 	if "pulse_amplitude" in bullet:
 		bullet.pulse_amplitude = p.get("pulse_amplitude", 0.25)
 	if "pulse_frequency" in bullet:

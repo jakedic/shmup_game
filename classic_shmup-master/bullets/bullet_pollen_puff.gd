@@ -64,7 +64,7 @@ func _ready():
 	add_to_group("pollen_puff")
 	speed = 45.0
 	damage = 1  # purely a pollination tool - never deals damage
-	max_distance = 160.0
+	max_distance = 136.0
 	bullet_color = Color(1.0, 0.85, 0.2)  # pollen yellow, same family as bullet_pollen
 	# 100% chance to inflict "pollinated" (see status_effects/pollinated_status.gd) -
 	# unlike the 20% chance on the wiggling secondary-fire pollen balls, this
