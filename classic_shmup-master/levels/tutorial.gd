@@ -104,6 +104,7 @@ const SUPPLY_INTERVAL := 11.0      # seconds between golden astroids
 const RANDOM_ASTROID_GAP_MIN := 2.0   # was 1.2 - dialed back 2026-11-06 (about a third fewer astroids)
 const RANDOM_ASTROID_GAP_MAX := 3.5   # was 2.4
 const RANDOM_ASTROID_MEDIUM_CHANCE := 0.2
+var _random_astroids_allow_medium := true   # wave 3b turns this off - small astroids only
 
 # Wave 0's astroids - 20% faster than the 45 px/s the rest of the tutorial uses.
 const WAVE_0_ASTROID_SPEED := 54.0
@@ -373,7 +374,7 @@ func _wait_while_challenge_pending(seconds: float, random_astroids: bool) -> boo
 			_random_astroid_timer -= step
 			if _random_astroid_timer <= 0.0:
 				_random_astroid_timer = randf_range(RANDOM_ASTROID_GAP_MIN, RANDOM_ASTROID_GAP_MAX)
-				var medium := randf() < RANDOM_ASTROID_MEDIUM_CHANCE
+				var medium := _random_astroids_allow_medium and randf() < RANDOM_ASTROID_MEDIUM_CHANCE
 				var lane := randf_range(0.08, 0.92)
 				spawn_drift_wave({
 					"enemy": ASTROID_MEDIUM if medium else ASTROID_SMALL,
@@ -859,7 +860,9 @@ func _wave_3b() -> void:
 		})
 	show_challenge()   # instructions + challenge fade in now that the talking's done
 
+	_random_astroids_allow_medium = false   # no big astroids during the green bubble challenge
 	await _supply_until_challenge_done(true)
+	_random_astroids_allow_medium = true
 	_clear_target_bubbles()   # level_0.gd's practice run ends the wave with some still up
 	if _challenge_state == ChallengeState.DONE:
 		say("Look at you go.", RED_FROG)
@@ -890,7 +893,7 @@ func _on_target_bubble_popped() -> void:
 # Wave 5c - the bomb-ring encounter (same as levels/level_0.gd). 5a and 5b
 # used to be bomb-ring waves too - they're now the cosmic storm and the
 # jump-on-bubble waves (below). It teaches ONE way to use a bubble with its own
-# card, then runs base_level.gd's run_bomb_ring_challenge(): three bombs
+# card, then runs base_level.gd's run_bomb_ring_challenge(): two bombs
 # inside rings of armored astroids, with golden astroids and gray bees
 # drifting down until every ring is gone. Combining two bubbles always grants
 # Penetrator Rounds during it.
@@ -1069,6 +1072,7 @@ func _wave_5b() -> void:
 		"target": JUMP_MEDIUM_SPOTS.size(),
 	})
 	_clear_jump_wave()
+	_strip_bubble_power()   # start from scratch: no transformation, no bubbles out
 	_jump_wave_active = true
 	_spawn_caged_bubble_ring()
 	# Dialogue + card only the first time (not when the wave replays).
@@ -1097,6 +1101,17 @@ func _wave_5b() -> void:
 	_clear_jump_wave()   # level_0.gd's practice run ends the wave with some still up
 	if _challenge_state == ChallengeState.DONE:
 		say("Guess you really did got it.", RED_FROG)
+
+
+## Wave 5b starts the player off with nothing: ends any transformation they
+## carried over and removes every bubble on screen (no pop, they just vanish).
+## Runs before the caged bubble is spawned, so that one is never touched.
+func _strip_bubble_power() -> void:
+	if player and is_instance_valid(player) and player.current_form != 'default':
+		player.revert_absorption()
+	for b in get_tree().get_nodes_in_group("bubble"):
+		if is_instance_valid(b) and not b.is_in_group("caged_bubble"):
+			b.queue_free()
 
 
 ## Stage 1 -> stage 2: wait for the ring to be gone, then bring in the mediums.
@@ -1185,14 +1200,22 @@ func _clear_jump_wave() -> void:
 
 
 # Wave 5c - bubble use #3: combine two.
+# Two bomb rings, left and right - the default layout minus the middle ring
+# (base_level.gd DEFAULT_BOMB_RINGS). No start delay since nothing has to get
+# out of the middle ring's way.
+const WAVE_5C_BOMB_RINGS := [
+	{"center_percent": 0.25, "stop_percent": 0.2},
+	{"center_percent": 0.75, "stop_percent": 0.2},
+]
+
 func _wave_5c() -> void:
 	_set_abilities(true, true, true)
 	begin_challenge({
 		"title": "Using Bubbles: Combine",
 		"text": "Combine two bubbles to get a permanent buff.",
-		"challenge": "Destroy all 3 bombs with Penetrator Rounds without taking damage",
+		"challenge": "Destroy both bombs with Penetrator Rounds without taking damage",
 		"kind": CHALLENGE_BOMBS,
-		"target": 3,
+		"target": WAVE_5C_BOMB_RINGS.size(),
 		"method": BOMB_METHOD_COMBINE,
 		"no_damage": true,   # any hit fails it too
 		"fail_line": "Ouch. Looks like that hurt.",
@@ -1214,7 +1237,7 @@ func _wave_5c() -> void:
 		})
 	show_challenge()   # instructions + challenge fade in now that the talking's done
 
-	await run_bomb_ring_challenge()
+	await run_bomb_ring_challenge({"rings": WAVE_5C_BOMB_RINGS})
 	
 # Wave 6 - the final exam. Everything from the earlier waves, one after the
 # other, building up:

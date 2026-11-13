@@ -58,7 +58,7 @@ static func update(player: Node2D) -> void:
 
 static func find_target(player: Node2D) -> Node2D:
 	"""Nearest enemy the main shot (straight up from the ship) would hit."""
-	var origin: Vector2 = player.global_position + Vector2(0, -SHOT_SPAWN_OFFSET)
+	var origin: Vector2 = player.global_position + (PlayerShooting.ship_center(player) - player.position) + Vector2(0, -SHOT_SPAWN_OFFSET)
 	var reach: float = float(Stats.get_stat("bullet", "max_distance"))
 	var best: Node2D = null
 	var best_dy := INF

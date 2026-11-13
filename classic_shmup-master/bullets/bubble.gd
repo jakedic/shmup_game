@@ -681,10 +681,8 @@ func create_pop_damage(damage_source: String = "bubble_pop"):
 	var all_nodes = get_tree().get_nodes_in_group("enemies")
 	
 	for enemy in all_nodes:
-		if is_instance_valid(enemy):
-			var distance = global_position.distance_to(enemy.global_position)
-			if distance <= explosion_radius:
-				enemies_in_range.append(enemy)
+		if is_instance_valid(enemy) and _blast_reaches(enemy, explosion_radius):
+			enemies_in_range.append(enemy)
 	
 	# The pop also wipes out every enemy bullet inside the blast (including
 	# the hive's walls, which normal shots can't destroy).
@@ -730,6 +728,112 @@ func create_pop_damage(damage_source: String = "bubble_pop"):
 	# Create a visual explosion effect (optional)
 	create_visual_explosion(explosion_radius)
 	
+
+# --- Blast reach: enemy EDGE, not enemy center ---
+# An enemy is caught when any part of its hitbox (its collision shapes) is
+# within the blast radius - so a big astroid poking into the blast gets hit
+# even if its middle is outside. Done with plain geometry rather than a
+# physics query because pops often happen inside collision callbacks, where
+# the physics space is locked.
+
+func _blast_reaches(enemy: Node, radius: float) -> bool:
+	if not (enemy is Node2D):
+		return false
+	var center: Vector2 = global_position
+	# Center inside the blast always counts (same as before).
+	if center.distance_to(enemy.global_position) <= radius:
+		return true
+	var shapes := _enemy_hitbox_nodes(enemy)
+	for shape_node in shapes:
+		var closest = _closest_point_on_hitbox(shape_node, center)
+		if closest != null and center.distance_to(closest) <= radius:
+			return true
+	return false
+
+
+func _enemy_hitbox_nodes(enemy: Node) -> Array:
+	"""The enemy's own CollisionShape2D / CollisionPolygon2D nodes. Looks at
+	direct children first; if there are none, searches deeper - but never
+	into child nodes that are enemies themselves (boss parts are hit on
+	their own)."""
+	var out: Array = []
+	for c in enemy.get_children():
+		if c is CollisionShape2D or c is CollisionPolygon2D:
+			out.append(c)
+	if out.is_empty():
+		_collect_hitbox_nodes(enemy, out)
+	return out
+
+
+func _collect_hitbox_nodes(node: Node, out: Array) -> void:
+	for c in node.get_children():
+		if c.is_in_group("enemies"):
+			continue
+		if c is CollisionShape2D or c is CollisionPolygon2D:
+			out.append(c)
+		_collect_hitbox_nodes(c, out)
+
+
+func _closest_point_on_hitbox(shape_node: Node2D, point: Vector2):
+	"""Closest point (global coords) of the shape to `point`, or `point`
+	itself if it's inside. null if the shape type isn't handled."""
+	var xf: Transform2D = shape_node.global_transform
+	var p: Vector2 = xf.affine_inverse() * point   # into the shape's own space
+	var local = null
+	if shape_node is CollisionPolygon2D:
+		local = _closest_on_polygon(shape_node.polygon, p)
+	else:
+		var shape: Shape2D = shape_node.shape
+		if shape is CircleShape2D:
+			var r: float = shape.radius
+			local = p if p.length() <= r else p.normalized() * r
+		elif shape is RectangleShape2D:
+			var h: Vector2 = shape.size * 0.5
+			local = Vector2(clampf(p.x, -h.x, h.x), clampf(p.y, -h.y, h.y))
+		elif shape is CapsuleShape2D:
+			var r: float = shape.radius
+			var half: float = maxf(shape.height * 0.5 - r, 0.0)
+			var on_axis := Vector2(0.0, clampf(p.y, -half, half))
+			var d: Vector2 = p - on_axis
+			local = p if d.length() <= r else on_axis + d.normalized() * r
+		elif shape is ConvexPolygonShape2D:
+			local = _closest_on_polygon(shape.points, p)
+		elif shape is ConcavePolygonShape2D:
+			local = _closest_on_segments(shape.segments, p)
+	if local == null:
+		return null
+	return xf * local
+
+
+func _closest_on_polygon(poly: PackedVector2Array, p: Vector2):
+	if poly.size() < 3:
+		return null
+	if Geometry2D.is_point_in_polygon(p, poly):
+		return p
+	var best := Vector2.ZERO
+	var best_d := INF
+	for i in poly.size():
+		var q := Geometry2D.get_closest_point_to_segment(p, poly[i], poly[(i + 1) % poly.size()])
+		var d := p.distance_squared_to(q)
+		if d < best_d:
+			best_d = d
+			best = q
+	return best
+
+
+func _closest_on_segments(segs: PackedVector2Array, p: Vector2):
+	if segs.size() < 2:
+		return null
+	var best := Vector2.ZERO
+	var best_d := INF
+	for i in range(0, segs.size() - 1, 2):
+		var q := Geometry2D.get_closest_point_to_segment(p, segs[i], segs[i + 1])
+		var d := p.distance_squared_to(q)
+		if d < best_d:
+			best_d = d
+			best = q
+	return best
+
 
 func _clear_enemy_bullets(radius: float) -> void:
 	"""Remove every enemy bullet (group "enemy_bullet") within `radius` of the

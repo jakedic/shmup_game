@@ -37,7 +37,7 @@ static func _fire(player: Player) -> void:
 
 	player.pollen_cooldown_remaining = p.get("cooldown", 0.35)
 
-	var spawn_center = player.position + Vector2(0, FORWARD_OFFSET)
+	var spawn_center = PlayerShooting.muzzle(player, FORWARD_OFFSET)
 	_spawn_one(player, spawn_center + Vector2(-SIDE_OFFSET, 0), p)
 	_spawn_one(player, spawn_center + Vector2(SIDE_OFFSET, 0), p)
 

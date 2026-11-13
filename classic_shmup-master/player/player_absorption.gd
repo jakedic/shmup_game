@@ -68,7 +68,7 @@ static func launch_absorption_projectile(player: Player, projectile: Node2D) -> 
 	GameShell.game_root().add_child(projectile)
 
 	if projectile.has_method("start"):
-		projectile.start(player.position + Vector2(0, -8), player)
+		projectile.start(PlayerShooting.muzzle(player), player)
 
 static func on_absorb(player: Player) -> void:
 	"""Handle visual and audio effects for absorption"""
@@ -280,24 +280,25 @@ static func launch_bubble(player: Player, bubble: Node2D) -> void:
 	var launch_direction := get_bubble_launch_direction(player, base_direction)
 
 	if bubble.has_method("start"):
-		bubble.start(player.position + spawn_offset, launch_direction)
+		bubble.start(PlayerShooting.ship_center(player) + spawn_offset, launch_direction)
 
-# How strongly the ship's current velocity steers the bubble's launch angle
-# away from straight up/down (0 = ship velocity ignored entirely, 1 = as
-# strong an influence on the final direction as the base up/down direction
-# itself). Kept modest so a fast dash sends the bubble off at a noticeable
-# angle without making a near-stationary shot's direction hard to predict.
-const BUBBLE_LAUNCH_VELOCITY_INFLUENCE := 0.6
+# Bubble launch angle comes from the left/right input held at the moment
+# it's fired (not the ship's velocity, so leftover drift doesn't matter).
+# A keyboard/d-pad press gives the full MAX_ANGLE; an analog stick tilts it
+# in proportion to how far it's pushed. Below DEADZONE it goes straight.
+const BUBBLE_LAUNCH_MAX_ANGLE_DEGREES := 60.0
+const BUBBLE_LAUNCH_DEADZONE := 0.05
 
-static func get_bubble_launch_direction(player: Player, base_direction: Vector2) -> Vector2:
-	"""Blend the base launch direction (straight up, or down with the
-	gray_bubble_behind power-up) with the ship's current velocity, so
-	drifting or dashing sideways while firing sends the bubble off at an
-	angle instead of always straight up/down."""
-	if player.current_velocity.length() <= 0.01:
+static func get_bubble_launch_direction(_player: Player, base_direction: Vector2) -> Vector2:
+	"""Straight up (or down with gray_bubble_behind), tilted left/right by
+	the horizontal input being held."""
+	var x_input: float = clampf(Input.get_axis("left", "right"), -1.0, 1.0)
+	var mag: float = absf(x_input)
+	if mag <= BUBBLE_LAUNCH_DEADZONE:
 		return base_direction
-	var velocity_direction := player.current_velocity.normalized()
-	return (base_direction + velocity_direction * BUBBLE_LAUNCH_VELOCITY_INFLUENCE).normalized()
+	var t: float = (mag - BUBBLE_LAUNCH_DEADZONE) / (1.0 - BUBBLE_LAUNCH_DEADZONE)
+	var angle: float = deg_to_rad(BUBBLE_LAUNCH_MAX_ANGLE_DEGREES) * t
+	return Vector2(signf(x_input) * sin(angle), signf(base_direction.y) * cos(angle))
 
 static func on_bubble_shot(player: Player) -> void:
 	"""Handle visual effects for bubble shooting"""

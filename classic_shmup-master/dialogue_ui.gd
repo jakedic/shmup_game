@@ -91,6 +91,7 @@ var _choice_box: VBoxContainer
 var _choice_labels: Array[Label] = []
 var _choice_index := 0
 var _last_choice := -1
+var _choices_shown := false   # options faded in (question finished typing)
 
 var _last_portrait = null
 
@@ -289,8 +290,9 @@ func _process_center(delta: float) -> void:
 		_center_prompt.modulate.a = 0.0
 	else:
 		_center_prompt.modulate.a = 1.0 if fmod(_prompt_t, 1.0) < 0.65 else 0.35
-	if has_choices and done_typing and not _choice_box.visible:
-		_choice_box.visible = true
+	if has_choices and done_typing and not _choices_shown:
+		_choices_shown = true
+		_choice_box.modulate.a = 1.0
 		_refresh_choices()
 
 
@@ -300,7 +302,7 @@ func _input(event: InputEvent) -> void:
 	if not event.is_pressed() or event.is_echo():
 		return
 	# Moving the cursor between options (only once they're showing).
-	if not _choice_labels.is_empty() and _choice_box.visible:
+	if not _choice_labels.is_empty() and _choices_shown:
 		var step := 0
 		if event.is_action_pressed("up") or event.is_action_pressed("left"):
 			step = -1
@@ -363,9 +365,17 @@ func _build_choices(choices: Array) -> void:
 		l.queue_free()
 	_choice_labels.clear()
 	_choice_index = 0
-	_choice_box.visible = false   # shown once the question has typed out
+	# The options are laid out (and the box sized for them) from the moment
+	# the question opens, but kept transparent until it has typed out. They
+	# used to be hidden and then made visible, which made the box re-layout
+	# mid-question - the freshly shown labels had no width yet, so for a
+	# frame the box blew up / jumped and looked like it vanished and came
+	# back. Labels don't wrap, so their size never depends on that width.
+	_choices_shown = false
+	_choice_box.visible = not choices.is_empty()
+	_choice_box.modulate.a = 0.0
 	for c in choices:
-		var l := _make_label(CHOICE_FONT_SIZE, CHOICE_COLOR, true)
+		var l := _make_label(CHOICE_FONT_SIZE, CHOICE_COLOR, false)
 		_choice_box.add_child(l)
 		_choice_labels.append(l)
 		l.set_meta("choice_text", str(c))

@@ -151,7 +151,7 @@ static func _fire_charged_shot(player: Player) -> void:
 	PlayerShooting.configure_bullet(bullet)
 
 	if bullet.has_method("start"):
-		bullet.start(player.position + Vector2(0, -8))
+		bullet.start(PlayerShooting.muzzle(player))
 
 	player.player_shot.emit(bullet)
 	PlayerShooting.on_shoot(player)
@@ -184,7 +184,7 @@ static func _fire_pollen_puff(player: Player) -> void:
 	if bullet.has_method("set_speed"):
 		bullet.set_speed(p.get("speed", 45.0))
 	if "max_distance" in bullet:
-		bullet.max_distance = p.get("max_distance", 260.0)
+		bullet.max_distance = p.get("max_distance", 160.0)
 	if "pulse_amplitude" in bullet:
 		bullet.pulse_amplitude = p.get("pulse_amplitude", 0.25)
 	if "pulse_frequency" in bullet:
@@ -193,7 +193,7 @@ static func _fire_pollen_puff(player: Player) -> void:
 		bullet.status_effect_chance = p.get("status_effect_chance", 1.0)
 
 	if bullet.has_method("start"):
-		bullet.start(player.position + Vector2(0, -8))
+		bullet.start(PlayerShooting.muzzle(player))
 
 	player.player_shot.emit(bullet)
 	PlayerShooting.on_shoot(player)

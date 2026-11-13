@@ -5,6 +5,22 @@ class_name PlayerShooting
 ## pulling live stats onto a freshly spawned bullet. Called from player.gd
 ## as e.g. PlayerShooting.shoot(self).
 
+static func ship_center(player: Node2D) -> Vector2:
+	"""Visual center of the ship in the player's parent space. The Ship
+	sprite is offset from the Player root in player.tscn (x = 5 at the
+	root's 0.4 scale, i.e. 2 px right of player.position), so anything
+	fired from the ship should start from here, not from player.position,
+	or it comes out slightly left of the ship."""
+	var ship := player.get_node_or_null("Ship") as Node2D
+	if ship == null:
+		return player.position
+	return player.position + Vector2(ship.position.x * player.scale.x, 0.0)
+
+static func muzzle(player: Node2D, y_offset: float = -8.0) -> Vector2:
+	"""Where shots leave the ship: horizontally centered on the ship,
+	y_offset px above (negative) or below (positive) player.position."""
+	return ship_center(player) + Vector2(0, y_offset)
+
 static func handle_shoot_input(player: Player, delta: float) -> void:
 	"""Check for shoot input and handle shooting"""
 	if player.current_form == 'yellow':
@@ -45,12 +61,12 @@ static func shoot_single(player: Player, bullet_type: PackedScene) -> void:
 	"""Shoot a single bullet"""
 	var bullet = create_bullet(bullet_type)
 	if bullet:
-		launch_bullet(player, bullet, player.position + Vector2(0, -8))
+		launch_bullet(player, bullet, muzzle(player))
 
 static func shoot_multiple(player: Player, bullet_type: PackedScene) -> void:
 	"""Shoot multiple bullets in a spread"""
 	var base_direction = Vector2.UP
-	var bullet_spawn = player.position + Vector2(0, -8)
+	var bullet_spawn = muzzle(player)
 
 	for i in range(player.shot_count):
 		# Calculate spread angle
