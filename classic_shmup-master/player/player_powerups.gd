@@ -193,6 +193,21 @@ const YELLOW_POWERUPS: Array[Dictionary] = [
 			{"summary": "Shot speed x1.75", "stats": {"player": {"has_aimer": {"op": "set", "value": true}}, "bullet": {"speed": {"op": "mult", "value": 1.75}}}},
 		],
 	},
+	{
+		"id": "yellow_heavy_rounds",
+		"name": "Heavy Rounds",
+		"description": "Your main shot fires half as often but does triple damage and passes through enemies.",
+		# shoot_cooldown x2 = half the fire rate (in yellow form this also
+		# doubles the charge time - see PlayerChargeShot). Damage and the
+		# slower fire rate stay the same at every level; each level adds one
+		# more enemy the shot passes through (same penetration_count stat as
+		# gray_penetration, so the two stack).
+		"levels": [
+			{"summary": "Passes through 1 enemy", "stats": {"player": {"shoot_cooldown": {"op": "mult", "value": 2.0}}, "bullet": {"damage": {"op": "mult", "value": 3.0}, "penetration_count": {"op": "add", "value": 1}}}},
+			{"summary": "Passes through 2 enemies", "stats": {"player": {"shoot_cooldown": {"op": "mult", "value": 2.0}}, "bullet": {"damage": {"op": "mult", "value": 3.0}, "penetration_count": {"op": "add", "value": 2}}}},
+			{"summary": "Passes through 3 enemies", "stats": {"player": {"shoot_cooldown": {"op": "mult", "value": 2.0}}, "bullet": {"damage": {"op": "mult", "value": 3.0}, "penetration_count": {"op": "add", "value": 3}}}},
+		],
+	},
 ]
 
 # ids of every power-up that can, by itself, apply the "pollinated" status

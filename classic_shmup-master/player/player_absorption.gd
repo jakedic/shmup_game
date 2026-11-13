@@ -279,6 +279,11 @@ static func launch_bubble(player: Player, bubble: Node2D) -> void:
 
 	var launch_direction := get_bubble_launch_direction(player, base_direction)
 
+	# Up/down input changes launch speed. Set before start() so the bubble's
+	# base_speed (its paddle-bounce speed cap) scales with it.
+	if "speed" in bubble:
+		bubble.speed *= get_bubble_launch_speed_mult()
+
 	if bubble.has_method("start"):
 		bubble.start(PlayerShooting.ship_center(player) + spawn_offset, launch_direction)
 
@@ -299,6 +304,20 @@ static func get_bubble_launch_direction(_player: Player, base_direction: Vector2
 	var t: float = (mag - BUBBLE_LAUNCH_DEADZONE) / (1.0 - BUBBLE_LAUNCH_DEADZONE)
 	var angle: float = deg_to_rad(BUBBLE_LAUNCH_MAX_ANGLE_DEGREES) * t
 	return Vector2(signf(x_input) * sin(angle), signf(base_direction.y) * cos(angle))
+
+# Bubble launch speed comes from the up/down input held when it's fired:
+# up = up to 30% faster, down = up to 30% slower, neither = normal speed.
+# Keyboard/d-pad gives the full amount; an analog stick scales with how far
+# it's pushed (same DEADZONE as the angle).
+const BUBBLE_LAUNCH_SPEED_CHANGE := 0.3
+
+static func get_bubble_launch_speed_mult() -> float:
+	var y_input: float = clampf(Input.get_axis("up", "down"), -1.0, 1.0)   # up = -1
+	var mag: float = absf(y_input)
+	if mag <= BUBBLE_LAUNCH_DEADZONE:
+		return 1.0
+	var t: float = (mag - BUBBLE_LAUNCH_DEADZONE) / (1.0 - BUBBLE_LAUNCH_DEADZONE)
+	return 1.0 - signf(y_input) * BUBBLE_LAUNCH_SPEED_CHANGE * t
 
 static func on_bubble_shot(player: Player) -> void:
 	"""Handle visual effects for bubble shooting"""
