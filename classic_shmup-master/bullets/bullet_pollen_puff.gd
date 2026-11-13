@@ -47,6 +47,7 @@ const ATTRACT_RADIUS := 40.0
 const ATTRACT_ACCEL := 40.0
 const ATTRACT_MAX_SPEED := 25.0
 var _drift := Vector2.ZERO
+var _burst_pending := false
 
 ## How much the sprite swells/shrinks by, as a fraction of its base scale -
 ## e.g. 0.25 means it pulses between 75% and 125% of its base size.
@@ -182,8 +183,43 @@ func _check_charged_shot_burst() -> bool:
 	return false
 
 
+# --- Already-pollinated enemy runs into the puff -> puff bursts ---
+# A fresh (un-pollinated) enemy still gets the normal hit: pollinated, and
+# the puff is used up. An enemy that is ALREADY pollinated sets the puff off
+# instead, same burst as a charged shot or another puff.
+
+func _on_area_entered(area: Area2D):
+	if _is_pollinated_enemy(area):
+		_burst_deferred()
+		return
+	super(area)
+
+
+func _on_body_entered(body: Node2D):
+	if _is_pollinated_enemy(body):
+		_burst_deferred()
+		return
+	super(body)
+
+
+func _is_pollinated_enemy(n: Node) -> bool:
+	return n != null and n.is_in_group("enemies") and n.has_method("has_status_effect") \
+			and n.has_status_effect(StatusEffects.POLLINATED)
+
+
+func _burst_deferred() -> void:
+	# Collision callbacks run while physics is busy; spawning the residue
+	# (an Area2D) right then isn't allowed, so burst at the end of the frame.
+	if _burst_pending or is_queued_for_deletion():
+		return
+	_burst_pending = true
+	call_deferred("_burst")
+
+
 func _burst() -> void:
 	"""Small pollen explosion + a lingering patch of pollen residue."""
+	if is_queued_for_deletion():
+		return
 	var pos := global_position
 	var boom := PollenExplosionVisual.new()
 	boom.max_radius = BURST_VISUAL_RADIUS
