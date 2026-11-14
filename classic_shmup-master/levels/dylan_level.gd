@@ -23,7 +23,7 @@ extends SquadWaveLevel
 # back, just something to dodge or pick off.
 #test wave
 func _wave_0() -> void:
-	spawn_drift_wave({"enemy": ASTROID_MEDIUM, "start_side": Side.TOP, "start_percent": 0.3, "end_side": Side.BOTTOM, "end_percent": 0.35, "speed": 40})
+	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": .9, "end_side": Side.BOTTOM, "end_percent": .7})
 
 #Done, intro wave that is pretty simple and lets the player learn what the bee enemy and asteroids do
 func _wave_1() -> void:
