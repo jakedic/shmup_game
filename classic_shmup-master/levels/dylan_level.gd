@@ -22,8 +22,8 @@ extends SquadWaveLevel
 # calm, lower-pressure introduction before the bees start - nothing to shoot
 # back, just something to dodge or pick off.
 #test wave
-func _wave_0() -> void:
-	spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.3})
+#func _wave_0() -> void:
+	#spawn_solo_wave({"enemy": ENEMY_BEE, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.3})
 
 #Done, intro wave that is pretty simple and lets the player learn what the bee enemy and asteroids do
 func _wave_1() -> void:
@@ -194,7 +194,7 @@ func _ready() -> void:
 	level_paths = {
 		"next_level": "res://levels/level_1.tscn"
 	}
-	waves = [ _wave_0,_wave_1, _wave_2, _wave_3, _wave_4, _wave_5, _wave_6,_wave_7, _wave_8, _wave_9, _wave_10, _wave_11, _wave_12, _wave_boss]
+	waves = [ _wave_1, _wave_2, _wave_3, _wave_4, _wave_5, _wave_6,_wave_7, _wave_8, _wave_9, _wave_10, _wave_11, _wave_12, _wave_boss]
 	boss_scene = BEE_MINIBOSS
 	fallback_enemy = ENEMY_BEE
 	super._ready()
