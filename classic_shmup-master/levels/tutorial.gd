@@ -25,7 +25,7 @@
 #
 #   wave   challenge
 #   0      dodge the astroids without losing all your health
-#   1      take damage fewer than 3 times
+#   1      jump over astroids 3 times (landing on one and destroying it counts too)
 #   2      destroy 10 astroids
 #   3      absorb an enemy (golden astroids + gray bees keep coming until you do)
 #   3b     absorb all 3 green target bubbles by bouncing a bubble into them
@@ -79,6 +79,7 @@ const CHALLENGE_BOMBS := "bombs"                # set off `target` bombs, every 
 const CHALLENGE_POP_TARGETS := "targets"        # absorb `target` TargetBubbles by bouncing a bubble into them
 const CHALLENGE_STORM_TARGETS := "storm"        # destroy `target` of wave 5a's storm astroids
 const CHALLENGE_JUMP_TARGETS := "jump_targets"  # destroy `target` of wave 5b's armored medium astroids
+const CHALLENGE_JUMP_OVER := "jump_over"        # `target` jumps that pass over an astroid (or land on one and destroy it)
 
 # How a bomb was set off - read from the bomb's BaseEnemy.death_context (the
 # "source" its killing hit was tagged with in bubble.gd / bullet.gd / ...).
@@ -120,6 +121,11 @@ var _random_astroid_timer := 0.0
 # When true, _supply_until_challenge_done() holds each golden astroid + gray
 # bee drop until the player has no bubble out and isn't transformed (wave 5a).
 var _supply_only_when_needed := false
+# CHALLENGE_JUMP_OVER bookkeeping (see _track_jumps()).
+const JUMP_OVER_REACH := 12.0   # px - an astroid's center this close under the airborne ship counts as jumped over
+var _was_dashing := false
+var _jump_passed_astroid := false   # the current jump has gone over at least one astroid
+var _jump_counted := false          # the current / just-landed jump already counted toward the challenge
 
 
 ## Set this wave's instructions + challenge and reset its progress. Also tops
@@ -179,7 +185,7 @@ func _refresh_challenge_panel() -> void:
 	match _challenge_kind():
 		CHALLENGE_MAX_HITS:
 			progress = "hits: %d" % _challenge_count
-		CHALLENGE_DESTROY_ASTROIDS, CHALLENGE_BUBBLE_BOUNCES, CHALLENGE_BOMBS, CHALLENGE_POP_TARGETS, CHALLENGE_STORM_TARGETS, CHALLENGE_JUMP_TARGETS:
+		CHALLENGE_DESTROY_ASTROIDS, CHALLENGE_BUBBLE_BOUNCES, CHALLENGE_BOMBS, CHALLENGE_POP_TARGETS, CHALLENGE_STORM_TARGETS, CHALLENGE_JUMP_TARGETS, CHALLENGE_JUMP_OVER:
 			progress = "%d/%d" % [mini(_challenge_count, target), target]
 	GameShell.set_tutorial_panel(_challenge.get("title", ""), _challenge.get("text", ""),
 		_challenge.get("challenge", ""), progress, _challenge_state)
@@ -263,14 +269,51 @@ func _on_node_added(node: Node) -> void:
 	if node is BombEnemy:
 		node.died.connect(_on_bomb_died.bind(node))
 	elif node is AstroidEnemy and not (node is GrayEnemy):
-		node.died.connect(_on_astroid_destroyed)
+		node.died.connect(_on_astroid_destroyed.bind(node))
 	elif node is Bubble:
 		node.bounced_off_player.connect(_on_bubble_bounced)
 
 
-func _on_astroid_destroyed(_value: int) -> void:
+func _on_astroid_destroyed(_value: int, astroid: Node = null) -> void:
 	if _challenge_pending(CHALLENGE_DESTROY_ASTROIDS):
 		_add_challenge_progress()
+	# Landing on an astroid and destroying it counts as a jump over it (once
+	# per jump). death_context is set before `died` fires (BaseEnemy.die()).
+	if _challenge_pending(CHALLENGE_JUMP_OVER) and not _jump_counted \
+			and is_instance_valid(astroid) and astroid.death_context.get("source", "") == "jump_landing":
+		_jump_counted = true
+		_add_challenge_progress()
+
+
+## CHALLENGE_JUMP_OVER: while the ship is in the air, note whether it passes
+## over any astroid; when it lands, that jump counts once (however many
+## astroids it cleared). A jump that lands on an astroid and destroys it
+## counts too - see _on_astroid_destroyed().
+func _track_jumps() -> void:
+	if not player or not is_instance_valid(player):
+		return
+	var dashing: bool = player.is_dashing
+	if dashing and not _was_dashing:   # just took off
+		_jump_passed_astroid = false
+		_jump_counted = false
+	if dashing and not _jump_passed_astroid and _challenge_pending(CHALLENGE_JUMP_OVER):
+		_jump_passed_astroid = _astroid_under_player()
+	if _was_dashing and not dashing:   # just landed
+		if _jump_passed_astroid and not _jump_counted and _challenge_pending(CHALLENGE_JUMP_OVER):
+			_jump_counted = true
+			_add_challenge_progress()
+	_was_dashing = dashing
+
+
+func _astroid_under_player() -> bool:
+	for area in player.get_overlapping_areas():
+		if area is AstroidEnemy and not (area is GrayEnemy) and area.is_alive:
+			return true
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is AstroidEnemy and not (e is GrayEnemy) and e.is_alive \
+				and e.global_position.distance_to(player.global_position) <= JUMP_OVER_REACH:
+			return true
+	return false
 
 
 func _on_bubble_bounced(total_bounces: int) -> void:
@@ -320,6 +363,7 @@ func _process(delta: float) -> void:
 	# Absorbing = the ship has taken on an enemy's form.
 	if _challenge_pending(CHALLENGE_ABSORB) and player and player.current_form != 'default':
 		_complete_challenge()
+	_track_jumps()
 	_update_storm_blasters()
 
 
@@ -611,33 +655,35 @@ func _wave_intro() -> void:
 	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": 0.6, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 24.5})
 	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.7, "end_side": Side.BOTTOM, "end_percent": 0.7, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 24.5})
 	
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
+	# --- Commented out 2026-11-17 to shorten wave 0: the corner fan-sprays (26.5-32.5s)
+	# and side-to-side crossings (34.5-36.5s). Uncomment to bring them back. ---
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
 	
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
 	
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
 	
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
 	next_wave_after_last_spawn(6.0)
 	
 
@@ -649,10 +695,9 @@ func _wave_1() -> void:
 	begin_challenge({
 		"title": "Jump",
 		"text": "Press L to jump. After you land, the jump needs a moment to recharge before you can use it again.",
-		"challenge": "Take damage fewer than 3 times",
-		"kind": CHALLENGE_MAX_HITS,
+		"challenge": "Jump over astroids 3 times",
+		"kind": CHALLENGE_JUMP_OVER,
 		"target": 3,
-		"fail_line": "Oof that doesn't bode well for your deductible.",
 		"retry_line": "Let's give it another hop!",
 	})
 	# Dialogue + card only the first time (not when the wave replays).
