@@ -229,6 +229,9 @@ const LANE_RIGHT := 0.75
 # Enemy scenes (pass as "enemy" in a spawn_*_wave() config).
 const ENEMY_BEE := preload("res://enemies/enemy_yellow.tscn")
 const BEE_MINIBOSS := preload("res://enemies/yellow_miniboss.tscn")
+# The badger boss brings its own arena/adds - spawn it with
+# BOSS_BADGER.instantiate(), add_child(boss), boss.start() (see dylan_level.gd).
+const BOSS_BADGER := preload("res://enemies/boss_badger.tscn")
 const ASTROID_MEDIUM := preload("res://enemies/astroid_medium.tscn")
 const ASTROID_SMALL := preload("res://enemies/astroid_small.tscn")
 const ENEMY_HIVE := preload("res://enemies/enemy_hive.tscn")
