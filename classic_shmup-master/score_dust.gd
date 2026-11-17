@@ -62,8 +62,9 @@ func _ready() -> void:
 
 ## Spawn a puff of dust at `from` (local position) worth `points` in total.
 ## The points are split across the motes; together they add up exactly.
-func burst(from: Vector2, points: int) -> void:
+func burst(from: Vector2, points: int, max_motes: int = MAX_MOTES) -> void:
 	var count: int = clampi(MIN_MOTES + points / POINTS_PER_EXTRA_MOTE, MIN_MOTES, MAX_MOTES)
+	count = mini(count, max_motes)   # e.g. a bubble bounce sends just a few
 	count = max(min(count, points), 1)
 	var share: int = points / count
 	var leftover: int = points - share * count

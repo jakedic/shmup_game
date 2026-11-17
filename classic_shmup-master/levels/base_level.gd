@@ -53,6 +53,11 @@ const MULTIPLIER_POINTS_PER_LEVEL := 5.0
 const POINTS_PER_DAMAGE := 1.0
 const POINTS_PER_KILL := 1.0
 const POINTS_PER_BUBBLE_BOUNCE := 2.0
+# Score (not multiplier points) for each paddle-bounce of a bubble, times the
+# current score multiplier like a kill. A few sparkles carry it from the
+# bubble to the score counter (see on_bubble_bounce_score()).
+const SCORE_PER_BUBBLE_BOUNCE := 5
+const BUBBLE_BOUNCE_DUST_MOTES := 3
 const POINTS_PER_BUBBLE_SHOT_POP := 5.0
 const ABSORB_MISS_PENALTY := 5.0
 const TRANSFORM_POINTS_KEEP_FRACTION := 0.5
@@ -204,6 +209,14 @@ func on_damage_dealt_multiplier(damage: int) -> void:
 
 func on_bubble_bounce_multiplier() -> void:
 	add_multiplier_points(POINTS_PER_BUBBLE_BOUNCE)
+
+func on_bubble_bounce_score(play_pos: Vector2) -> void:
+	var gained: int = SCORE_PER_BUBBLE_BOUNCE * int(score_multiplier)
+	if gained <= 0:
+		return
+	score += gained
+	if not GameShell.score_dust_from(play_pos, gained, score, BUBBLE_BOUNCE_DUST_MOTES):
+		ui.update_score(score)
 
 func on_bubble_shot_pop_multiplier() -> void:
 	add_multiplier_points(POINTS_PER_BUBBLE_SHOT_POP)

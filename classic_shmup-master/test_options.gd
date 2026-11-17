@@ -31,7 +31,7 @@ const ALWAYS_MAX_MULTIPLIER := "always_max_multiplier" # multiplier never drops 
 const KILL_POINTS_X4 := "kill_points_x4"               # kills charge the multiplier 4x as much
 const ABSORB_ASTROIDS := "absorb_astroids"             # the absorb beam works on astroids, giving the gray form
 # --- Sliders (numbers, not on/off) ---
-const BUBBLE_SPEED := "bubble_speed"   # 0-10; 5 = the bubble's base speed, 0 = doesn't move, 10 = double (default is 6 = 120%)
+const BUBBLE_SPEED := "bubble_speed"   # 0-10; 5 = the bubble's base speed, 0 = doesn't move, 10 = double (default is 4 = 80%)
 
 # True while playing a level launched from the Test menu's LAUNCH (set in
 # levels/test_menu.gd, cleared when the title screen loads). Turns on
@@ -55,7 +55,7 @@ static var values := {
 	ALWAYS_MAX_MULTIPLIER: false,
 	KILL_POINTS_X4: false,
 	ABSORB_ASTROIDS: false,
-	BUBBLE_SPEED: 6,
+	BUBBLE_SPEED: 4,
 }
 
 # Test menu layout: a "header" row starts a group, a "slider" row is a number

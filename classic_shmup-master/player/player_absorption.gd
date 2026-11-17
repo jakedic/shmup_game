@@ -287,23 +287,14 @@ static func launch_bubble(player: Player, bubble: Node2D) -> void:
 	if bubble.has_method("start"):
 		bubble.start(PlayerShooting.ship_center(player) + spawn_offset, launch_direction)
 
-# Bubble launch angle comes from the left/right input held at the moment
-# it's fired (not the ship's velocity, so leftover drift doesn't matter).
-# A keyboard/d-pad press gives the full MAX_ANGLE; an analog stick tilts it
-# in proportion to how far it's pushed. Below DEADZONE it goes straight.
-const BUBBLE_LAUNCH_MAX_ANGLE_DEGREES := 60.0
+# The bubble always launches straight forward (straight up, or straight down
+# with gray_bubble_behind) - no left/right tilt. Only its bounces off the
+# ship are angled (see bubble.gd's _bounce_off_player()). DEADZONE is still
+# used by the up/down launch-speed input below.
 const BUBBLE_LAUNCH_DEADZONE := 0.05
 
 static func get_bubble_launch_direction(_player: Player, base_direction: Vector2) -> Vector2:
-	"""Straight up (or down with gray_bubble_behind), tilted left/right by
-	the horizontal input being held."""
-	var x_input: float = clampf(Input.get_axis("left", "right"), -1.0, 1.0)
-	var mag: float = absf(x_input)
-	if mag <= BUBBLE_LAUNCH_DEADZONE:
-		return base_direction
-	var t: float = (mag - BUBBLE_LAUNCH_DEADZONE) / (1.0 - BUBBLE_LAUNCH_DEADZONE)
-	var angle: float = deg_to_rad(BUBBLE_LAUNCH_MAX_ANGLE_DEGREES) * t
-	return Vector2(signf(x_input) * sin(angle), signf(base_direction.y) * cos(angle))
+	return base_direction
 
 # Bubble launch speed comes from the up/down input held when it's fired:
 # up = up to 30% faster, down = up to 30% slower, neither = normal speed.

@@ -448,6 +448,24 @@ func score_dust(gained: int, new_total: int) -> bool:
 	return true
 
 
+## Same as score_dust(), but from any play-area position instead of a kill -
+## e.g. a bubble bouncing off the ship (BaseLevel.on_bubble_bounce_score()).
+## `max_motes` caps how many sparkles fly. Returns false if there's no HUD.
+func score_dust_from(play_pos: Vector2, gained: int, new_total: int, max_motes: int = 10) -> bool:
+	if _hud_users == 0 or not _score_dust or not _score_counter:
+		return false
+	_score_target = new_total
+	_score_dust.burst(_play_to_dust_space(play_pos), gained, max_motes)
+	_refresh_dust_score()
+	return true
+
+
+## Bubble paddle-bounce score (forwarded to the level - see bubble.gd).
+func bubble_bounce_score(play_pos: Vector2) -> void:
+	if _current_scene and _current_scene.has_method("on_bubble_bounce_score"):
+		_current_scene.on_bubble_bounce_score(play_pos)
+
+
 func _build_score_dust() -> void:
 	_score_dust = SCORE_DUST_SCRIPT.new()
 	_score_dust.name = "ScoreDust"
