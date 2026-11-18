@@ -471,6 +471,7 @@ func spawn_diagonal_astroid_wall(config: Dictionary) -> void:
 #   spacing        - OPTIONAL - px between astroids around the ring, default 18
 #   center_percent - OPTIONAL - where across the screen the center is (0.0-1.0), default 0.5
 #   start_delay    - OPTIONAL - seconds before the ring starts coming in
+#   group          - OPTIONAL - node group every ring astroid is added to
 func spawn_astroid_ring(config: Dictionary) -> void:
 	var size: Vector2 = get_viewport_rect().size
 	var scene: PackedScene = config.get("enemy", ASTROID_SMALL)
@@ -485,19 +486,21 @@ func spawn_astroid_ring(config: Dictionary) -> void:
 	var count := int(ceil(TAU * radius / spacing))
 	for i in count:
 		var angle: float = TAU * i / count
-		_spawn_astroid_on_path(scene, center + Vector2.from_angle(angle) * radius, velocity, start_delay)
+		_spawn_astroid_on_path(scene, center + Vector2.from_angle(angle) * radius, velocity, start_delay, config.get("group", ""))
 
 
 # Spawns one astroid that is "at" `pos` right now, moving at `velocity`. It
 # isn't added to the scene until it reaches the screen edge, so the formation
 # keeps its exact shape as it slides in.
-func _spawn_astroid_on_path(scene: PackedScene, pos: Vector2, velocity: Vector2, base_delay: float) -> void:
+func _spawn_astroid_on_path(scene: PackedScene, pos: Vector2, velocity: Vector2, base_delay: float, group: String = "") -> void:
 	var area := Rect2(Vector2.ZERO, get_viewport_rect().size).grow(FORMATION_ENTRY_MARGIN)
 	var t_enter := _time_to_enter(pos, velocity, area)
 	if t_enter < 0.0:
 		return   # this path never crosses the screen, so skip it
 	var entry_pos: Vector2 = pos + velocity * t_enter
 	var astroid_config := {"scene": scene, "start": entry_pos, "end": entry_pos + velocity, "speed": velocity.length()}
+	if group != "":
+		astroid_config["group"] = group
 	var delay: float = base_delay + t_enter
 	if delay <= 0.0:
 		spawn_astroid(astroid_config)

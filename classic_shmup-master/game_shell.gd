@@ -1075,8 +1075,8 @@ func _layout() -> void:
 
 	# Power-up squares (powerup_hud.gd): a strip right above the portrait,
 	# lined up with its left edge and as wide as it. Room for
-	# POWERUP_HUD_ROWS rows is always kept free, so the side dialogue box
-	# never covers them.
+	# POWERUP_HUD_ROWS rows is always kept free. (The side dialogue box
+	# covers them while a line is up - see below.)
 	var portrait_w: float = _portrait_frame.size.x * _portrait_frame.scale.x
 	var powerup_strip_h: float = POWERUP_HUD_SCRIPT.height_for_rows(POWERUP_HUD_ROWS)
 	var powerup_strip_bottom: float = _portrait_frame.position.y - HUD_MARGIN
@@ -1086,12 +1086,13 @@ func _layout() -> void:
 		_powerup_hud.set_layout(Rect2(_portrait_frame.position.x, powerup_strip_bottom - powerup_strip_h,
 			portrait_w, powerup_strip_h))
 
-	# Dialogue: side box fills the left panel above the power-up squares;
+	# Dialogue: side box sits right above the portrait, drawn OVER the
+	# power-up squares while it's up (it's only there for a few seconds);
 	# center box goes over the play area.
 	if _dialogue:
 		_dialogue.position = Vector2.ZERO
 		_dialogue.size = vis
-		var side_bottom := powerup_strip_bottom - powerup_strip_h - HUD_MARGIN
+		var side_bottom := powerup_strip_bottom
 		var side_rect := Rect2(HUD_MARGIN, HUD_MARGIN,
 			max(side_w_left - HUD_MARGIN * 2.0, 40.0), max(side_bottom - HUD_MARGIN, 20.0))
 		_dialogue.set_layout(Rect2(play_pos, PLAY_SIZE), side_rect)

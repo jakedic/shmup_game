@@ -32,8 +32,6 @@ func _ready() -> void:
 
 ## Swap the wave call here to test a different one (e.g. _wave_3b, _wave_5b).
 func _test_wave() -> void:
-	if START_TRANSFORMED:
-		_start_in_gray_form()
 	await _wave_5a()
 
 
