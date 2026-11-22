@@ -53,6 +53,11 @@ const MULTIPLIER_POINTS_PER_LEVEL := 5.0
 const POINTS_PER_DAMAGE := 1.0
 const POINTS_PER_KILL := 1.0
 const POINTS_PER_BUBBLE_BOUNCE := 2.0
+# Score (not multiplier points) for each paddle-bounce of a bubble, times the
+# current score multiplier like a kill. A few sparkles carry it from the
+# bubble to the score counter (see on_bubble_bounce_score()).
+const SCORE_PER_BUBBLE_BOUNCE := 5
+const BUBBLE_BOUNCE_DUST_MOTES := 3
 const POINTS_PER_BUBBLE_SHOT_POP := 5.0
 const ABSORB_MISS_PENALTY := 5.0
 const TRANSFORM_POINTS_KEEP_FRACTION := 0.5
@@ -204,6 +209,14 @@ func on_damage_dealt_multiplier(damage: int) -> void:
 
 func on_bubble_bounce_multiplier() -> void:
 	add_multiplier_points(POINTS_PER_BUBBLE_BOUNCE)
+
+func on_bubble_bounce_score(play_pos: Vector2) -> void:
+	var gained: int = SCORE_PER_BUBBLE_BOUNCE * int(score_multiplier)
+	if gained <= 0:
+		return
+	score += gained
+	if not GameShell.score_dust_from(play_pos, gained, score, BUBBLE_BOUNCE_DUST_MOTES):
+		ui.update_score(score)
 
 func on_bubble_shot_pop_multiplier() -> void:
 	add_multiplier_points(POINTS_PER_BUBBLE_SHOT_POP)
@@ -535,6 +548,7 @@ func spawn_astroid(config: Dictionary) -> void:
 	"speed" - how fast it travels, in pixels/second
 	"armor" - OPTIONAL - armor points (gray outline), see base_enemy.gd
 	"hold_at_y" - OPTIONAL - y (px) where it stops and waits to be killed
+	"group" - OPTIONAL - node group to add it to (so a level can find it later)
 	Pushes a clear error (and skips the spawn) instead of letting Godot throw
 	a raw "Invalid call" if "scene" is missing or the instantiated scene
 	doesn't actually have a launch() method - this exact call has silently
@@ -559,6 +573,8 @@ func spawn_astroid(config: Dictionary) -> void:
 		a.set_armor(config["armor"])
 	if config.has("hold_at_y") and "hold_at_y" in a:
 		a.hold_at_y = config["hold_at_y"]
+	if config.get("group", "") != "":
+		a.add_to_group(config["group"])
 	note_spawn(0.0)
 	if a.has_signal("died"):
 		a.died.connect(_on_enemy_died)
@@ -902,6 +918,9 @@ func bomb_rings_left() -> bool:
 ##   bee_speed        - px/s, default 30
 ##   fusion_powerup   - power-up id every bubble fusion grants during the
 ##                      encounter, default "gray_penetration" ("" = random as usual)
+##   supply           - false = no golden astroid / gray bee drops from here
+##                      (the level sends its own); still waits for every ring.
+##                      Default true
 func run_bomb_ring_challenge(options: Dictionary = {}) -> void:
 	var fusion_id: String = options.get("fusion_powerup", "gray_penetration")
 	if fusion_id != "":
@@ -913,7 +932,11 @@ func run_bomb_ring_challenge(options: Dictionary = {}) -> void:
 	var interval: float = options.get("supply_interval", 11.0)
 	var bee_delay: float = options.get("supply_bee_delay", 2.5)
 	var lanes: Array = options.get("lanes", [0.15, 0.3, 0.5, 0.7, 0.85])
-	while bomb_rings_left():
+	var send_supply: bool = options.get("supply", true)
+	while bomb_rings_left() and not send_supply:
+		if not await _wait_while_bomb_rings_left(0.25):
+			break
+	while send_supply and bomb_rings_left():
 		var gold_lane: float = lanes.pick_random()
 		_spawn_bomb_ring_supply(BOMB_RING_GOLDEN, gold_lane, options.get("golden_speed", 35.0))
 		var rings_remain: bool = await _wait_while_bomb_rings_left(bee_delay)

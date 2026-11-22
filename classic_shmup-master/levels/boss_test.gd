@@ -13,8 +13,6 @@
 # finished), the level ends like any other and goes back to the test menu.
 extends SquadWaveLevel
 
-const BOSS_BADGER := preload("res://enemies/boss_badger.tscn")
-
 
 func _wave_boss() -> void:
 	var boss = BOSS_BADGER.instantiate()

@@ -435,8 +435,11 @@ func _bounce_off_player(player: Node2D) -> void:
 
 	flash_white()
 
-	# Multiplier points for keeping the bubble in play (POINTS_PER_BUBBLE_BOUNCE).
+	# Multiplier points for keeping the bubble in play (POINTS_PER_BUBBLE_BOUNCE),
+	# plus a little score with a few sparkles flying from here to the score
+	# counter, like an enemy kill (BaseLevel.on_bubble_bounce_score()).
 	GameShell.multiplier_on_bubble_bounce()
+	GameShell.bubble_bounce_score(get_global_transform_with_canvas().origin)
 
 	player_bounces += 1
 	bounced_off_player.emit(player_bounces)

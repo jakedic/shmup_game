@@ -180,9 +180,9 @@ static func _fire_pollen_puff(player: Player) -> void:
 
 	var p: Dictionary = Stats.get_category("pollen_puff")
 	if bullet.has_method("set_damage"):
-		bullet.set_damage(p.get("damage", 0))
+		bullet.set_damage(p.get("damage", 1))
 	if bullet.has_method("set_speed"):
-		bullet.set_speed(p.get("speed", 45.0))
+		bullet.set_speed(p.get("speed", 60.75))
 	if "max_distance" in bullet:
 		bullet.max_distance = p.get("max_distance", 136.0)
 	if "pulse_amplitude" in bullet:

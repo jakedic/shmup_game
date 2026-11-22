@@ -6,7 +6,7 @@ class_name Bullet_PollenPuff
 ## player/player_charge_shot.gd - _release_charge()/_fire_pollen_puff()).
 ## Unlike the wiggling secondary-fire pollen balls from the "Pollen Shot"
 ## power-up (bullets/bullet_pollen.gd), this one gently pulses in place as
-## it drifts forward instead of wiggling side to side, never deals damage,
+## it drifts forward instead of wiggling side to side, does 1 damage,
 ## and always inflicts "pollinated" on whatever it touches - a reliable if
 ## weak consolation prize for releasing too early. Values here are just
 ## editor-time fallbacks; PlayerChargeShot overwrites
@@ -63,8 +63,8 @@ var _base_sprite_scale: Vector2 = Vector2.ONE
 func _ready():
 	add_to_group("player_bullet")
 	add_to_group("pollen_puff")
-	speed = 45.0
-	damage = 1  # purely a pollination tool - never deals damage
+	speed = 60.75
+	damage = 1  # 1 per direct hit, and always pollinates
 	max_distance = 136.0
 	bullet_color = Color(1.0, 0.85, 0.2)  # pollen yellow, same family as bullet_pollen
 	# 100% chance to inflict "pollinated" (see status_effects/pollinated_status.gd) -
@@ -216,6 +216,18 @@ func _burst_deferred() -> void:
 	call_deferred("_burst")
 
 
+func _damage_enemies_in_burst(pos: Vector2) -> void:
+	"""The burst itself hits once: burst_damage (Stats "pollen_puff", 1) to
+	every enemy whose hitbox edge is within BURST_VISUAL_RADIUS. The
+	residue left behind only pollinates - it never damages."""
+	var dmg: int = int(Stats.get_stat("pollen_puff", "burst_damage"))
+	if dmg <= 0:
+		return
+	for enemy in BlastReach.enemies_in_blast(pos, BURST_VISUAL_RADIUS, get_tree()):
+		if enemy.has_method("take_damage"):
+			enemy.take_damage(dmg, {"source": "pollen_burst"})
+
+
 func _burst() -> void:
 	"""Small pollen explosion + a lingering patch of pollen residue."""
 	if is_queued_for_deletion():
@@ -225,6 +237,7 @@ func _burst() -> void:
 	boom.max_radius = BURST_VISUAL_RADIUS
 	GameShell.game_root().add_child(boom)
 	boom.global_position = pos
+	_damage_enemies_in_burst(pos)
 	var residue: Node2D = POLLEN_RESIDUE_SCRIPT.new()
 	GameShell.game_root().add_child(residue)
 	residue.global_position = pos

@@ -448,6 +448,24 @@ func score_dust(gained: int, new_total: int) -> bool:
 	return true
 
 
+## Same as score_dust(), but from any play-area position instead of a kill -
+## e.g. a bubble bouncing off the ship (BaseLevel.on_bubble_bounce_score()).
+## `max_motes` caps how many sparkles fly. Returns false if there's no HUD.
+func score_dust_from(play_pos: Vector2, gained: int, new_total: int, max_motes: int = 10) -> bool:
+	if _hud_users == 0 or not _score_dust or not _score_counter:
+		return false
+	_score_target = new_total
+	_score_dust.burst(_play_to_dust_space(play_pos), gained, max_motes)
+	_refresh_dust_score()
+	return true
+
+
+## Bubble paddle-bounce score (forwarded to the level - see bubble.gd).
+func bubble_bounce_score(play_pos: Vector2) -> void:
+	if _current_scene and _current_scene.has_method("on_bubble_bounce_score"):
+		_current_scene.on_bubble_bounce_score(play_pos)
+
+
 func _build_score_dust() -> void:
 	_score_dust = SCORE_DUST_SCRIPT.new()
 	_score_dust.name = "ScoreDust"
@@ -1057,8 +1075,8 @@ func _layout() -> void:
 
 	# Power-up squares (powerup_hud.gd): a strip right above the portrait,
 	# lined up with its left edge and as wide as it. Room for
-	# POWERUP_HUD_ROWS rows is always kept free, so the side dialogue box
-	# never covers them.
+	# POWERUP_HUD_ROWS rows is always kept free. (The side dialogue box
+	# covers them while a line is up - see below.)
 	var portrait_w: float = _portrait_frame.size.x * _portrait_frame.scale.x
 	var powerup_strip_h: float = POWERUP_HUD_SCRIPT.height_for_rows(POWERUP_HUD_ROWS)
 	var powerup_strip_bottom: float = _portrait_frame.position.y - HUD_MARGIN
@@ -1068,12 +1086,13 @@ func _layout() -> void:
 		_powerup_hud.set_layout(Rect2(_portrait_frame.position.x, powerup_strip_bottom - powerup_strip_h,
 			portrait_w, powerup_strip_h))
 
-	# Dialogue: side box fills the left panel above the power-up squares;
+	# Dialogue: side box sits right above the portrait, drawn OVER the
+	# power-up squares while it's up (it's only there for a few seconds);
 	# center box goes over the play area.
 	if _dialogue:
 		_dialogue.position = Vector2.ZERO
 		_dialogue.size = vis
-		var side_bottom := powerup_strip_bottom - powerup_strip_h - HUD_MARGIN
+		var side_bottom := powerup_strip_bottom
 		var side_rect := Rect2(HUD_MARGIN, HUD_MARGIN,
 			max(side_w_left - HUD_MARGIN * 2.0, 40.0), max(side_bottom - HUD_MARGIN, 20.0))
 		_dialogue.set_layout(Rect2(play_pos, PLAY_SIZE), side_rect)

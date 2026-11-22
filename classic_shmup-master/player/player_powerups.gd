@@ -64,7 +64,7 @@ const YELLOW_POWERUPS: Array[Dictionary] = [
 	{
 		"id": "yellow_pollen_trail",
 		"name": "Pollen Trail",
-		"description": "You leave a trail of pollen behind you as you move. Enemies passing through it have a 50% chance to become pollinated.",
+		"description": "While you move, you drop a patch of pollen about once a second, just behind where you've been. Enemies passing through it have a 50% chance to become pollinated.",
 		"levels": [
 			{"summary": "Residue lasts 2.5s", "stats": {"pollen": {"trail_duration_mult": {"op": "set", "value": 1.0}}}},
 			{"summary": "Residue lasts ~3.1s", "stats": {"pollen": {"trail_duration_mult": {"op": "set", "value": 1.25}}}},

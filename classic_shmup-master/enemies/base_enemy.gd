@@ -83,6 +83,14 @@ const ARMOR_OUTLINE_WIDTHS := [0.0, 1.0, 2.0]
 const EnemyOutlineScript := preload("res://enemies/enemy_outline.gd")
 var _armor_outline = null   # EnemyOutline (untyped so its own methods resolve at runtime)
 
+# Damage filter: when not empty, only hits whose context "source" is in this
+# list do anything (e.g. ["bubble_charged", "bubble_shot_charged"] = only a
+# powered-up bubble can hurt it). Any other hit is blocked like a fully
+# armored one - no damage, no multiplier, just a blink on the outline. Set it
+# with set_damage_only_from(). Used by the tutorial's wave 5a green astroids.
+var damage_only_from: Array = []
+var _filter_outline = null   # EnemyOutline shown while damage_only_from is set
+
 @onready var screensize = get_viewport_rect().size
 
 func _ready():
@@ -119,6 +127,21 @@ func _refresh_armor_outline() -> void:
 		add_child(_armor_outline)
 	else:
 		_armor_outline.configure(ARMOR_OUTLINE_COLOR, w)
+
+func set_damage_only_from(sources: Array, outline_color: Color = Color(0, 0, 0, 0), outline_width: float = 1.0) -> void:
+	"""Only hits tagged with one of `sources` (take_damage context "source")
+	can hurt this enemy - see damage_only_from. Pass an outline_color with
+	alpha > 0 to give it a border in that color. Call after add_child()."""
+	damage_only_from = sources.duplicate()
+	if is_instance_valid(_filter_outline):
+		_filter_outline.queue_free()
+	_filter_outline = null
+	if not sources.is_empty() and outline_color.a > 0.0:
+		_filter_outline = EnemyOutlineScript.new()
+		_filter_outline.name = "FilterOutline"
+		_filter_outline.outline_color = outline_color
+		_filter_outline.width = outline_width
+		add_child(_filter_outline)
 
 func custom_ready():
 	"""Override this in child classes for custom initialization"""
@@ -257,6 +280,12 @@ func take_damage(damage_amount: int = 1, context: Dictionary = {}) -> bool:
 		return true
 
 	if is_invincible:
+		return false
+
+	# Damage filter (see damage_only_from): hits from anything else bounce off.
+	if not damage_only_from.is_empty() and not damage_only_from.has(context.get("source", "")):
+		if is_instance_valid(_filter_outline):
+			_filter_outline.flash()
 		return false
 
 	# Armor soaks `armor` damage off every hit. A hit it fully absorbs does

@@ -25,18 +25,19 @@
 #
 #   wave   challenge
 #   0      dodge the astroids without losing all your health
-#   1      take damage fewer than 3 times
+#   1      jump over astroids 3 times (landing on one and destroying it counts too)
 #   2      destroy 10 astroids
-#   3      absorb an enemy (golden astroids + gray bees keep coming until you do)
+#   3      absorb an enemy ship (small astroids, gray bees and the odd golden
+#          astroid keep falling until you do)
 #   3b     absorb all 3 green target bubbles by bouncing a bubble into them
-#          (same supply, plus random astroids). Shooting / flying through
+#          (resupply drops while you have no bubble). Shooting / flying through
 #          a target only scatters it for a moment - see bullets/target_bubble.gd
-#   5a     cosmic storm: destroy the 4 astroids parked in it with a
-#          shot-powered bubble (no shooting inside the storm, no jumping)
-#   5b     jump on bubbles: pop the caged bubble to break its armored ring,
-#          then destroy 2 armored medium astroids the same way
-#   5c     set off all 3 bombs with Penetrator Rounds (combine two bubbles)
-#          without taking any damage
+#   5a     destroy the 3 green astroids with a shot-powered bubble (nothing
+#          else can hurt them; no jumping)
+#   5b     jump on bubbles: destroy 2 armored medium astroids by jumping on
+#          a bubble next to them
+#   5c     set off both bombs with Penetrator Rounds (combine two bubbles)
+#          without getting hurt by a bomb blast
 #   6      make it to the end without losing all your health
 #   7      (outro - no challenge)
 extends SquadWaveLevel
@@ -69,7 +70,9 @@ func ask(text: String, choices: Array, options: Dictionary = {}) -> int:
 #   "fail_line"   - OPTIONAL - Red Frog's line the moment it's failed
 #   "retry_line"  - OPTIONAL - Red Frog's line just before the wave repeats
 #   "no_damage"   - OPTIONAL - true = taking any damage fails the challenge
-#                   (on top of whatever its kind asks for). Wave 5c uses it.
+#                   (on top of whatever its kind asks for).
+#   "no_bomb_damage" - OPTIONAL - true = getting hurt by a bomb blast fails
+#                   the challenge (other hits don't). Wave 5c uses it.
 const CHALLENGE_SURVIVE := "survive"            # don't lose all your health - passes when the wave ends
 const CHALLENGE_MAX_HITS := "max_hits"          # get hit fewer than `target` times - passes when the wave ends
 const CHALLENGE_DESTROY_ASTROIDS := "astroids"  # destroy `target` astroids (gray bees don't count)
@@ -77,8 +80,9 @@ const CHALLENGE_ABSORB := "absorb"              # absorb any enemy
 const CHALLENGE_BUBBLE_BOUNCES := "bounces"     # bounce ONE bubble off the ship `target` times
 const CHALLENGE_BOMBS := "bombs"                # set off `target` bombs, every one with `method`
 const CHALLENGE_POP_TARGETS := "targets"        # absorb `target` TargetBubbles by bouncing a bubble into them
-const CHALLENGE_STORM_TARGETS := "storm"        # destroy `target` of wave 5a's storm astroids
+const CHALLENGE_FILM_TARGETS := "film"          # destroy `target` of wave 5a's green astroids
 const CHALLENGE_JUMP_TARGETS := "jump_targets"  # destroy `target` of wave 5b's armored medium astroids
+const CHALLENGE_JUMP_OVER := "jump_over"        # `target` jumps that pass over an astroid (or land on one and destroy it)
 
 # How a bomb was set off - read from the bomb's BaseEnemy.death_context (the
 # "source" its killing hit was tagged with in bubble.gd / bullet.gd / ...).
@@ -94,17 +98,19 @@ enum ChallengeState { PENDING, DONE, FAILED }
 const CHALLENGE_DONE_HOLD := 1.5   # seconds the ticked box stays up before the next wave starts
 const RETRY_DELAY := 2.5            # seconds between "let's go again" and the wave restarting
 const DEFAULT_RETRY_LINE := "Not quite. Let's run that one back."
+# Early wave ends (_end_wave_early()): how long the ticked box stays up first.
+const EARLY_END_HOLD := 0.3          # waves 1, 2 and 3 - the next wave's dialogue starts almost right away
+const EARLY_END_HOLD_3B := 1.0       # after the green bubbles - a short beat, not the full clear-out
+const EARLY_END_HOLD_5B := 0.5       # after the armored mediums
+# Waves 1, 2 and 3 hand over once only this fraction of their last objects is still on screen.
+const EARLY_END_ON_SCREEN_FRACTION := 0.25
 
-# Waves 3 / 3b: a golden astroid, then a gray bee a bit later, in random lanes,
-# over and over until the challenge is done (like the bomb-ring supply drops).
-const SUPPLY_LANES := [0.15, 0.3, 0.5, 0.7, 0.85]
-const SUPPLY_BEE_DELAY := 2.5      # seconds after the golden astroid that the bee follows
-const SUPPLY_INTERVAL := 11.0      # seconds between golden astroids
-# Wave 3b's extra random astroids (top to bottom).
-const RANDOM_ASTROID_GAP_MIN := 2.0   # was 1.2 - dialed back 2026-11-06 (about a third fewer astroids)
-const RANDOM_ASTROID_GAP_MAX := 3.5   # was 2.4
-const RANDOM_ASTROID_MEDIUM_CHANCE := 0.2
-var _random_astroids_allow_medium := true   # wave 3b turns this off - small astroids only
+# Waves 3b, 5a and 5b resupply: while the player has no bubble out and isn't
+# transformed, something falls every RESUPPLY_DROP_INTERVAL seconds - a small
+# astroid, a gray bee or a golden astroid (see _mixed_drops_until_done()).
+const RESUPPLY_DROP_INTERVAL := 1.2       # seconds between drops
+const RESUPPLY_DROP_SMALL_CHANCE := 0.5   # small astroid
+const RESUPPLY_DROP_BEE_CHANCE := 0.25    # gray bee - whatever's left (25%) is a golden astroid
 
 # Wave 0's astroids - 20% faster than the 45 px/s the rest of the tutorial uses.
 const WAVE_0_ASTROID_SPEED := 54.0
@@ -115,11 +121,13 @@ var _challenge_count := 0       # astroids destroyed / hits taken / best bounce 
 var _retrying := false          # true while a wave is replaying after a failed challenge
 var _wave_ending := false       # in the "ticked" hold or the retry countdown
 var _challenge_shown := false   # panel is held back until the wave's dialogue is done (show_challenge())
+var _done_hold := CHALLENGE_DONE_HOLD   # ticked-box hold for this wave - _end_wave_early() shortens it
 var _last_shield := -1
-var _random_astroid_timer := 0.0
-# When true, _supply_until_challenge_done() holds each golden astroid + gray
-# bee drop until the player has no bubble out and isn't transformed (wave 5a).
-var _supply_only_when_needed := false
+# CHALLENGE_JUMP_OVER bookkeeping (see _track_jumps()).
+const JUMP_OVER_REACH := 12.0   # px - an astroid's center this close under the airborne ship counts as jumped over
+var _was_dashing := false
+var _jump_passed_astroid := false   # the current jump has gone over at least one astroid
+var _jump_counted := false          # the current / just-landed jump already counted toward the challenge
 
 
 ## Set this wave's instructions + challenge and reset its progress. Also tops
@@ -131,7 +139,7 @@ func begin_challenge(config: Dictionary) -> void:
 	_challenge_state = ChallengeState.PENDING
 	_challenge_count = 0
 	_challenge_shown = false
-	_supply_only_when_needed = false   # only wave 5a turns this on
+	_done_hold = CHALLENGE_DONE_HOLD
 	GameShell.clear_tutorial_panel()
 	if player:
 		player.heal(player.max_shield)
@@ -179,7 +187,7 @@ func _refresh_challenge_panel() -> void:
 	match _challenge_kind():
 		CHALLENGE_MAX_HITS:
 			progress = "hits: %d" % _challenge_count
-		CHALLENGE_DESTROY_ASTROIDS, CHALLENGE_BUBBLE_BOUNCES, CHALLENGE_BOMBS, CHALLENGE_POP_TARGETS, CHALLENGE_STORM_TARGETS, CHALLENGE_JUMP_TARGETS:
+		CHALLENGE_DESTROY_ASTROIDS, CHALLENGE_BUBBLE_BOUNCES, CHALLENGE_BOMBS, CHALLENGE_POP_TARGETS, CHALLENGE_FILM_TARGETS, CHALLENGE_JUMP_TARGETS, CHALLENGE_JUMP_OVER:
 			progress = "%d/%d" % [mini(_challenge_count, target), target]
 	GameShell.set_tutorial_panel(_challenge.get("title", ""), _challenge.get("text", ""),
 		_challenge.get("challenge", ""), progress, _challenge_state)
@@ -233,7 +241,7 @@ func handle_wave_completion() -> void:
 
 func _finish_wave() -> void:
 	_wave_ending = true
-	await wait(CHALLENGE_DONE_HOLD)   # let the ticked box sink in
+	await wait(_done_hold)   # let the ticked box sink in
 	if not is_inside_tree():
 		return
 	_wave_ending = false
@@ -257,20 +265,85 @@ func _retry_wave() -> void:
 	_run_wave()
 
 
+## Call at the end of a wave function: move on to the next wave as soon as
+## the function returns (once its challenge is done), with only `hold`
+## seconds of ticked box, instead of waiting for every leftover enemy to
+## leave the screen. Leftovers keep drifting off during the next wave. If the
+## challenge isn't done yet, the wave still waits for the screen to clear and
+## replays as usual.
+func _end_wave_early(hold: float = EARLY_END_HOLD) -> void:
+	_done_hold = hold
+	next_wave_after_last_spawn(0.0)
+
+
+## Waits until no more than `fraction` of `nodes` are still alive and on the
+## screen (destroyed or gone off the edge both count as gone).
+func _wait_until_mostly_gone(nodes: Array, fraction: float) -> void:
+	var total := nodes.size()
+	if total == 0:
+		return
+	var screen := Rect2(Vector2.ZERO, get_viewport_rect().size)
+	while is_inside_tree():
+		var showing := 0
+		for n in nodes:
+			if is_instance_valid(n) and not n.is_queued_for_deletion() and screen.has_point(n.global_position):
+				showing += 1
+		if showing <= total * fraction:
+			return
+		await wait(0.1)
+
+
 # --- What counts toward each challenge ---
 
 func _on_node_added(node: Node) -> void:
 	if node is BombEnemy:
 		node.died.connect(_on_bomb_died.bind(node))
 	elif node is AstroidEnemy and not (node is GrayEnemy):
-		node.died.connect(_on_astroid_destroyed)
+		node.died.connect(_on_astroid_destroyed.bind(node))
 	elif node is Bubble:
 		node.bounced_off_player.connect(_on_bubble_bounced)
 
 
-func _on_astroid_destroyed(_value: int) -> void:
+func _on_astroid_destroyed(_value: int, astroid: Node = null) -> void:
 	if _challenge_pending(CHALLENGE_DESTROY_ASTROIDS):
 		_add_challenge_progress()
+	# Landing on an astroid and destroying it counts as a jump over it (once
+	# per jump). death_context is set before `died` fires (BaseEnemy.die()).
+	if _challenge_pending(CHALLENGE_JUMP_OVER) and not _jump_counted \
+			and is_instance_valid(astroid) and astroid.death_context.get("source", "") == "jump_landing":
+		_jump_counted = true
+		_add_challenge_progress()
+
+
+## CHALLENGE_JUMP_OVER: while the ship is in the air, note whether it passes
+## over any astroid; when it lands, that jump counts once (however many
+## astroids it cleared). A jump that lands on an astroid and destroys it
+## counts too - see _on_astroid_destroyed().
+func _track_jumps() -> void:
+	if not player or not is_instance_valid(player):
+		return
+	var dashing: bool = player.is_dashing
+	if dashing and not _was_dashing:   # just took off
+		_jump_passed_astroid = false
+		_jump_counted = false
+	if dashing and not _jump_passed_astroid and _challenge_pending(CHALLENGE_JUMP_OVER):
+		_jump_passed_astroid = _astroid_under_player()
+	if _was_dashing and not dashing:   # just landed
+		if _jump_passed_astroid and not _jump_counted and _challenge_pending(CHALLENGE_JUMP_OVER):
+			_jump_counted = true
+			_add_challenge_progress()
+	_was_dashing = dashing
+
+
+func _astroid_under_player() -> bool:
+	for area in player.get_overlapping_areas():
+		if area is AstroidEnemy and not (area is GrayEnemy) and area.is_alive:
+			return true
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is AstroidEnemy and not (e is GrayEnemy) and e.is_alive \
+				and e.global_position.distance_to(player.global_position) <= JUMP_OVER_REACH:
+			return true
+	return false
 
 
 func _on_bubble_bounced(total_bounces: int) -> void:
@@ -308,6 +381,11 @@ func _on_player_shield_changed(_max_shield: int, current: int) -> void:
 	if _challenge_state == ChallengeState.PENDING and _challenge.get("no_damage", false):
 		_fail_challenge()
 		return
+	# BombEnemy.BlastFx tags the player with this meta for the length of its hit.
+	if _challenge_state == ChallengeState.PENDING and _challenge.get("no_bomb_damage", false) \
+			and player and player.get_meta("damage_source", "") == "bomb_blast":
+		_fail_challenge()
+		return
 	if _challenge_pending(CHALLENGE_MAX_HITS):
 		_challenge_count += 1
 		_refresh_challenge_panel()
@@ -320,32 +398,10 @@ func _process(delta: float) -> void:
 	# Absorbing = the ship has taken on an enemy's form.
 	if _challenge_pending(CHALLENGE_ABSORB) and player and player.current_form != 'default':
 		_complete_challenge()
-	_update_storm_blasters()
+	_track_jumps()
 
 
-# --- Waves 3 / 3b supply drops ---
-
-## Golden astroid, then a gray bee, in random lanes, over and over until the
-## current challenge is done. random_astroids = also send plain astroids down
-## the screen at random in between. Returns once the challenge is done.
-func _supply_until_challenge_done(random_astroids: bool = false) -> void:
-	_random_astroid_timer = 0.0
-	while _challenge_state == ChallengeState.PENDING:
-		# Hold the drop while the player still has a bubble / transformation.
-		while _supply_only_when_needed and _player_has_bubble_power():
-			if not await _wait_while_challenge_pending(0.25, random_astroids):
-				return
-		var gold_lane: float = SUPPLY_LANES.pick_random()
-		spawn_drift_wave({"enemy": ASTROID_GOLDEN, "start_percent": gold_lane, "speed": 35})
-		if not await _wait_while_challenge_pending(SUPPLY_BEE_DELAY, random_astroids):
-			return
-		var bee_lane: float = SUPPLY_LANES.pick_random()
-		while is_equal_approx(bee_lane, gold_lane):
-			bee_lane = SUPPLY_LANES.pick_random()
-		spawn_drift_wave({"enemy": GRAY_BEE, "start_percent": bee_lane, "speed": 30})
-		if not await _wait_while_challenge_pending(SUPPLY_INTERVAL - SUPPLY_BEE_DELAY, random_astroids):
-			return
-
+# --- Drops ---
 
 ## True while the player has a bubble out (any of theirs on screen), is
 ## transformed, or is mid-absorb.
@@ -360,7 +416,7 @@ func _player_has_bubble_power() -> bool:
 
 ## Waits up to `seconds` (pause-aware), stopping early once the challenge is
 ## no longer pending. Returns true if it's still pending afterward.
-func _wait_while_challenge_pending(seconds: float, random_astroids: bool) -> bool:
+func _wait_while_challenge_pending(seconds: float) -> bool:
 	var remaining := seconds
 	while remaining > 0.0:
 		var step: float = minf(0.25, remaining)
@@ -370,18 +426,6 @@ func _wait_while_challenge_pending(seconds: float, random_astroids: bool) -> boo
 		remaining -= step
 		if _challenge_state != ChallengeState.PENDING:
 			return false
-		if random_astroids:
-			_random_astroid_timer -= step
-			if _random_astroid_timer <= 0.0:
-				_random_astroid_timer = randf_range(RANDOM_ASTROID_GAP_MIN, RANDOM_ASTROID_GAP_MAX)
-				var medium := _random_astroids_allow_medium and randf() < RANDOM_ASTROID_MEDIUM_CHANCE
-				var lane := randf_range(0.08, 0.92)
-				spawn_drift_wave({
-					"enemy": ASTROID_MEDIUM if medium else ASTROID_SMALL,
-					"start_percent": lane,
-					"end_percent": clampf(lane + randf_range(-0.15, 0.15), 0.05, 0.95),
-					"speed": randf_range(30.0, 40.0) if medium else randf_range(40.0, 60.0),
-				})
 	return _challenge_state == ChallengeState.PENDING
 
 
@@ -456,15 +500,16 @@ const TUTORIAL_BUBBLE_JUMP_VIDEO := "res://Art assets/Tutorial/bubble_jump.ogv"
 const TUTORIAL_BUBBLE_SHOOT_VIDEO := "res://Art assets/Tutorial/bubble_shoot.ogv"
 const TUTORIAL_BUBBLE_COMBINE_VIDEO := "res://Art assets/Tutorial/bubble_combine.ogv"
 
-# Wave 5a card clip: in the cosmic storm, K shoots out a bubble, J shots
-# power it up from the clear strip, and it flies up and destroys a storm
-# astroid. Times are seconds of bubble_storm_shoot.ogv.
-const TUTORIAL_STORM_SHOOT_VIDEO := "res://Art assets/Tutorial/bubble_storm_shoot.ogv"
-const TUTORIAL_STORM_SHOOT_KEYS := [
+# Wave 5a card clip: K shoots out a bubble, J shots power it up, and it flies
+# up and destroys an astroid. Recorded in the old cosmic storm version of the
+# wave - re-record to show the green astroids. Times are seconds of
+# bubble_storm_shoot.ogv.
+const TUTORIAL_BUBBLE_SHOOT_CARD_VIDEO := "res://Art assets/Tutorial/bubble_storm_shoot.ogv"
+const TUTORIAL_BUBBLE_SHOOT_CARD_KEYS := [
 	["J", 0.75, 1.65],
 ]
 
-# Wave 5b card clip: jumping on the caged bubble pops it and the explosion
+# Wave 5b card clip (recorded with the old caged bubble): jumping on a bubble pops it and the explosion
 # takes out the armored ring. Times are seconds of bubble_jump_on.ogv.
 const TUTORIAL_JUMP_ON_VIDEO := "res://Art assets/Tutorial/bubble_jump_on.ogv"
 const TUTORIAL_JUMP_ON_KEYS := [
@@ -504,20 +549,20 @@ func _wave_intro() -> void:
 			{"text": "...", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
 			{"text": "Er, I mean old friend.", "portrait": FACE_RED,"speaker": "Red Frog"},
 			{"text": "...", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
-			{"text": "Well I mean I guess we're not friends, but I've seen you around at the conferences. Great field research on the indigenous hexagonal lotus root by the way.", "portrait": FACE_RED,"speaker": "Red Frog"},
-			{"text": "Where are my manners. I'm Red Frog. And you are?", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "Well, I mean, I guess we're not friends, but I've seen you around at the conferences. Great field research on the indigenous hexagonal lotus root by the way.", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "Where are my manners? I'm Red Frog. And you are?", "portrait": FACE_RED,"speaker": "Red Frog"},
 			{"text": "Frog.", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
-			{"text": "Oh, so you do speak! I thought your coms were fried for a second. More of the strong and almost silent type eh.", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "Oh, so you do speak! I thought your coms were fried for a second. More of the strong and almost silent type, eh.", "portrait": FACE_RED,"speaker": "Red Frog"},
 			{"text": "Anyway, says here you're looking to renew your intergalactic travel license. Was the photo really that bad?", "portrait": FACE_RED,"speaker": "Red Frog"},
 			{"text": "...", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
-			{"text": "Sorry just a little joke, guess it didn't land. Speaking of jokes, this test should be a hop in the pond for someone like you.", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "Sorry, just a little joke. Guess it didn't land. Speaking of jokes, this test should be a hop in the pond for someone like you.", "portrait": FACE_RED,"speaker": "Red Frog"},
 			{"text": "I'm sure you have important research to do and I wouldn't want to waste your time. If you want, Gary from licensing owes me a favor, well actually a few favors.", "portrait": FACE_RED,"speaker": "Red Frog"},
-			{"text": "I could have him check all the boxes for us. Oh, but also if you want some practice, I'm happy to administer.", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "I could have him check all the boxes for us. Oh, but also if you want some practice I'm happy to administer.", "portrait": FACE_RED,"speaker": "Red Frog"},
 		], FROG)
 
 		# Player picks one of the options - `choice` is its position in the list
 		# (0 = "Start Tutorial", 1 = "Forge Signature").
-		var choice: int = await ask("Up to you", ["Start Tutorial", "Cash in one of the Gary favors"], {"portrait": FACE_RED, "speaker": "Red Frog"})
+		var choice: int = await ask("Up to you", ["Start Tutorial", "Skip Tutorial (Cash in one of the Gary favors)"], {"portrait": FACE_RED, "speaker": "Red Frog"})
 		if choice == CHOICE_START_TUTORIAL:
 			pass   # TODO: tutorial path - for now both choices carry on the same way
 		elif choice == CHOICE_FORGE_SIGNATURE:
@@ -525,7 +570,7 @@ func _wave_intro() -> void:
 
 		await talk([
 			{"text": "Great! This'll give us a chance to get to know each other a little better!", "portrait": FACE_RED,"speaker": "Red Frog"},
-			{"text": "First, we'll have to test out your ship's maneuverability. Luckily there are a bunch of loose asteroids just looking to be avoided.","portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "First, we'll have to test out your ship's maneuverability. Luckily there are a bunch of loose asteroids, just looking to be avoided.","portrait": FACE_RED,"speaker": "Red Frog"},
 		], FROG)
 
 		# Tutorial card: how to move. Pauses until the player closes it.
@@ -611,33 +656,35 @@ func _wave_intro() -> void:
 	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.6, "end_side": Side.BOTTOM, "end_percent": 0.6, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 24.5})
 	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.7, "end_side": Side.BOTTOM, "end_percent": 0.7, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 24.5})
 	
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
+	# --- Commented out 2026-11-17 to shorten wave 0: the corner fan-sprays (26.5-32.5s)
+	# and side-to-side crossings (34.5-36.5s). Uncomment to bring them back. ---
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 26.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 28.5})
 	
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.9, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 30.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": 0.1, "end_side": Side.BOTTOM, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 32.5})
 	
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.9, "end_side": Side.RIGHT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.1, "end_side": Side.LEFT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 34.5})
 	
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
-	spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.RIGHT, "start_percent": 0.9, "end_side": Side.LEFT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.1, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.5, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
+	#spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.LEFT, "start_percent": 0.1, "end_side": Side.RIGHT, "end_percent": 0.9, "speed": WAVE_0_ASTROID_SPEED, "start_delay": 36.5})
 	next_wave_after_last_spawn(6.0)
 	
 
@@ -649,10 +696,9 @@ func _wave_1() -> void:
 	begin_challenge({
 		"title": "Jump",
 		"text": "Press L to jump. After you land, the jump needs a moment to recharge before you can use it again.",
-		"challenge": "Take damage fewer than 3 times",
-		"kind": CHALLENGE_MAX_HITS,
+		"challenge": "Jump over astroids 3 times",
+		"kind": CHALLENGE_JUMP_OVER,
 		"target": 3,
-		"fail_line": "Oof that doesn't bode well for your deductible.",
 		"retry_line": "Let's give it another hop!",
 	})
 	# Dialogue + card only the first time (not when the wave replays).
@@ -661,7 +707,7 @@ func _wave_1() -> void:
 			{"text": "Says here your ship is equipped with hyperdimensional optimized propulsion. Oh I get it H.O.P.! Cause you're a frog.", "portrait": FACE_RED,"speaker": "Red Frog"},
 			{"text": "...","portrait": FACE_NEUTRAL,"speaker": "Frog"},
 			{"text": "Seems like you have more of a sense of humor than you let on. Would love to see H.O.P. in action! I don't think I've seen modifications this advance on such an old model.", "portrait": FACE_RED,"speaker": "Red Frog"},
-			{"text": "Oh um, not old model like old old. I meant more like vintage. Or um distinguished.", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "Oh um, not old model like old old. I meant more like vintage. Or um, distinguished.", "portrait": FACE_RED,"speaker": "Red Frog"},
 		], FROG)
 
 		# Tutorial card: jumping + its cooldown. Pauses until the player closes it.
@@ -707,13 +753,20 @@ func _wave_1() -> void:
 
 	spawn_diagonal_astroid_wall({"from_corner": "top_right", "enemy": ASTROID_SMALL, "speed": 55.0, "spacing": 18.0, "start_delay": 9.0})
 	spawn_diagonal_astroid_wall({"from_corner": "top_left", "enemy": ASTROID_SMALL, "speed": 55.0, "spacing": 18.0, "start_delay": 12.0})
-	spawn_astroid_ring({"enemy": ASTROID_SMALL, "speed": 55.0, "spacing": 18.0, "start_delay": 16.0})
+	spawn_astroid_ring({"enemy": ASTROID_SMALL, "speed": 55.0, "spacing": 18.0, "start_delay": 16.0, "group": "wave_1_ring"})
+
+	# Hand over to the next wave once only a quarter of the ring is still on
+	# screen - its dialogue starts while the rest of the ring slides out.
+	while _pending_spawns > 0 and is_inside_tree():   # every ring astroid is in
+		await wait(0.1)
+	await _wait_until_mostly_gone(get_tree().get_nodes_in_group("wave_1_ring"), EARLY_END_ON_SCREEN_FRACTION)
+	_end_wave_early()
 
 
-# Wave 2 - NOT timed (no next_wave_after_last_spawn), so the next loop only
-# starts once every flower is gone. Shows dialogue in the MIDDLE of a wave:
-# the wave function awaits a wait() and a talk() between spawns, and still
-# counts as running the whole time, so the level never skips ahead.
+# Wave 2 - hands over to the next wave once only a quarter of its astroids
+# are still on screen (see _end_wave_early()). (The golden astroid that used to park
+# here at the end was removed 2026-11-18 - golden astroids now first show up
+# mixed into wave 3's drops.)
 func _wave_2() -> void:
 	_set_abilities(true, false, false)    # shooting unlocked, no absorbing yet
 	begin_challenge({
@@ -727,7 +780,7 @@ func _wave_2() -> void:
 	# Dialogue + card only the first time (not when the wave replays).
 	if not is_retry():
 		await talk([
-			{"text": "That was awesome! How you got a ship to jump in the vacuum of space, I'll never know. Now time to see what kind of firepower we are working with. Your ship has blasters right?", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "That was awesome! How you got a ship to jump in the vacuum of space, I'll never know. Now, time to see what kind of firepower we are working with. Your ship has blasters right?", "portrait": FACE_RED,"speaker": "Red Frog"},
 			{"text": "Yup.","portrait": FACE_NEUTRAL,"speaker": "Frog"},
 			{"text": "Of course it does, it's regulation. Why don't you use those blasters to clear out some of this asteroid field.","portrait": FACE_RED,"speaker": "Red Frog"},
 			{"text": "Funny story, I was actually supposed to clear these out this morning, but got trapped in a convo with Gary. It was about his kids again.", "portrait": FACE_RED,"speaker": "Red Frog"},
@@ -762,31 +815,42 @@ func _wave_2() -> void:
 	
 	spawn_diagonal_astroid_wall({"from_corner": "top_right", "enemy": ASTROID_SMALL, "speed": 30.0, "spacing": 18.0, "start_delay": 11.0})
 	spawn_diagonal_astroid_wall({"from_corner": "top_left", "enemy": ASTROID_SMALL, "speed": 30.0, "spacing": 18.0, "start_delay": 15.0})
-	
-	# Golden astroid at 15s - Red Frog calls it out the moment it appears. It
-	# stops a third of the way down and waits there until it's shot.
-	await wait(30.0)
-	spawn_drift_wave({"enemy": ASTROID_GOLDEN, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": 0.5, "speed": 30, "stop_percent": 0.33})
-	say("Golden astroids, huh. Heard there's a wave of them. They're stocked full of quantum energy. Grabbing them is like snagging two flies with one tongue.", RED_FROG)
-	
-# Wave 3 - absorb. A golden astroid (shoot it for 4x) and then a gray bee
-# (absorb it with K) come down in random lanes, over and over, until the
-# player absorbs something. Shooting stays on so the golden astroid can be
-# hit; jumping stays off.
+
+	# Hand over to the next wave once only a quarter of what's left is still
+	# on screen (after the last wall has come in), instead of waiting for
+	# every astroid to clear.
+	while _pending_spawns > 0 and is_inside_tree():   # everything has spawned
+		await wait(0.1)
+	await _wait_until_mostly_gone(get_tree().get_nodes_in_group("enemies"), EARLY_END_ON_SCREEN_FRACTION)
+	_end_wave_early()
+
+
+# Wave 3 - absorb. Small astroids, gray bees and the odd golden astroid fall
+# from top to bottom at a steady beat (ABSORB_DROP_* below - roughly 65% /
+# 30% / 5%) until the player builds up their multiplier and absorbs a gray
+# bee for the gray transformation. Shooting stays on so the astroids can
+# charge the multiplier; jumping stays off.
+const ABSORB_DROP_INTERVAL := 0.7        # seconds between drops - several things on screen at once
+const ABSORB_DROP_SMALL_CHANCE := 0.65   # small astroid
+const ABSORB_DROP_BEE_CHANCE := 0.30     # gray bee - whatever's left (5%) is a golden astroid
+const ABSORB_DROP_MIN_LANE_GAP := 0.15   # a drop never lands right on top of the one before it (wave 5a too)
+
 func _wave_3() -> void:
 	_set_abilities(true, false, true)    # absorbing (K + absorb-ready border) unlocked
 	begin_challenge({
 		"title": "Absorb",
-		"text": "At 4x multiplier, press K to fire an absorb beam. Hit an enemy with it to take on its form for a while.",
-		"challenge": "Absorb an enemy",
+		"text": "Shoot asteroids without taking damage to charge up your multiplier. At 4x multiplier (when your ship glows), press K to fire an absorb beam. Hit an enemy ship with an absorb beam to temporarily absorb its ability.",
+		"challenge": "Absorb an enemy ship",
 		"kind": CHALLENGE_ABSORB,
 	})
 	if not is_retry():
 		await talk([
-			{"text": "Your ship's glowing! Is that another mod you added?", "portrait": FACE_RED,"speaker": "Red Frog"},
-			{"text": "Phase absorption.", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
-			{"text": "Genius! Hyper-grafting other ships parts for a temporary boost. That's pretty advanced tech. I'm not sure if I've even heard of that before.","portrait": FACE_RED,"speaker": "Red Frog"},
-			{"text": "Luckily there are a bunch of old junk ships around you could try it on. Might make clearing the area even faster.","portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "Looks like there are some broken down enemy ships floating around. Not uncommon in this belt but it is a little ominous. We shouldn't leave them just lying around.", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "Sorry I roped you into helping me clear the asteroid belt. I wish there weren't so many annoying rocks floating around.", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "I could use my Phase Absorption.", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
+			{"text": "Brilliant! Hyper-grafting other ships parts onto yours for a temporary boost. That'd make this go way faster! Wait, your ship can do that?!?", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "Yup.", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
+			{"text": "What a humble little genius you are.", "portrait": FACE_RED,"speaker": "Red Frog"},
 		], FROG)
 
 		# Tutorial card: absorbing. Pauses until the player closes it.
@@ -795,18 +859,96 @@ func _wave_3() -> void:
 			"video": TUTORIAL_ABSORB_VIDEO,
 			"keys": [["K"]],
 			"key_timeline": TUTORIAL_ABSORB_KEYS,
-			"text": "At 4x multiplier, press K to fire an absorb beam. Hit an enemy with it to take on its form for a while.",
+			"text": "Shoot asteroids without taking damage to charge up your multiplier. At 4x multiplier (when your ship glows), press K to fire an absorb beam. Hit an enemy ship with an absorb beam to temporarily absorb its ability.",
 		})
 	show_challenge()   # instructions + challenge fade in now that the talking's done
 
-	# Keeps going until the absorb lands (see _supply_until_challenge_done()).
-	await _supply_until_challenge_done()
+	# Keeps going until the absorb lands (see _mixed_drops_until_done()).
+	await _mixed_drops_until_done(ABSORB_DROP_INTERVAL, ABSORB_DROP_SMALL_CHANCE, ABSORB_DROP_BEE_CHANCE)
+
+	# Right after the absorb: the Transformations card (boosts are temporary,
+	# flashing = about to run out). Waits for the absorb to finish and the
+	# ability-acquired flash to play first.
+	if _challenge_state == ChallengeState.DONE and not is_retry():
+		while player and player.currently_absorbing:
+			await get_tree().process_frame
+		await wait(0.6)
+		if not is_inside_tree():
+			return
+		await show_info({
+			"title": "Transformations",
+			"video": TUTORIAL_RUNOUT_VIDEO,
+			"text": "Transformations give you different boosts, but they're temporary. When your ship starts flashing, the transformation is about to run out.",
+		})
+
+	# Hand over to wave 3b once only a quarter of what's still falling is on
+	# screen, instead of waiting for all of it to leave.
+	await _wait_until_mostly_gone(get_tree().get_nodes_in_group("enemies"), EARLY_END_ON_SCREEN_FRACTION)
+	_end_wave_early()
+
+
+## Mixed drops (waves 3 and 5a): one thing every `interval` seconds, picked
+## at random - a small astroid (`small_chance`), a gray bee (`bee_chance`) or
+## else a golden astroid - straight down a random lane. Stops once the
+## challenge is done. hold_with_bubble = no drops while the player has a
+## bubble out or is transformed. If _mixed_drops_time_limit() is above 0 it
+## also stops after that many seconds (level_0.gd's practice run uses that).
+func _mixed_drops_until_done(interval: float, small_chance: float, bee_chance: float, hold_with_bubble: bool = false) -> void:
+	var time_limit := _mixed_drops_time_limit()
+	var elapsed := 0.0
+	var last_lane := -1.0
+	while _challenge_state == ChallengeState.PENDING and (time_limit <= 0.0 or elapsed < time_limit):
+		if hold_with_bubble and _player_has_bubble_power():
+			if not await _wait_while_challenge_pending(0.25):
+				return
+			elapsed += 0.25
+			continue
+		last_lane = _spawn_mixed_drop(small_chance, bee_chance, last_lane)
+		if not await _wait_while_challenge_pending(interval):
+			return
+		elapsed += interval
+
+
+## One mixed drop: a small astroid (`small_chance`), a gray bee (`bee_chance`)
+## or else a golden astroid, straight down a random lane that isn't right on
+## top of `last_lane`. Returns the lane it used.
+func _spawn_mixed_drop(small_chance: float, bee_chance: float, last_lane: float = -1.0) -> float:
+	var lane := randf_range(0.1, 0.9)
+	while last_lane >= 0.0 and absf(lane - last_lane) < ABSORB_DROP_MIN_LANE_GAP:
+		lane = randf_range(0.1, 0.9)
+	var roll := randf()
+	if roll < small_chance:
+		spawn_drift_wave({"enemy": ASTROID_SMALL, "start_side": Side.TOP, "start_percent": lane, "end_side": Side.BOTTOM, "end_percent": lane, "speed": 45})
+	elif roll < small_chance + bee_chance:
+		spawn_drift_wave({"enemy": GRAY_BEE, "start_percent": lane, "speed": 30})
+	else:
+		spawn_drift_wave({"enemy": ASTROID_GOLDEN, "start_percent": lane, "speed": 35})
+	return lane
+
+
+## Wave 5c's drops: same mix and rate as the resupply drops, but they never
+## hold - they keep coming whether or not the player has a bubble out or is
+## transformed, for as long as any bomb ring is left (even after the
+## challenge is failed, like the old supply drops).
+func _resupply_while_bomb_rings_left() -> void:
+	await get_tree().process_frame   # let run_bomb_ring_challenge() put the rings up first
+	var last_lane := -1.0
+	while is_inside_tree() and bomb_rings_left():
+		last_lane = _spawn_mixed_drop(RESUPPLY_DROP_SMALL_CHANCE, RESUPPLY_DROP_BEE_CHANCE, last_lane)
+		if not await _wait_while_bomb_rings_left(RESUPPLY_DROP_INTERVAL):
+			return
+
+
+## Seconds the mixed drops run before giving up - 0 = no limit (keep going
+## until the challenge is done). level_0.gd overrides this.
+func _mixed_drops_time_limit() -> float:
+	return 0.0
 
 
 # Wave 3b - bubbles. Starts with what used to be wave 4 (Red Frog reacting to
-# the new form, then the Transformations and Bubbles cards), then the same
-# golden astroid / gray bee supply as wave 3 - plus random astroids falling
-# down the screen - until all 3 green target bubbles (bullets/
+# the new form, then the Bubbles card), then the resupply drops
+# (RESUPPLY_DROP_*, held while the player has a bubble out or is
+# transformed) until all 3 green target bubbles (bullets/
 # target_bubble.gd) have been absorbed by bouncing a bubble into them.
 # Shooting or flying through a target just scatters it for a moment.
 # Re-absorbing a bee gives a fresh bubble to try with.
@@ -828,29 +970,23 @@ func _wave_3b() -> void:
 		"kind": CHALLENGE_POP_TARGETS,
 		"target": TARGET_BUBBLE_SPOTS.size(),
 	})
-	_spawn_target_bubbles()
 	if not is_retry():
 		# The absorb beam removes the bee the moment it hits, BEFORE the
 		# player transforms, so wait for the absorb to finish first.
 		while player and player.currently_absorbing:
 			await get_tree().process_frame
-		if player and player.current_form != 'default':
-			await talk([
-				{"text": "Hmmmm, the changes aren't too drastic. I guess since it's using scrap ships. Still I noticed your ship does seem faster and stronger.", "portrait": FACE_RED,"speaker": "Red Frog"},
-				{"text": "There are some space bubbles ahead. Tricky little things. Shooting them won't cut it.", "portrait": FACE_RED,"speaker": "Red Frog"},
-				{"text": "Ah frogs! I was supposed to grab the bubble blaster to recapture these, but I forgot it at base. Guess I'll have to grab them after this training. It'll be a late lunch for me.", "portrait": FACE_RED,"speaker": "Red Frog"},
-				{"text": "My ship has bubble capabilities.", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
-				{"text": "Wait really! If you use your bubbles to snag these it'll save me a fin and a flipper. I'd promise to treat you to lunch after!", "portrait": FACE_RED,"speaker": "Red Frog"},
-				{"text": "No need to bother. It's no extra effort.", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
-			], FROG)
+		await talk([
+			{"text": "Hmmmm, the changes aren't too drastic. I guess since it's using scrap ships. Still I noticed your ship does seem faster and stronger.", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "There are some cosmic bubbles ahead. Tricky little things. Shooting them won't cut it.", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "Ah frogs! I was supposed to grab the bubble blaster to recapture these, but I forgot it at base. Guess I'll have to grab them after this training. It'll be a late lunch for me.", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "My ship has bubble capabilities.", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
+			{"text": "Wait really! If you use your bubbles to snag these it'll save me a fin and a flipper. I'd promise to treat you to lunch after!", "portrait": FACE_RED,"speaker": "Red Frog"},
+			{"text": "No need to bother. It's no extra effort.", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
+		], FROG)
 
-		# Tutorial cards: transformations wear off, and trading one in for a
-		# bubble.
-		await show_info({
-			"title": "Transformations",
-			"video": TUTORIAL_RUNOUT_VIDEO,
-			"text": "Transformations give you different boosts, but they're temporary. When your ship starts flashing, the transformation is about to run out.",
-		})
+		# Tutorial card: trading a transformation in for a bubble. (The
+		# Transformations card now shows at the end of wave 3, right after
+		# the absorb.)
 		await show_info({
 			"title": "Bubbles",
 			"video": TUTORIAL_BUBBLE_VIDEO,
@@ -859,25 +995,41 @@ func _wave_3b() -> void:
 			"text": "While transformed, press K to give up the transformation and shoot it out as a bubble. Bounce the bubble off your ship into the green bubbles to capture them.",
 		})
 	show_challenge()   # instructions + challenge fade in now that the talking's done
+	_spawn_target_bubbles()   # after the talking, so they fall in while you watch
 
-	_random_astroids_allow_medium = false   # no big astroids during the green bubble challenge
-	await _supply_until_challenge_done(true)
-	_random_astroids_allow_medium = true
+	# Resupply drops (small astroids, gray bees, golden astroids) - held while
+	# the player is transformed or has a bubble on screen.
+	await _mixed_drops_until_done(RESUPPLY_DROP_INTERVAL, RESUPPLY_DROP_SMALL_CHANCE, RESUPPLY_DROP_BEE_CHANCE, true)
 	_clear_target_bubbles()   # level_0.gd's practice run ends the wave with some still up
 	if _challenge_state == ChallengeState.DONE:
 		say("Look at you go.", RED_FROG)
+		_end_wave_early(EARLY_END_HOLD_3B)   # next wave right after the objective
 
 
 ## Puts up the 3 target bubbles for wave 3b (clearing any left from before).
+## Each one starts just above the screen and falls into its spot.
+const TARGET_BUBBLE_FALL_TIME := 1.6     # seconds to fall from the top into place
+const TARGET_BUBBLE_FALL_STAGGER := 0.25 # each one starts this much after the last
+
 func _spawn_target_bubbles() -> void:
 	_clear_target_bubbles()
 	var screen := get_viewport_rect().size
+	var i := 0
 	for spot in TARGET_BUBBLE_SPOTS:
+		var home := Vector2(screen.x * spot.x, screen.y * spot.y)
 		var t = TargetBubbleScript.new()
-		t.home_position = Vector2(screen.x * spot.x, screen.y * spot.y)
-		t.position = t.home_position
+		t.home_position = home   # its resting spot (it drifts back here between nudges)
+		t.position = home
 		t.popped.connect(_on_target_bubble_popped)
 		add_child(t)
+		# Then lift it above the screen and let it fall into place.
+		t.home_position = Vector2(home.x, -16.0)
+		t.position = t.home_position
+		var tw := t.create_tween()
+		tw.tween_interval(TARGET_BUBBLE_FALL_STAGGER * i)
+		tw.tween_property(t, "home_position", home, TARGET_BUBBLE_FALL_TIME) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		i += 1
 
 
 func _clear_target_bubbles() -> void:
@@ -891,169 +1043,111 @@ func _on_target_bubble_popped() -> void:
 
 
 # Wave 5c - the bomb-ring encounter (same as levels/level_0.gd). 5a and 5b
-# used to be bomb-ring waves too - they're now the cosmic storm and the
+# used to be bomb-ring waves too - they're now the green-astroid and the
 # jump-on-bubble waves (below). It teaches ONE way to use a bubble with its own
 # card, then runs base_level.gd's run_bomb_ring_challenge(): two bombs
 # inside rings of armored astroids, with golden astroids and gray bees
 # drifting down until every ring is gone. Combining two bubbles always grants
 # Penetrator Rounds during it.
 
-# Wave 5a - cosmic storm: shoot the bubble to power it up. A purple storm
-# (effects/cosmic_storm.gd) covers the top of the screen, leaving a strip at
-# the bottom to fly in. Inside the storm the blasters are jammed (no
-# shooting), and jumping is off for the whole wave. STORM_TARGET_SPOTS
-# astroids park up in the storm, just out of reach of normal shots (bullets
-# only travel ~125 px - bullet max_distance in stats.gd), so the only way to
-# hit them is to shoot the bubble from the safe strip to power it up and
-# bounce it up into them. A powered bubble does 1 damage per charge, and
-# these astroids get STORM_TARGET_HEALTH = 1, so each charge = one astroid.
-# Golden astroids + gray bees drift down (same supply as wave 3) so the
-# player can get a bubble back if they lose it - but only while they have no
-# bubble out and aren't transformed (_supply_only_when_needed).
-const CosmicStormScript := preload("res://effects/cosmic_storm.gd")
-const STORM_BOTTOM_PERCENT := 0.75   # storm covers the top 75% of the screen
-const STORM_TARGET_SPOTS := [        # screen fractions (x, y) where the astroids park
-	Vector2(0.15, 0.22),
-	Vector2(0.4, 0.18),
-	Vector2(0.65, 0.24),
-	Vector2(0.88, 0.19),
-]
-# Shots from the very top of the safe strip reach about y = 0.33 of the
-# screen (bullet max_distance 125 px in stats.gd), so these sit roughly
-# 25-45 px past that. If a power-up ever raises bullet range, move them up.
-const STORM_TARGET_HEALTH := 1
-const STORM_TARGET_SPEED := 40.0     # px/s drifting in from the top before they park
-
-var _storm: Node2D = null
-var _storm_y := 0.0
+# Wave 5a - shoot the bubble to power it up. FILM_TARGET_SPOTS green
+# astroids (coated in cosmic bubble fluid) drift in from the top and park.
+# Only a powered-up bubble can hurt them - shots, bubble pops and everything
+# else bounce off (BaseEnemy.set_damage_only_from()). A powered bubble does 1
+# damage per charge and they have FILM_TARGET_HEALTH = 1, so each charge = one
+# astroid. Jumping is off for the whole wave.
+# While the player has no bubble out and isn't transformed, the resupply
+# drops (RESUPPLY_DROP_*) fall so they can earn a bubble; they stop as soon
+# as they have one.
+const FILM_TARGET_SPOTS := TARGET_BUBBLE_SPOTS   # same spots as wave 3b's green bubbles
+const FILM_TARGET_HEALTH := 1
+const FILM_TARGET_SPEED := 40.0       # px/s drifting in from the top before they park
+const FILM_TARGET_COLOR := Color(0.35, 1.0, 0.6, 1.0)   # same mint green as the target bubbles (bullets/target_bubble.gd)
+const FILM_TARGET_TINT := Color(0.7, 1.0, 0.8, 1.0)     # light green wash over the astroid sprite
+const FILM_DAMAGE_SOURCES := ["bubble_charged", "bubble_shot_charged"]   # a powered-up bubble's hits (bullets/bubble.gd)
 
 func _wave_5a() -> void:
-	_set_abilities(true, false, true)    # no jumping in the storm
+	_set_abilities(true, false, true)    # no jumping
 	begin_challenge({
 		"title": "Using Bubbles: Shoot",
-		"text": "Shoot (J) a bubble to power it up. A powered-up bubble damages the enemies it hits. The storm jams your blasters - you can only shoot from the clear space at the bottom.",
-		"challenge": "Destroy the %d astroids in the storm with a powered-up bubble" % STORM_TARGET_SPOTS.size(),
-		"kind": CHALLENGE_STORM_TARGETS,
-		"target": STORM_TARGET_SPOTS.size(),
+		"text": "Shoot (J) a bubble to power it up. A powered-up bubble damages the enemies and objects it hits.",
+		"challenge": "Destroy the %d asteroids with a powered-up bubble" % FILM_TARGET_SPOTS.size(),
+		"kind": CHALLENGE_FILM_TARGETS,
+		"target": FILM_TARGET_SPOTS.size(),
 	})
-	_start_cosmic_storm()
-	_clear_storm_targets()
-	for spot in STORM_TARGET_SPOTS:
-		_spawn_storm_target(spot)
+	_clear_film_targets()
+	for spot in FILM_TARGET_SPOTS:
+		_spawn_film_target(spot)
 	# Dialogue + card only the first time (not when the wave replays).
 	if not is_retry():
 		await talk([
-			{"text": "A cosmic storm? This training just keeps having so many pesky little surprises."},
-			{"text": "The storm's going to conk out your blasters, making them impossible to shoot while in the storm. Ugh, but they're right there. I can see all those little asteroids. Just floating there. Taunting me!"},
+			{"text": "These asteroids look a bit different. Fun fact, they actually coated in cosmic bubble fluid."},
+			{"text": "The film from the fluid is enough to disrupt the bullet integrity. Let me just dig into my notes and if there's something we can do, apart from getting out of our ships and cleaning off the film ourselves."},
 			{"text": "Bubble energy assimilation.", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
 			{"text": "That won't wo...wait a minute. THAT'S GENIUS!!!"},
-			{"text": "The stability of the bubble should be able to soak up the energy from your bullets and carry that energy into the storm without disruption."},
+			{"text": "The stability of the bubble should be able to soak up the energy from your bullets and collide with the asteroid with enough power to disrupt its disruption."},
 			{"text": "It was a natural conclusion from your paper on bubble composition and surface tension.", "portrait": FACE_NEUTRAL,"speaker": "Frog"},
 			{"text": "Aw shucks. You actually read that thing? Guess we're both geniuses then."},
 		], RED_FROG)
 
 		await show_info({
 			"title": "Using Bubbles: Shoot",
-			"video": TUTORIAL_STORM_SHOOT_VIDEO,
+			"video": TUTORIAL_BUBBLE_SHOOT_CARD_VIDEO,
 			"keys": [["J"]],
-			"key_timeline": TUTORIAL_STORM_SHOOT_KEYS,
-			"text": "Shoot (J) a bubble to power it up. A powered-up bubble damages the enemies it hits. The storm jams your blasters - you can only shoot from the clear space at the bottom.",
+			"key_timeline": TUTORIAL_BUBBLE_SHOOT_CARD_KEYS,
+			"text": "Shoot (J) a bubble to power it up. A powered-up bubble damages the enemies and objects it hits.",
 		})
 	show_challenge()   # instructions + challenge fade in now that the talking's done
 
-	# Supply drops until every storm astroid is gone (see _supply_until_challenge_done()),
-	# but only when the player has no bubble out and isn't transformed.
-	_supply_only_when_needed = true
-	await _supply_until_challenge_done()
-	_supply_only_when_needed = false
-	_clear_storm_targets()   # level_0.gd's practice run ends the wave with some still up
-	_end_cosmic_storm()
+	# Drops until every green astroid is gone, held while the player has a
+	# bubble out or is transformed (see _mixed_drops_until_done()).
+	await _mixed_drops_until_done(RESUPPLY_DROP_INTERVAL, RESUPPLY_DROP_SMALL_CHANCE, RESUPPLY_DROP_BEE_CHANCE, true)
+	_clear_film_targets()   # level_0.gd's practice run ends the wave with some still up
 	if _challenge_state == ChallengeState.DONE:
 		say("Glad we got that all sorted.", RED_FROG)
 
 
-func _start_cosmic_storm() -> void:
-	_end_cosmic_storm()
-	var size := get_viewport_rect().size
-	_storm_y = size.y * STORM_BOTTOM_PERCENT
-	_storm = CosmicStormScript.new()
-	_storm.bottom_y = _storm_y
-	_storm.width = size.x
-	add_child(_storm)
-
-
-func _end_cosmic_storm() -> void:
-	if is_instance_valid(_storm):
-		_storm.dissipate()
-	_storm = null
-	if player:
-		player.shoot_enabled = true
-
-
-## Called every frame: while the storm is up, the blasters only work with the
-## ship below it. Trying to fire inside it makes a little fizzle instead.
-func _update_storm_blasters() -> void:
-	if not is_instance_valid(_storm) or not player:
-		return
-	var in_storm: bool = player.position.y < _storm_y
-	player.shoot_enabled = not in_storm
-	if in_storm and Input.is_action_pressed("shoot") and player.is_alive:
-		_storm.jam_at(player.position + Vector2(0, -8))
-
-
-## One astroid that drifts in from the top and parks at `spot` (screen
-## fractions) until it's destroyed.
-func _spawn_storm_target(spot: Vector2) -> void:
+## One green astroid that drifts in from the top and parks at `spot` (screen
+## fractions) until a powered-up bubble destroys it.
+func _spawn_film_target(spot: Vector2) -> void:
 	var size := get_viewport_rect().size
 	var x := size.x * spot.x
 	var a = ASTROID_SMALL.instantiate()
-	a.max_health = STORM_TARGET_HEALTH   # before add_child, so _ready() picks it up
+	a.max_health = FILM_TARGET_HEALTH   # before add_child, so _ready() picks it up
+	a.enemy_color = FILM_TARGET_TINT
 	add_child(a)
-	a.add_to_group("storm_target")
-	a.launch(Vector2(x, -16.0), Vector2(x, size.y), STORM_TARGET_SPEED)
+	a.add_to_group("film_target")
+	a.set_damage_only_from(FILM_DAMAGE_SOURCES, FILM_TARGET_COLOR)
+	a.launch(Vector2(x, -16.0), Vector2(x, size.y), FILM_TARGET_SPEED)
 	a.hold_at_y = size.y * spot.y
 	a.died.connect(_on_enemy_died)
-	a.died.connect(_on_storm_target_died)
+	a.died.connect(_on_film_target_died)
 	note_spawn(0.0)
 
 
-func _clear_storm_targets() -> void:
-	for t in get_tree().get_nodes_in_group("storm_target"):
+func _clear_film_targets() -> void:
+	for t in get_tree().get_nodes_in_group("film_target"):
 		t.queue_free()
 
 
-func _on_storm_target_died(_value: int) -> void:
-	if _challenge_pending(CHALLENGE_STORM_TARGETS):
+func _on_film_target_died(_value: int) -> void:
+	if _challenge_pending(CHALLENGE_FILM_TARGETS):
 		_add_challenge_progress()
 
 
 # Wave 5b - bubble use #2: jump on it. (Until 2026-11-06 this was "Using
 # Bubbles: Shoot" with the bomb rings - shooting the bubble moved to 5a.)
-# Two stages, jumping on:
-#   1. A ring of armored (gray-outlined) astroids slides in like the bomb-ring
-#      trial, but with a gray bubble pinned in the middle instead of a bomb.
-#      Shots bounce off the armor; jumping on the bubble pops it in a big
-#      explosion that takes out the whole ring (and gives the player its gray
-#      transformation back - TestOptions BUBBLE_JUMP_REGAINS).
-#   2. Once the ring is gone, JUMP_MEDIUM_SPOTS armored medium astroids drift
-#      down and park on screen. Same trick: get a bubble next to them and
-#      jump on it. The challenge counts these.
-# The ring astroids and mediums get 3 armor, which soaks a plain jump landing
-# (3 damage) and normal shots completely. Jumping on a bubble pops it for 5
+# JUMP_MEDIUM_SPOTS armored (gray-outlined) medium astroids drift down and
+# park on screen. Shots and plain jump landings bounce off the armor; the
+# way through is to get a bubble next to one and jump on the bubble - the pop
+# explosion breaks it. (Until 2026-11-18 a ring of armored astroids with a
+# gray bubble pinned in its middle came first - removed.)
+# The mediums get 3 armor, which soaks a plain jump landing (3 damage) and
+# normal shots completely. Jumping on a bubble pops it for 5
 # (bubble.gd JUMP_POP_DAMAGE_MULT): 5 - 3 armor = 2 = JUMP_TARGET_HEALTH, so
 # one jump-pop finishes them.
-# Golden astroids + gray bees drift down only while the player has no bubble
-# out and isn't transformed (_supply_only_when_needed), in case they lose it.
-const CAGED_BUBBLE_SCENE := preload("res://bullets/bubble.tscn")
-const JUMP_RING := {                 # same look as the bomb-ring trial
-	"radius": 36.0,
-	"spacing": 17.0,
-	"armor": 2,
-	"speed": 30.0,
-	"stop_percent": 0.3,
-	"center_percent": 0.5,
-	"orbit_speed": 20.0,
-}
+# The resupply drops (RESUPPLY_DROP_*) fall only while the player has no
+# bubble out and isn't transformed, so they can earn a bubble.
 const JUMP_MEDIUM_SPOTS := [0.28, 0.72]   # across the screen (0-1)
 const JUMP_MEDIUM_STOP_PERCENT := 0.3     # how far down they park
 const JUMP_MEDIUM_SPEED := 30.0
@@ -1066,7 +1160,7 @@ func _wave_5b() -> void:
 	_set_abilities(true, true, true)
 	begin_challenge({
 		"title": "Using Bubbles: Jump",
-		"text": "Jump (L) on a bubble to pop it in a big explosion - and get its transformation back.",
+		"text": "Jump (L) on a bubble to pop it in a big explosion.",
 		"challenge": "Jump on a bubble to destroy the %d armored astroids" % JUMP_MEDIUM_SPOTS.size(),
 		"kind": CHALLENGE_JUMP_TARGETS,
 		"target": JUMP_MEDIUM_SPOTS.size(),
@@ -1074,7 +1168,8 @@ func _wave_5b() -> void:
 	_clear_jump_wave()
 	_strip_bubble_power()   # start from scratch: no transformation, no bubbles out
 	_jump_wave_active = true
-	_spawn_caged_bubble_ring()
+	for x in JUMP_MEDIUM_SPOTS:
+		_spawn_jump_medium(x)
 	# Dialogue + card only the first time (not when the wave replays).
 	if not is_retry():
 		await talk([
@@ -1089,86 +1184,26 @@ func _wave_5b() -> void:
 			"video": TUTORIAL_JUMP_ON_VIDEO,
 			"keys": [["L"]],
 			"key_timeline": TUTORIAL_JUMP_ON_KEYS,
-			"text": "Jump (L) on a bubble to pop it in a big explosion - and get its transformation back.",
+			"text": "Jump (L) on a bubble to pop it in a big explosion.",
 		})
 	show_challenge()   # instructions + challenge fade in now that the talking's done
 
-	_run_jump_wave_stages()   # not awaited - runs alongside the supply drops
-	_supply_only_when_needed = true
-	await _supply_until_challenge_done()
-	_supply_only_when_needed = false
+	await _mixed_drops_until_done(RESUPPLY_DROP_INTERVAL, RESUPPLY_DROP_SMALL_CHANCE, RESUPPLY_DROP_BEE_CHANCE, true)
 	_jump_wave_active = false
 	_clear_jump_wave()   # level_0.gd's practice run ends the wave with some still up
 	if _challenge_state == ChallengeState.DONE:
 		say("Guess you really did got it.", RED_FROG)
+		_end_wave_early(EARLY_END_HOLD_5B)   # straight on to 5c instead of waiting for the screen to clear
 
 
 ## Wave 5b starts the player off with nothing: ends any transformation they
 ## carried over and removes every bubble on screen (no pop, they just vanish).
-## Runs before the caged bubble is spawned, so that one is never touched.
 func _strip_bubble_power() -> void:
 	if player and is_instance_valid(player) and player.current_form != 'default':
 		player.revert_absorption()
 	for b in get_tree().get_nodes_in_group("bubble"):
-		if is_instance_valid(b) and not b.is_in_group("caged_bubble"):
+		if is_instance_valid(b):
 			b.queue_free()
-
-
-## Stage 1 -> stage 2: wait for the ring to be gone, then bring in the mediums.
-func _run_jump_wave_stages() -> void:
-	while _jump_wave_active and is_inside_tree() and not get_tree().get_nodes_in_group("jump_ring_astroid").is_empty():
-		await get_tree().create_timer(0.2, false).timeout
-	if not _jump_wave_active or not is_inside_tree():
-		return
-	for x in JUMP_MEDIUM_SPOTS:
-		_spawn_jump_medium(x)
-
-
-## Ring of armored astroids around a gray bubble pinned at its center. Reuses
-## the bomb-ring formation (enemies/bomb_ring_formation.gd), with the bubble
-## in the bomb's slot so it rides down and stays in the middle.
-func _spawn_caged_bubble_ring() -> void:
-	var size := get_viewport_rect().size
-	var radius: float = JUMP_RING["radius"]
-	var formation = BombRingFormationScript.new()
-	formation.radius = radius
-	formation.fall_speed = JUMP_RING["speed"]
-	formation.stop_y = size.y * float(JUMP_RING["stop_percent"])
-	formation.orbit_speed = deg_to_rad(JUMP_RING["orbit_speed"])
-	formation.despawn_y = size.y + radius + BOMB_RING_ENTRY_MARGIN
-	formation.center = Vector2(size.x * float(JUMP_RING["center_percent"]), -radius - BOMB_RING_ENTRY_MARGIN)
-	add_child(formation)
-	formation.add_to_group("jump_ring_formation")
-
-	var count := int(ceil(TAU * radius / float(JUMP_RING["spacing"])))
-	for i in count:
-		var a = BOMB_RING_ASTROID.instantiate()
-		a.max_health = JUMP_TARGET_HEALTH   # before add_child, so _ready() picks it up
-		a.position = formation.center + Vector2.from_angle(TAU * i / count) * radius
-		a.squad_controlled = true   # the formation moves it
-		add_child(a)
-		a.set_armor(JUMP_TARGET_ARMOR)
-		a.add_to_group("jump_ring_astroid")
-		a.died.connect(_on_enemy_died)
-		formation.astroids.append(a)
-
-	# The bubble: a plain gray one that the formation just carries. Its own
-	# _process is switched off - otherwise it clamps itself to the top edge
-	# of the screen (bubble.gd _bounce_off_walls()) and shows up there before
-	# the ring arrives. With no movement it never arms its player collision,
-	# so the ship passes through it instead of bouncing it. Jumping on it
-	# still works (LandingShockwave calls on_shockwave_hit() directly).
-	var bubble = CAGED_BUBBLE_SCENE.instantiate()
-	PlayerAbsorption.apply_bubble_stats(bubble)
-	bubble.speed = 0.0
-	bubble.position = formation.center
-	add_child(bubble)
-	bubble.start(formation.center, Vector2.DOWN)
-	bubble.set_process(false)
-	bubble.set_enemy_type("gray")
-	bubble.add_to_group("caged_bubble")
-	formation.bomb = bubble
-	note_spawn(0.0)
 
 
 ## One armored medium astroid that drifts down and parks until destroyed.
@@ -1192,9 +1227,9 @@ func _on_jump_medium_died(_value: int) -> void:
 		_add_challenge_progress()
 
 
-## Removes anything left from this wave (ring, caged bubble, mediums).
+## Removes anything left from this wave (the mediums).
 func _clear_jump_wave() -> void:
-	for group in ["jump_ring_formation", "jump_ring_astroid", "caged_bubble", "jump_medium"]:
+	for group in ["jump_medium"]:
 		for n in get_tree().get_nodes_in_group(group):
 			n.queue_free()
 
@@ -1213,11 +1248,11 @@ func _wave_5c() -> void:
 	begin_challenge({
 		"title": "Using Bubbles: Combine",
 		"text": "Combine two bubbles to get a permanent buff.",
-		"challenge": "Destroy both bombs with Penetrator Rounds without taking damage",
+		"challenge": "Destroy both bombs with Penetrator Rounds without taking damage from a bomb",
 		"kind": CHALLENGE_BOMBS,
 		"target": WAVE_5C_BOMB_RINGS.size(),
 		"method": BOMB_METHOD_COMBINE,
-		"no_damage": true,   # any hit fails it too
+		"no_bomb_damage": true,   # getting caught in a bomb blast fails it too (other hits don't)
 		"fail_line": "Ouch. Looks like that hurt.",
 		"retry_line": "Dang even more mines. Don't know what's more of a minefield, this or a conversation with accounting?",
 	})
@@ -1237,7 +1272,10 @@ func _wave_5c() -> void:
 		})
 	show_challenge()   # instructions + challenge fade in now that the talking's done
 
-	await run_bomb_ring_challenge({"rings": WAVE_5C_BOMB_RINGS})
+	# Resupply drops (RESUPPLY_DROP_*) all the way through - unlike 3b / 5a /
+	# 5b they don't stop while the player has a bubble or transformation.
+	_resupply_while_bomb_rings_left()   # not awaited - runs alongside the rings
+	await run_bomb_ring_challenge({"rings": WAVE_5C_BOMB_RINGS, "supply": false})
 	
 # Wave 6 - the final exam. Everything from the earlier waves, one after the
 # other, building up:

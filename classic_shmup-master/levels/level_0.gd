@@ -13,19 +13,18 @@
 #   - talk() / ask() / say() / show_info() do nothing
 #   - begin_challenge() does nothing, so there's no right-panel mission and
 #     no wave ever repeats
-#   - waves 3 / 3b send a fixed number of golden astroid + gray bee drops
-#     instead of waiting for an absorb / all 3 target bubbles popped (any
-#     targets left over are cleared when the wave ends)
-#   - nothing stops partway down the screen and waits to be shot (the golden
-#     astroid in wave 2), and the bomb rings in waves 5a-5c keep falling and
+#   - waves 3, 3b, 5a and 5b send their drops for PRACTICE_MIXED_DROP_SECONDS
+#     instead of waiting for their challenge (anything left over - target
+#     bubbles, green astroids, armored mediums - is cleared when the wave ends)
+#   - nothing stops partway down the screen and waits to be shot, and the
+#     bomb rings in waves 5a-5c keep falling and
 #     leave off the bottom instead of parking until they're destroyed
 #
 # The badger boss test that used to live here is now levels/boss_test.gd.
 extends TutorialLevel
 
-# Golden astroid + gray bee drops in waves 3 and 3b (one drop every
-# SUPPLY_INTERVAL seconds, so 2 = about 22 seconds a wave).
-const PRACTICE_SUPPLY_DROPS := 2
+# How long waves 3, 3b, 5a and 5b send their drops for.
+const PRACTICE_MIXED_DROP_SECONDS := 21.0
 # Bomb rings in waves 5a-5c fall at this speed (px/s) instead of stopping, so
 # each ring is on screen for roughly 15-20 seconds.
 const PRACTICE_BOMB_RING_SPEED := 20.0
@@ -73,22 +72,8 @@ func spawn_drift_wave(config: Dictionary) -> void:
 	super.spawn_drift_wave(c)
 
 
-## A fixed number of drops instead of "until the challenge is done".
-func _supply_until_challenge_done(random_astroids: bool = false) -> void:
-	_random_astroid_timer = 0.0
-	for i in PRACTICE_SUPPLY_DROPS:
-		var gold_lane: float = SUPPLY_LANES.pick_random()
-		spawn_drift_wave({"enemy": ASTROID_GOLDEN, "start_percent": gold_lane, "speed": 35})
-		await _wait_while_challenge_pending(SUPPLY_BEE_DELAY, random_astroids)
-		if not is_inside_tree():
-			return
-		var bee_lane: float = SUPPLY_LANES.pick_random()
-		while is_equal_approx(bee_lane, gold_lane):
-			bee_lane = SUPPLY_LANES.pick_random()
-		spawn_drift_wave({"enemy": GRAY_BEE, "start_percent": bee_lane, "speed": 30})
-		await _wait_while_challenge_pending(SUPPLY_INTERVAL - SUPPLY_BEE_DELAY, random_astroids)
-		if not is_inside_tree():
-			return
+func _mixed_drops_time_limit() -> float:
+	return PRACTICE_MIXED_DROP_SECONDS
 
 
 ## Bomb rings fall through and leave instead of waiting to be destroyed.

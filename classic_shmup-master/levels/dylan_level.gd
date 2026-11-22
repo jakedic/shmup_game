@@ -184,9 +184,14 @@ func _wave_12() -> void:
 	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.9, "sway_width": 55.0, "sway_time": 2, "fall_speed": 30.0, "start_delay": 11.4})
 	spawn_hive_squad_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": 0.5, "start_delay": 12})
 
-# Wave 4 - the end-of-level miniboss (see enemies/yellow_miniboss.gd).
+# Final wave - the badger boss (enemies/boss_badger.tscn). Same spawn as
+# levels/boss_test.gd: the boss brings its own conveyor-belt arena, scoring
+# and adds, so the level just drops it in. Once the head dies, the normal
+# "all enemies gone" check ends the level.
 func _wave_boss() -> void:
-	_spawn_boss_wave()
+	var boss = BOSS_BADGER.instantiate()
+	add_child(boss)
+	boss.start()
 
 
 func _ready() -> void:
@@ -195,6 +200,5 @@ func _ready() -> void:
 		"next_level": "res://levels/level_1.tscn"
 	}
 	waves = [ _wave_1, _wave_2, _wave_3, _wave_4, _wave_5, _wave_6,_wave_7, _wave_8, _wave_9, _wave_10, _wave_11, _wave_12, _wave_boss]
-	boss_scene = BEE_MINIBOSS
 	fallback_enemy = ENEMY_BEE
 	super._ready()

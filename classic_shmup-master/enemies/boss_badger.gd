@@ -84,8 +84,21 @@ signal defeated   # head is down and every part has finished dying
 @export var belt_scroll_speed: float = 15.0      # px/s the belts run normally (0 = still)
 @export var belts_drop_in: bool = true           # slide in from the top during the entrance (false = already there)
 # Idle float around the hover point (whole unit together).
-# x = 58 lets the head reach right up to the conveyor belts on both sides.
+# float_amplitude.x is the most it will ever drift sideways; the actual drift
+# is cut down so nothing overlaps the conveyor belts - with arms out it only
+# drifts far enough that the arms' outer edges stop just short of the belts,
+# and once only the head is left it can range wider. See _max_drift_x().
 @export var float_amplitude: Vector2 = Vector2(58.0, 5.0)
+# How far (px) the art reaches sideways from the boss's center - resting
+# arms (measured from the arm sprites) and the head alone.
+@export var arm_reach: float = 60.0
+@export var head_reach: float = 36.0
+# Gap (px) kept between the outermost part and a belt. Covers the belt's
+# shake jitter (shake_strength) too.
+@export var belt_clearance: float = 3.0
+# How fast (px/s) the drift range widens when the last arm dies, so the
+# head eases out instead of jumping.
+@export var drift_range_change_speed: float = 25.0
 @export var float_speed: Vector2 = Vector2(0.55, 1.3)   # radians/second
 # Tiny extra bob on each arm so they look like they're hovering, not glued
 # to the head. Set to 0 for perfectly rigid arms.
@@ -157,6 +170,7 @@ var _home := Vector2.ZERO
 var _floating := false
 var _t := 0.0          # drives the arm bob
 var _float_t := 0.0    # drives the drift; paused while the eyes are attacking
+var _drift_x := -1.0   # current sideways drift range (see _max_drift_x()); -1 = not set yet
 var _arm_rest := {}    # boss part -> its resting position in the scene
 var _is_defeated := false
 var _screen := Vector2.ZERO
@@ -284,6 +298,8 @@ func _process(delta: float) -> void:
 		return
 
 	if _floating:
+		var target_drift := _max_drift_x()
+		_drift_x = target_drift if _drift_x < 0.0 else move_toward(_drift_x, target_drift, drift_range_change_speed * delta)
 		# Last part standing? Once any eye laser in progress has finished,
 		# the head switches to its laser sweep.
 		if not _head_alone and _living_arms().is_empty() \
@@ -317,8 +333,23 @@ func _process(delta: float) -> void:
 
 
 func _float_position() -> Vector2:
-	return _home + Vector2(sin(_float_t * float_speed.x) * float_amplitude.x,
+	var drift_x: float = _drift_x if _drift_x >= 0.0 else _max_drift_x()
+	return _home + Vector2(sin(_float_t * float_speed.x) * drift_x,
 			sin(_float_t * float_speed.y) * float_amplitude.y)
+
+
+func _max_drift_x() -> float:
+	"""Widest sideways drift that keeps every part clear of the belts:
+	the room between the hover point and the nearer belt's inner edge,
+	minus how far the widest living part reaches, minus belt_clearance.
+	Never more than float_amplitude.x."""
+	var limits := Vector2(0.0, _screen.x)
+	var arena = get_tree().get_first_node_in_group("arena_bounds")
+	if arena and arena.has_method("get_inner_x_limits"):
+		limits = arena.get_inner_x_limits()
+	var reach: float = arm_reach if not _living_arms().is_empty() else head_reach
+	var room: float = minf(_home.x - limits.x, limits.y - _home.x) - reach - belt_clearance
+	return clampf(room, 0.0, float_amplitude.x)
 
 
 func _on_head_died(_value: int) -> void:
