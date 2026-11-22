@@ -37,7 +37,7 @@
 #   5b     jump on bubbles: destroy 2 armored medium astroids by jumping on
 #          a bubble next to them
 #   5c     set off both bombs with Penetrator Rounds (combine two bubbles)
-#          without taking any damage
+#          without getting hurt by a bomb blast
 #   6      make it to the end without losing all your health
 #   7      (outro - no challenge)
 extends SquadWaveLevel
@@ -70,7 +70,9 @@ func ask(text: String, choices: Array, options: Dictionary = {}) -> int:
 #   "fail_line"   - OPTIONAL - Red Frog's line the moment it's failed
 #   "retry_line"  - OPTIONAL - Red Frog's line just before the wave repeats
 #   "no_damage"   - OPTIONAL - true = taking any damage fails the challenge
-#                   (on top of whatever its kind asks for). Wave 5c uses it.
+#                   (on top of whatever its kind asks for).
+#   "no_bomb_damage" - OPTIONAL - true = getting hurt by a bomb blast fails
+#                   the challenge (other hits don't). Wave 5c uses it.
 const CHALLENGE_SURVIVE := "survive"            # don't lose all your health - passes when the wave ends
 const CHALLENGE_MAX_HITS := "max_hits"          # get hit fewer than `target` times - passes when the wave ends
 const CHALLENGE_DESTROY_ASTROIDS := "astroids"  # destroy `target` astroids (gray bees don't count)
@@ -377,6 +379,11 @@ func _on_player_shield_changed(_max_shield: int, current: int) -> void:
 	if before < 0 or current >= before:
 		return   # a heal, not a hit
 	if _challenge_state == ChallengeState.PENDING and _challenge.get("no_damage", false):
+		_fail_challenge()
+		return
+	# BombEnemy.BlastFx tags the player with this meta for the length of its hit.
+	if _challenge_state == ChallengeState.PENDING and _challenge.get("no_bomb_damage", false) \
+			and player and player.get_meta("damage_source", "") == "bomb_blast":
 		_fail_challenge()
 		return
 	if _challenge_pending(CHALLENGE_MAX_HITS):
@@ -1241,11 +1248,11 @@ func _wave_5c() -> void:
 	begin_challenge({
 		"title": "Using Bubbles: Combine",
 		"text": "Combine two bubbles to get a permanent buff.",
-		"challenge": "Destroy both bombs with Penetrator Rounds without taking damage",
+		"challenge": "Destroy both bombs with Penetrator Rounds without taking damage from a bomb",
 		"kind": CHALLENGE_BOMBS,
 		"target": WAVE_5C_BOMB_RINGS.size(),
 		"method": BOMB_METHOD_COMBINE,
-		"no_damage": true,   # any hit fails it too
+		"no_bomb_damage": true,   # getting caught in a bomb blast fails it too (other hits don't)
 		"fail_line": "Ouch. Looks like that hurt.",
 		"retry_line": "Dang even more mines. Don't know what's more of a minefield, this or a conversation with accounting?",
 	})

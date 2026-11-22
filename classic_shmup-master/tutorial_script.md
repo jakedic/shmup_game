@@ -219,7 +219,7 @@ Speakers: **RED FROG** (the examiner) and **FROG** (the player).
 
 **[Card: Using Bubbles: Combine]** *Combine two bubbles to get a permanent buff.*
 
-*Challenge: "Destroy all 3 bombs with Penetrator Rounds." Same bomb rings. There's no success line.*
+*Challenge: "Destroy both bombs with Penetrator Rounds without taking damage from a bomb." Two bomb rings (left and right). Getting caught in a bomb blast fails it; other hits don't. There's no success line.*
 
 **Fail line [side]:**
 **RED FROG:** Nope. Combine two bubbles, then shoot through the ring.

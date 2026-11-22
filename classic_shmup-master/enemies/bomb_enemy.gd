@@ -113,7 +113,12 @@ class BlastFx extends Node2D:
 		if PlayerHealth.is_invincible(player):
 			return
 		_hit_player = true
+		# Tag the hit so listeners (e.g. tutorial wave 5c's challenge) can tell
+		# bomb damage apart from other hits. shield_changed fires during
+		# take_damage(), so the tag is only needed for this one call.
+		player.set_meta("damage_source", "bomb_blast")
 		player.take_damage(player_damage)
+		player.remove_meta("damage_source")
 
 	func _draw() -> void:
 		if _t < DURATION:
