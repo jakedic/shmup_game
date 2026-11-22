@@ -138,7 +138,7 @@ func _wave_10() -> void:
 	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.7, "sway_width": 55.0, "sway_time": 2, "fall_speed": 20.0})
 	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.9, "sway_width": 55.0, "sway_time": 2, "fall_speed": 20.0})
 
-func _wave_12() -> void:
+func _wave_11() -> void:
 	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.3, "sway_width": 55.0, "sway_time": 2, "fall_speed": 35.0, "start_delay": 2})
 	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.5, "sway_width": 55.0, "sway_time": 2, "fall_speed": 35.0, "start_delay": 2})
 	spawn_flower_wave({"enemy": FLOWER, "start_percent": 0.7, "sway_width": 55.0, "sway_time": 2, "fall_speed": 35.0, "start_delay": 2})
@@ -157,7 +157,7 @@ func _wave_12() -> void:
 	spawn_hive_squad_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": 0.2, "start_delay": 9})
 	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": 0.5,"start_delay": 11})
 
-func _wave_11() -> void:
+func _wave_12() -> void:
 	spawn_drift_wave({"enemy": ASTROID_MEDIUM, "start_side": Side.TOP, "start_percent": 0.2, "end_side": Side.BOTTOM, "end_percent": 0.2, "speed": 80})
 	spawn_drift_wave({"enemy": ASTROID_MEDIUM, "start_side": Side.TOP, "start_percent": 0.8, "end_side": Side.BOTTOM, "end_percent": 0.8, "speed": 80})
 	spawn_hive_wave({"enemy": ENEMY_HIVE, "start_side": Side.TOP, "start_percent": 0.5, "end_side": Side.BOTTOM, "end_percent": 0.5})
