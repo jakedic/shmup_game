@@ -1,0 +1,45 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://enemies/boss_rainbow_astroid.gd" id="1_rb"]
+[ext_resource type="Script" path="res://enemies/boss_part.gd" id="2_rb"]
+[ext_resource type="Texture2D" path="res://Art assets/medium astroid 1.png" id="3_rb"]
+[ext_resource type="Shader" path="res://enemies/rainbow.gdshader" id="4_rb"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_rainbow"]
+shader = ExtResource("4_rb")
+
+[node name="BossRainbowAstroid" type="Node2D"]
+script = ExtResource("1_rb")
+
+[node name="Core" type="Area2D" parent="." groups=["enemies"]]
+collision_layer = 3
+collision_mask = 3
+script = ExtResource("2_rb")
+enemy_name = "Rainbow Astroid"
+max_health = 60
+score_value = 300
+can_dive = false
+follow_anchor_enabled = false
+can_shoot = false
+health_bar_offset = Vector2(0, -36)
+health_bar_width = 34.0
+big_death = true
+explosion_diameter = 40.0
+
+[node name="Sprite2D" type="Sprite2D" parent="Core"]
+material = SubResource("ShaderMaterial_rainbow")
+scale = Vector2(0.10944, 0.10944)
+texture = ExtResource("3_rb")
+region_enabled = true
+region_rect = Rect2(669, 554, 731, 534)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Core"]
+polygon = PackedVector2Array(35.952, -12.914, 31.682, -17.182, 16.8, -22.326, 8.482, -28.344, -14.72, -23.53, -23.474, -18.714, -36.826, -6.348, -38.906, 11.6, -32.886, 18.824, -17.456, 26.266, -9.794, 28.236, -2.134, 27.47, 27.196, 16.306, 34.09, 8.318, 37.92, 7.224, 38.906, 2.298, 35.294, -2.408)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Core"]
+
+[node name="MoveTimer" type="Timer" parent="Core"]
+one_shot = true
+
+[node name="ShootTimer" type="Timer" parent="Core"]
+one_shot = true

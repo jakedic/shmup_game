@@ -3,24 +3,25 @@
 # Scratch level for small, one-off tests. (The full tutorial practice run that
 # used to live here moved to levels/level_0.gd on 2026-11-06.)
 #
-# CURRENT TEST: one wave of the tutorial on its own - see _test_wave() below,
-# which runs the real wave function from levels/tutorial.gd (same dialogue,
-# cards, challenge and spawns). Edit the wave in tutorial.gd and it changes
-# here too.
+# CURRENT TEST: the rainbow astroid boss on its own
+# (enemies/boss_rainbow_astroid.tscn - all its moves and timings are in
+# enemies/boss_rainbow_astroid.gd). Beat it and the level ends (back to the
+# Test menu). Same boss that ends level_0.
 #
-# Waves played through so far:
+# Tests run here so far:
 #   3b  Bubbles (absorb the 3 green bubbles)          - done 2026-11-06
-#   5a  Using Bubbles: Shoot (cosmic storm)           - CURRENT
-#       (was "Using Bubbles: Jump" with bomb rings until 2026-11-06)
+#   5a  Using Bubbles: Shoot (cosmic storm)
+#   5b  Using Bubbles: Jump (armored mediums)
+#   Rainbow astroid boss                              - CURRENT (2026-11-24)
 #
-# Differences from playing it inside the tutorial:
-#   - You start already in the gray form (as if you'd just absorbed a gray
-#     bee), so you have a bubble to shoot right away. Set START_TRANSFORMED to
-#     false to start untransformed and earn it from the supply drops instead.
-#   - It's the only wave. Fail the challenge and it replays; finish it and the
-#     level ends (back to the Test menu).
+# To go back to testing a tutorial wave, point _test_wave() at it again
+# (e.g. `await _wave_5b()`).
 extends TutorialLevel
 
+const BOSS_RAINBOW_ASTROID := preload("res://enemies/boss_rainbow_astroid.tscn")
+
+# Start already in the gray form (as if you'd just absorbed a gray bee) -
+# only used if _test_wave() calls _start_in_gray_form().
 const START_TRANSFORMED := true
 
 
@@ -30,9 +31,12 @@ func _ready() -> void:
 	max_waves = waves.size()
 
 
-## Swap the wave call here to test a different one (e.g. _wave_3b, _wave_5b).
 func _test_wave() -> void:
-	await _wave_5b()
+	_set_abilities(true, true, true)   # shoot, jump and absorb all on
+	clear_challenge()                  # no mission panel for the boss
+	var boss = BOSS_RAINBOW_ASTROID.instantiate()
+	add_child(boss)
+	boss.start()
 
 
 ## Same end result as absorbing a gray bee, minus the beam / hitstop.

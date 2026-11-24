@@ -69,14 +69,14 @@ var status_effects: Dictionary = {}
 # listener can tell HOW it was killed (levels/tutorial.gd's bomb challenges).
 var death_context: Dictionary = {}
 
-# ===== ARMOR (gray outline) =====
+# ===== ARMOR (blue outline) =====
 # Each point of armor ignores 1 damage from every hit: armor 1 turns a 3-damage
-# shot into 2 and a 1-damage shot into nothing. Shown as a gray outline around
+# shot into 2 and a 1-damage shot into nothing. Shown as a blue outline around
 # the enemy - thin for 1 armor, thicker for 2 (see ARMOR_OUTLINE_WIDTHS).
 # Set it in the scene's inspector, or from level code with set_armor() / the
 # "armor" field on spawn configs (e.g. spawn_drift_wave in squad_wave_level.gd).
 @export var armor: int = 0
-const ARMOR_OUTLINE_COLOR := Color(0.62, 0.62, 0.66, 1.0)
+const ARMOR_OUTLINE_COLOR := Color(0.3, 0.6, 1.0, 1.0)   # blue (was gray until 2026-11-24)
 # Outline thickness (play-area px) per armor level. Armor above the last entry
 # uses the last entry.
 const ARMOR_OUTLINE_WIDTHS := [0.0, 1.0, 2.0]

@@ -3,7 +3,7 @@ class_name EnemyOutline
 
 ## A solid-color border hugging an enemy's sprite. It's the visual half of
 ## the "outline modifiers" system: an outline tells the player the enemy has
-## some extra attribute. Right now that's only armor (gray, see
+## some extra attribute. Right now that's only armor (blue, see
 ## BaseEnemy.set_armor()), but any future outline type can reuse this node
 ## with its own color/width.
 ##
@@ -21,7 +21,7 @@ class_name EnemyOutline
 ## with the enemy.
 
 ## Border color.
-@export var outline_color: Color = Color(0.62, 0.62, 0.66, 1.0)
+@export var outline_color: Color = Color(0.3, 0.6, 1.0, 1.0)   # armor blue
 ## Border thickness in play-area pixels (the 240x320 game screen).
 @export var width: float = 1.0
 ## The sprite to outline. Empty = the enemy's first Sprite2D/AnimatedSprite2D.
@@ -78,8 +78,21 @@ func _find_target() -> void:
 				_target = c
 				break
 	# Draw behind the sprite: sit just before it among the enemy's children.
+	# Done deferred (the parent may still be setting up its children), and the
+	# sprite's index is looked up THEN, not now - if another child is removed
+	# in between (e.g. an old outline being swapped out), an index taken now
+	# would be stale and could put this outline on top of the sprite, covering
+	# the whole enemy in the outline color.
 	if _target and _target.get_parent() == get_parent():
-		get_parent().move_child.call_deferred(self, _target.get_index())
+		_move_behind_target.call_deferred()
+
+
+func _move_behind_target() -> void:
+	if not is_instance_valid(_target) or _target.get_parent() != get_parent():
+		return
+	var t := _target.get_index()
+	if get_index() > t:
+		get_parent().move_child(self, t)
 
 
 func _build_offsets() -> void:

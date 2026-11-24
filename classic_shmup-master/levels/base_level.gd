@@ -546,7 +546,7 @@ func spawn_astroid(config: Dictionary) -> void:
 	"end" - Vector2 that sets its direction (it keeps traveling straight
 	past this point - it doesn't stop there)
 	"speed" - how fast it travels, in pixels/second
-	"armor" - OPTIONAL - armor points (gray outline), see base_enemy.gd
+	"armor" - OPTIONAL - armor points (blue outline), see base_enemy.gd
 	"hold_at_y" - OPTIONAL - y (px) where it stops and waits to be killed
 	"group" - OPTIONAL - node group to add it to (so a level can find it later)
 	Pushes a clear error (and skips the spawn) instead of letting Godot throw
